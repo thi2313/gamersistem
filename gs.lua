@@ -22,13 +22,13 @@ local Window = Rayfield:CreateWindow({
        RememberJoins = true
     },
  
-    KeySystem = false,
+    KeySystem = true,
     KeySettings = {
-       Title = "sistem key",
+       Title = "Untitled",
        Subtitle = "Key System",
        Note = "No method of obtaining the key is provided",
        FileName = "Key",
-       SaveKey = true,
+       SaveKey = false,
        GrabKeyFromSite = false,
        Key = {"Hello"}
     }
@@ -65,7 +65,7 @@ local bodyVelocity = nil
 -- ⚙️ Slider para velocidad de vuelo
 PlayerTab:CreateSlider({
     Name = "fly speed",
-    Range = {10, 200},
+    Range = {10, 300},
     Increment = 5,
     Suffix = "speed",
     CurrentValue = 50,
@@ -170,3 +170,69 @@ task.spawn(function()
         task.wait(0.5) -- revisa cada medio segundo
     end
 end)
+
+-- Crear un nuevo tab para los cofres
+local ChestsTab = Window:CreateTab("Chests", 4483362458)
+
+-- 💎 Recorrido automático por cofres de diamante del Primer SEA
+local chestLocations_Sea1 = {
+    Vector3.new(1050, 20, -1310),  -- Starter Island
+    Vector3.new(-540, 20, -1530),  -- Jungle
+    Vector3.new(-4260, 20, 500),   -- Desert Island
+    Vector3.new(-5650, 20, 1700),  -- Skylands
+    Vector3.new(2520, 30, -4960),  -- Marine Fortress
+}
+
+ChestsTab:CreateButton({
+    Name = "Chest Diamond 1 SEA",
+    Callback = function()
+        local character = game.Players.LocalPlayer.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        for _, pos in ipairs(chestLocations_Sea1) do
+            character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+            task.wait(2.5)
+        end
+    end
+})
+
+-- 💎 Recorrido automático por cofres de diamante del Segundo SEA
+local chestLocations_Sea2 = {
+    Vector3.new(5443, 602, 752),    -- Kingdom of Rose
+    Vector3.new(5980, 11, -4666),   -- Green Zone
+    Vector3.new(-4899, 843, -1455), -- Snow Mountain
+    Vector3.new(-1006, 198, -4972), -- Ice Castle
+    Vector3.new(-5958, 15, -5074),  -- Forgotten Island
+}
+
+ChestsTab:CreateButton({
+    Name = "Chest Diamond 2 SEA",
+    Callback = function()
+        local character = game.Players.LocalPlayer.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        for _, pos in ipairs(chestLocations_Sea2) do
+            character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+            task.wait(2.5)
+        end
+    end
+})
+
+-- 💎 Recorrido automático por cofres de diamante del Tercer SEA
+local chestLocations_Sea3 = {
+    Vector3.new(-5091, 316, -2828), -- Port Town
+    Vector3.new(-12486, 373, -7647),-- Hydra Island
+    Vector3.new(-2844, 105, -10257),-- Great Tree
+    Vector3.new(-11923, 334, -8849),-- Floating Turtle
+    Vector3.new(-12439, 377, -7237),-- Hydra Island
+}
+
+ChestsTab:CreateButton({
+    Name = "Chest Diamond 3 SEA",
+    Callback = function()
+        local character = game.Players.LocalPlayer.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        for _, pos in ipairs(chestLocations_Sea3) do
+            character.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+            task.wait(2.5)
+        end
+    end
+})
