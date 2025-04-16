@@ -1,4 +1,4 @@
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/thi2313/gamersistem/refs/heads/main/gs.lua'))()
 
 local Window = Rayfield:CreateWindow({
     Name = "gamer sistem",
@@ -7,7 +7,7 @@ local Window = Rayfield:CreateWindow({
     LoadingSubtitle = "by th2",
     Theme = "Default",
  
-    DisableRayfieldPrompts = false,
+    DisableRayfieldPrompts = true,
     DisableBuildWarnings = false,
  
     ConfigurationSaving = {
@@ -22,9 +22,9 @@ local Window = Rayfield:CreateWindow({
        RememberJoins = true
     },
  
-    KeySystem = false,
+    KeySystem = true,
     KeySettings = {
-       Title = "Untitled",
+       Title = "sistem key",
        Subtitle = "Key System",
        Note = "No method of obtaining the key is provided",
        FileName = "Key",
