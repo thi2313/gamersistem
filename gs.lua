@@ -169,122 +169,43 @@ AutoFarmTab:CreateSlider({
     end,
 })
 
--- AutoFarm que detecta nivel del jugador y vuela hacia las islas (Sea 1, Sea 2, y Sea 3)
+-- Sistema de Kill Aura para dañar entidades cercanas dentro de un rango de 10 studs
 AutoFarmTab:CreateSlider({
-    Name = "Velocidad de vuelo (1 a 100)",
+    Name = "Velocidad de Kill Aura (1 a 100)",
     Range = {1, 100},
     Increment = 1,
     Suffix = "Velocidad",
     CurrentValue = 50,
-    Flag = "FlySpeed",
+    Flag = "AuraSpeed",
     Callback = function(Value)
-        flightSpeed = Value
+        auraSpeed = Value
     end,
 })
 
 AutoFarmTab:CreateButton({
-    Name = "Activar AutoFarm Inteligente (Volando)",
+    Name = "Activar Kill Aura Automático",
     Callback = function()
         local char = player.Character or player.CharacterAdded:Wait()
-        local level = player.Data.Level.Value
         local humanoidRootPart = char:WaitForChild("HumanoidRootPart")
 
-        -- Definición de las ubicaciones para Sea 1, Sea 2 y Sea 3
-        local questLocations = {
-            -- Sea 1
-            {Min = 0, Max = 1499, Pos = Vector3.new(1054, 16, 1327)},  -- Ciudad del Medio
-            {Min = 0, Max = 1499, Pos = Vector3.new(1124, 19, 1285)},  -- Otra ubicación en Sea 1
-            {Min = 0, Max = 1499, Pos = Vector3.new(991, 25, 1383)},   -- Otra ubicación en Sea 1
-
-            -- Sea 2
-            {Min = 1500, Max = 1749, Pos = Vector3.new(-392, 349, 1829)},  -- Pueblo de Rosas
-            {Min = 1500, Max = 1749, Pos = Vector3.new(-452, 350, 1780)},  -- Otra ubicación en Sea 2
-            {Min = 1500, Max = 1749, Pos = Vector3.new(-330, 355, 1880)},  -- Otra ubicación en Sea 2
-
-            -- Sea 3 (ya incluido)
-            {Min = 1750, Max = 1999, Pos = Vector3.new(-289, 52, 5346)},   -- Port Town
-            {Min = 1750, Max = 1999, Pos = Vector3.new(5227, 6, -1452)},   -- Hydra Island
-            {Min = 1750, Max = 1999, Pos = Vector3.new(2178, 25, -6718)},  -- Great Tree
-            {Min = 1750, Max = 1999, Pos = Vector3.new(-10379, 332, -8748)}, -- Floating Turtle
-            {Min = 1750, Max = 1999, Pos = Vector3.new(-9507, 142, 5566)},  -- Haunted Castle
-            {Min = 1750, Max = 1999, Pos = Vector3.new(-11575, 47, -5919)}  -- Sea of Treats
-        }
-
-        for _, zone in ipairs(questLocations) do
-            if level >= zone.Min and level <= zone.Max then
-                -- Iniciar vuelo hacia la ubicación seleccionada
-                local destination = zone.Pos
-                local direction = (destination - humanoidRootPart.Position).unit
-                local bodyVelocity = Instance.new("BodyVelocity")
-                bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-                bodyVelocity.P = 1250
-                bodyVelocity.Velocity = direction * flightSpeed
-                bodyVelocity.Parent = humanoidRootPart
-
-                -- Seguir volando hasta llegar a la ubicación
-                game:GetService("RunService").Heartbeat:Connect(function()
-                    if (humanoidRootPart.Position - destination).magnitude <= 5 then
-                        bodyVelocity:Destroy()  -- Detener vuelo cuando llegue al destino
+        -- Función de Kill Aura
+        local function applyKillAura()
+            -- Buscar todas las entidades cercanas dentro de 10 studs
+            for _, entity in pairs(game.Workspace:GetChildren()) do
+                if entity:IsA("Model") and entity:FindFirstChild("Humanoid") then
+                    local humanoid = entity.Humanoid
+                    if (humanoidRootPart.Position - entity.PrimaryPart.Position).magnitude <= 10 then
+                        -- Si está dentro del rango de 10 studs, aplicar daño
+                        local damage = 10  -- Daño que se aplica a cada entidad
+                        humanoid:TakeDamage(damage)
                     end
-                end)
-                break
+                end
             end
         end
+
+        -- Ejecutar la kill aura continuamente
+        game:GetService("RunService").Heartbeat:Connect(function()
+            applyKillAura()
+        end)
     end
 })
-
-
--- Botones para ir a islas principales según el Sea
-AutoFarmTab:CreateButton({
-    Name = "Ir a Ciudad del Medio (Sea 1)",
-    Callback = function()
-        player.Character.HumanoidRootPart.CFrame = CFrame.new(1054, 16, 1327)
-    end
-})
-
-AutoFarmTab:CreateButton({
-    Name = "Ir a Pueblo de Rosas (Sea 2)",
-    Callback = function()
-        player.Character.HumanoidRootPart.CFrame = CFrame.new(-392, 349, 1829)
-    end
-})
-
-AutoFarmTab:CreateButton({
-    Name = "Ir al Castillo del Mar (Sea 3)",
-    Callback = function()
-        player.Character.HumanoidRootPart.CFrame = CFrame.new(-5072, 314, -3156)
-    end
-})
-
--- Cofres separados por Sea con ubicaciones reales
-local seaChests = {
-    Sea1Tab = {
-        Vector3.new(1054, 16, 1327),   -- Ciudad del Medio
-        Vector3.new(1124, 19, 1285),
-        Vector3.new(991, 25, 1383)
-    },
-    Sea2Tab = {
-        Vector3.new(-392, 349, 1829), -- Pueblo de Rosas
-        Vector3.new(-452, 350, 1780),
-        Vector3.new(-330, 355, 1880)
-    },
-    Sea3Tab = {
-        Vector3.new(-289, 52, 5346),    -- Port Town
-        Vector3.new(5227, 6, -1452),    -- Hydra Island
-        Vector3.new(2178, 25, -6718),   -- Great Tree
-        Vector3.new(-10379, 332, -8748),-- Floating Turtle
-        Vector3.new(-9507, 142, 5566),  -- Haunted Castle
-        Vector3.new(-11575, 47, -5919)  -- Sea of Treats
-    }
-}
-
-for tabName, positions in pairs(seaChests) do
-    for i, pos in ipairs(positions) do
-        _G[tabName]:CreateButton({
-            Name = "Chest Diamond "..i,
-            Callback = function()
-                player.Character.HumanoidRootPart.CFrame = CFrame.new(pos)
-            end
-        })
-    end
-end
