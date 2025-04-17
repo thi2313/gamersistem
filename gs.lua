@@ -126,45 +126,49 @@ PlayerTab:CreateButton({
     end
 })
 
--- Sistema de Kill Aura para dañar entidades cercanas dentro de un rango de 10 studs
-AutoFarmTab:CreateSlider({
-    Name = "Velocidad de Kill Aura (1 a 100)",
-    Range = {1, 100},
-    Increment = 1,
-    Suffix = "Velocidad",
-    CurrentValue = 50,
-    Flag = "AuraSpeed",
-    Callback = function(Value)
-        auraSpeed = Value
-    end,
-})
-
+-- AutoFarm que detecta enemigos cercanos y los ataca dentro de un rango de 20 studs
 AutoFarmTab:CreateButton({
-    Name = "Activar Kill Aura Automático",
+    Name = "Activar AutoFarm de Ataque (Rango 20 studs)",
     Callback = function()
         local char = player.Character or player.CharacterAdded:Wait()
         local humanoidRootPart = char:WaitForChild("HumanoidRootPart")
-
-        -- Función de Kill Aura
-        local function applyKillAura()
-            -- Buscar todos los objetos en el Workspace
-            for _, entity in pairs(workspace:GetChildren()) do
-                -- Asegurarnos de que la entidad tiene un Humanoid y está a 10 studs
-                if entity:IsA("Model") and entity:FindFirstChild("Humanoid") then
-                    local humanoid = entity.Humanoid
-                    local distance = (humanoidRootPart.Position - entity.PrimaryPart.Position).Magnitude
-                    if distance <= 10 then
-                        -- Si está dentro del rango de 10 studs, aplicar daño
-                        local damage = 10  -- Daño que se aplica a cada entidad
-                        humanoid:TakeDamage(damage)
+        local range = 20  -- Rango de ataque en studs
+        local target = nil
+        
+        -- Función para buscar enemigos cercanos
+        local function findTarget()
+            for _, entity in pairs(workspace:FindPartsInRegion3(humanoidRootPart.Position - Vector3.new(range, range, range), humanoidRootPart.Position + Vector3.new(range, range, range), nil)) do
+                local character = entity.Parent
+                if character and character:FindFirstChild("Humanoid") then
+                    local humanoid = character:FindFirstChild("Humanoid")
+                    if humanoid and humanoid.Health > 0 and humanoid.Parent ~= player.Character then
+                        target = character
+                        return target
                     end
+                end
+            end
+            return nil
+        end
+
+        -- Función para atacar al enemigo
+        local function attackTarget()
+            if target then
+                -- Aquí puedes agregar el código para atacar a `target`, por ejemplo, utilizando una herramienta o animación
+                local tool = player.Backpack:FindFirstChildOfClass("Tool")
+                if tool then
+                    tool.Parent = player.Character
+                    tool.Activated:Fire()  -- Simula un ataque usando la herramienta
                 end
             end
         end
 
-        -- Ejecutar la kill aura continuamente a la velocidad definida
-        game:GetService("RunService").Heartbeat:Connect(function()
-            applyKillAura()
-        end)
+        -- Hacer que el jugador ataque constantemente
+        while true do
+            target = findTarget()
+            if target then
+                attackTarget()
+            end
+            wait(0.1)  -- Revisa cada 0.1 segundos
+        end
     end
 })
