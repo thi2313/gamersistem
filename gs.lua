@@ -126,15 +126,17 @@ PlayerTab:CreateButton({
     end
 })
 
--- AutoFarm que detecta enemigos cercanos y los ataca dentro de un rango de 20 studs
+-- Script para activar el AutoFarm de Ataque dentro de un rango de 20 studs en Blox Fruits
+
 AutoFarmTab:CreateButton({
     Name = "Activar AutoFarm de Ataque (Rango 20 studs)",
     Callback = function()
+        local player = game.Players.LocalPlayer
         local char = player.Character or player.CharacterAdded:Wait()
         local humanoidRootPart = char:WaitForChild("HumanoidRootPart")
         local range = 20  -- Rango de ataque en studs
         local target = nil
-        
+
         -- Función para buscar enemigos cercanos
         local function findTarget()
             for _, entity in pairs(workspace:FindPartsInRegion3(humanoidRootPart.Position - Vector3.new(range, range, range), humanoidRootPart.Position + Vector3.new(range, range, range), nil)) do
@@ -153,22 +155,23 @@ AutoFarmTab:CreateButton({
         -- Función para atacar al enemigo
         local function attackTarget()
             if target then
-                -- Aquí puedes agregar el código para atacar a `target`, por ejemplo, utilizando una herramienta o animación
+                -- Buscar una herramienta activa para atacar
                 local tool = player.Backpack:FindFirstChildOfClass("Tool")
                 if tool then
                     tool.Parent = player.Character
-                    tool.Activated:Fire()  -- Simula un ataque usando la herramienta
+                    -- Activar la herramienta
+                    tool.Activated:Fire()
                 end
             end
         end
 
         -- Hacer que el jugador ataque constantemente
-        while true do
+        local runService = game:GetService("RunService")
+        runService.Heartbeat:Connect(function()
             target = findTarget()
             if target then
                 attackTarget()
             end
-            wait(0.1)  -- Revisa cada 0.1 segundos
-        end
+        end)
     end
 })
