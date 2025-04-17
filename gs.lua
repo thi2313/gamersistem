@@ -148,35 +148,3 @@ PlayerTab:CreateButton({
                 end
             end
         })
-        
-        local InsertService = game:GetService("InsertService")
-local Players = game:GetService("Players")
-local localPlayer = Players.LocalPlayer
-
-UtilityTab:CreateInput({
-    Name = "Añadir Accesorio por ID",
-    PlaceholderText = "Poné la ID del accesorio",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(inputId)
-        local assetId = tonumber(inputId)
-        if not assetId then
-            warn("ID inválida.")
-            return
-        end
-
-        local success, accessoryModel = pcall(function()
-            return InsertService:LoadAsset(assetId)
-        end)
-
-        if success and accessoryModel then
-            local accessory = accessoryModel:FindFirstChildWhichIsA("Accessory") or accessoryModel:FindFirstChildOfClass("Hat")
-            if accessory then
-                accessory.Parent = localPlayer.Character
-            else
-                warn("No se encontró accesorio dentro del modelo.")
-            end
-        else
-            warn("No se pudo cargar el accesorio con esa ID.")
-        end
-    end
-})
