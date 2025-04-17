@@ -8,27 +8,29 @@ local Window = Rayfield:CreateWindow({
     LoadingTitle = "sistem gamer",
     LoadingSubtitle = "by th2",
     Theme = "Default",
+    
     DisableRayfieldPrompts = false,
     DisableBuildWarnings = false,
+    
     ConfigurationSaving = {
        Enabled = true,
        FolderName = nil,
        FileName = "Big Hub"
     },
     Discord = {
-       Enabled = false,
-       Invite = "noinvitelink",
+       Enabled = true,
+       Invite = "https://discord.gg/MXsWnqwg",
        RememberJoins = true
     },
     KeySystem = true,
     KeySettings = {
-       Title = "Untitled",
-       Subtitle = "Key System",
-       Note = "No method of obtaining the key is provided",
+       Title = "Gamer Sistem",
+       Subtitle = "Gamer System Key",
+       Note = "obtain the key in https://discord.gg/MXsWnqwg",
        FileName = "Key",
        SaveKey = false,
        GrabKeyFromSite = false,
-       Key = {"Hello"}
+       Key = {"gamersistem1254"}
     }
 })
 
