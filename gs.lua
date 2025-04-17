@@ -1,4 +1,5 @@
--- ⚙️ Inicio del sistema Rayfield y ventana principal
+-- Script con tabs separados para cofres del Sea 1, Sea 2 y Sea 3, incluyendo autofarm con detección de nivel
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -31,10 +32,13 @@ local Window = Rayfield:CreateWindow({
     }
 })
 
--- 🧍‍♂️ Tab de Player
 local PlayerTab = Window:CreateTab("Player", 4483362458)
+local AutoFarmTab = Window:CreateTab("AutoFarm", 4483362458)
+local Sea1Tab = Window:CreateTab("Sea 1 Chests", 4483362458)
+local Sea2Tab = Window:CreateTab("Sea 2 Chests", 4483362458)
+local Sea3Tab = Window:CreateTab("Sea 3 Chests", 4483362458)
 
--- ⚙️ Velocidad de caminar
+-- Walk speed slider
 PlayerTab:CreateSlider({
     Name = "walk speed",
     Range = {0, 100},
@@ -50,7 +54,7 @@ PlayerTab:CreateSlider({
     end,
 })
 
--- ✈️ Sistema de vuelo
+-- Fly system
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -122,80 +126,57 @@ PlayerTab:CreateButton({
     end
 })
 
--- 💎 Tab de cofres
-local ChestsTab = Window:CreateTab("Chests", 4483362458)
-
-local chests = {
-    [1] = Vector3.new(100, 50, 200),
-    [2] = Vector3.new(300, 50, 200),
-    [3] = Vector3.new(500, 50, 200)
-}
-
-for i = 1, 3 do
-    ChestsTab:CreateButton({
-        Name = "Chest Diamond " .. i,
-        Callback = function()
-            local player = game.Players.LocalPlayer
-            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                player.Character.HumanoidRootPart.CFrame = CFrame.new(chests[i])
-            end
-        end
-    })
-end
-
--- ⚔️ AutoFarm Tabs por Sea
-local AutoFarmMainTab = Window:CreateTab("AutoFarm", 4483362458)
-local AutoFarmFirstSea = AutoFarmMainTab:CreateSection("First Sea")
-local AutoFarmSecondSea = AutoFarmMainTab:CreateSection("Second Sea")
-local AutoFarmThirdSea = AutoFarmMainTab:CreateSection("Third Sea")
-
--- 📌 AutoFarm del Third Sea (solo ejemplo inicial)
-AutoFarmMainTab:CreateButton({
-    Name = "AutoFarm Tercera Sea",
-    SectionParent = AutoFarmThirdSea,
+-- AutoFarm que detecta nivel del jugador y selecciona misión automáticamente (versión simplificada)
+AutoFarmTab:CreateButton({
+    Name = "Activar AutoFarm Inteligente",
     Callback = function()
-        local character = player.Character or player.CharacterAdded:Wait()
-        local hrp = character:WaitForChild("HumanoidRootPart")
+        local char = player.Character or player.CharacterAdded:Wait()
         local level = player.Data.Level.Value
 
-        local questNpcName, questLocation, enemyName = "", Vector3.zero, ""
+        local questLocations = {
+            {Min = 1500, Max = 1749, Pos = Vector3.new(-289, 52, 5346)}, -- Port Town
+            {Min = 1750, Max = 1999, Pos = Vector3.new(5227, 6, -1452)}, -- Hydra Island
+            {Min = 2000, Max = 2249, Pos = Vector3.new(2178, 25, -6718)}, -- Great Tree
+            {Min = 2250, Max = 2499, Pos = Vector3.new(-10379, 332, -8748)}, -- Floating Turtle
+            {Min = 2500, Max = 2749, Pos = Vector3.new(-9507, 142, 5566)}, -- Haunted Castle
+            {Min = 2750, Max = 3000, Pos = Vector3.new(-11575, 47, -5919)}  -- Sea of Treats
+        }
 
-        if level >= 1500 and level < 1575 then
-            questNpcName = "Pirate Port Quest Giver"
-            questLocation = Vector3.new(-5600, 100, 5900)
-            enemyName = "Pirate Recruit"
-        elseif level >= 1575 and level < 1700 then
-            questNpcName = "Castle Quest Giver"
-            questLocation = Vector3.new(-4800, 100, 6200)
-            enemyName = "Pirate Elite"
-        end
-
-        hrp.CFrame = CFrame.new(questLocation)
-        task.wait(2)
-
-        local npc = workspace:FindFirstChild(questNpcName)
-        if npc then
-            fireproximityprompt(npc.ProximityPrompt)
-        end
-
-        task.wait(2)
-        local function attackEnemies()
-            for _, mob in pairs(workspace.Enemies:GetChildren()) do
-                if mob.Name == enemyName and mob:FindFirstChild("HumanoidRootPart") then
-                    hrp.CFrame = mob.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
-                    local tool = player.Backpack:FindFirstChildOfClass("Tool")
-                    if tool then
-                        player.Character.Humanoid:EquipTool(tool)
-                        pcall(function() tool:Activate() end)
-                    end
-                    wait(1)
-                end
+        for _, zone in ipairs(questLocations) do
+            if level >= zone.Min and level <= zone.Max then
+                char:MoveTo(zone.Pos)
+                break
             end
-        end
-
-        while true do
-            attackEnemies()
-            wait(5)
         end
     end
 })
+
+-- Cofres separados por Sea (solo ejemplo con 3 por cada Sea)
+local seaChests = {
+    Sea1Tab = {
+        Vector3.new(100, 50, 200),
+        Vector3.new(300, 50, 250),
+        Vector3.new(500, 60, 300)
+    },
+    Sea2Tab = {
+        Vector3.new(600, 70, 400),
+        Vector3.new(800, 75, 500),
+        Vector3.new(1000, 80, 600)
+    },
+    Sea3Tab = {
+        Vector3.new(-289, 52, 5346),
+        Vector3.new(5227, 6, -1452),
+        Vector3.new(2178, 25, -6718)
+    }
+}
+
+for tabName, positions in pairs(seaChests) do
+    for i, pos in ipairs(positions) do
+        _G[tabName]:CreateButton({
+            Name = "Chest Diamond "..i,
+            Callback = function()
+                player.Character.HumanoidRootPart.CFrame = CFrame.new(pos)
+            end
+        })
+    end
+end
