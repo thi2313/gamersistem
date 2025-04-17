@@ -122,21 +122,6 @@ PlayerTab:CreateButton({
 })
 
 local UtilityTab = Window:CreateTab("Utilidades", 4483362458)
-PlayerTab:CreateButton({
-    Name = "Eliminar todas las Parts del mapa",
-    Callback = function()
-        local workspace = game:GetService("Workspace")
-
-        local count = 0
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and not obj:IsDescendantOf(game.Players.LocalPlayer.Character) then
-                obj:Destroy()
-                count += 1
-            end
-        end
-
-        print("Se eliminaron " .. count .. " Parts del mapa.")
-
         UtilityTab:CreateButton({
             Name = "Matar a todos (excepto yo)",
             Callback = function()
