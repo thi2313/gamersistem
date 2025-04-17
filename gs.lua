@@ -151,6 +151,28 @@ AutoFarmTab:CreateButton({
     end
 })
 
+-- Botones para ir a islas principales según el Sea
+AutoFarmTab:CreateButton({
+    Name = "Ir a Ciudad del Medio (Sea 1)",
+    Callback = function()
+        player.Character.HumanoidRootPart.CFrame = CFrame.new(1054, 16, 1327)
+    end
+})
+
+AutoFarmTab:CreateButton({
+    Name = "Ir a Pueblo de Rosas (Sea 2)",
+    Callback = function()
+        player.Character.HumanoidRootPart.CFrame = CFrame.new(-392, 349, 1829)
+    end
+})
+
+AutoFarmTab:CreateButton({
+    Name = "Ir al Castillo del Mar (Sea 3)",
+    Callback = function()
+        player.Character.HumanoidRootPart.CFrame = CFrame.new(-5072, 314, -3156)
+    end
+})
+
 -- Cofres separados por Sea (solo ejemplo con 3 por cada Sea)
 local seaChests = {
     Sea1Tab = {
