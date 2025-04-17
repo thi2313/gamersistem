@@ -1,3 +1,4 @@
+-- ⚙️ Inicio del sistema Rayfield y ventana principal
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -6,22 +7,18 @@ local Window = Rayfield:CreateWindow({
     LoadingTitle = "sistem gamer",
     LoadingSubtitle = "by th2",
     Theme = "Default",
- 
     DisableRayfieldPrompts = false,
     DisableBuildWarnings = false,
- 
     ConfigurationSaving = {
        Enabled = true,
        FolderName = nil,
        FileName = "Big Hub"
     },
- 
     Discord = {
        Enabled = false,
        Invite = "noinvitelink",
        RememberJoins = true
     },
- 
     KeySystem = true,
     KeySettings = {
        Title = "Untitled",
@@ -34,11 +31,10 @@ local Window = Rayfield:CreateWindow({
     }
 })
 
+-- 🧍‍♂️ Tab de Player
 local PlayerTab = Window:CreateTab("Player", 4483362458)
-local AutoFarmTab = Window:CreateTab("AutoFarm", 4483362458)
-local ChestsTab = Window:CreateTab("Chests", 4483362458) -- Tab para cofres
 
--- ✅ Slider de walk speed
+-- ⚙️ Velocidad de caminar
 PlayerTab:CreateSlider({
     Name = "walk speed",
     Range = {0, 100},
@@ -54,7 +50,7 @@ PlayerTab:CreateSlider({
     end,
 })
 
--- 🛫 Variables del sistema de vuelo
+-- ✈️ Sistema de vuelo
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -64,7 +60,6 @@ local flying = false
 local flightSpeed = 50
 local bodyVelocity = nil
 
--- ⚙️ Slider para velocidad de vuelo
 PlayerTab:CreateSlider({
     Name = "fly speed",
     Range = {10, 300},
@@ -77,7 +72,6 @@ PlayerTab:CreateSlider({
     end,
 })
 
--- 🛫 Botón para activar/desactivar vuelo
 PlayerTab:CreateButton({
     Name = "Activar/Desactivar Vuelo",
     Callback = function()
@@ -128,53 +122,80 @@ PlayerTab:CreateButton({
     end
 })
 
--- 🏆 AutoFarm y Kill Aura Automática (como antes)
-AutoFarmTab:CreateButton({
-    Name = "Activar AutoFarm",
-    Callback = function()
-        local autoFarmActive = true
-        spawn(function()
-            while autoFarmActive do
-                local target = nil
-                for _, enemy in pairs(workspace:GetChildren()) do
-                    if enemy:IsA("Model") and enemy:FindFirstChild("Humanoid") and enemy:FindFirstChild("HumanoidRootPart") and enemy ~= character then
-                        if (enemy.HumanoidRootPart.Position - character.HumanoidRootPart.Position).Magnitude <= 15 then
-                            target = enemy
-                            break
-                        end
-                    end
-                end
-                
-                if target then
-                    local tool = player.Backpack:FindFirstChildOfClass("Tool")
-                    if tool then
-                        player.Character.Humanoid:EquipTool(tool)
-                        pcall(function() tool:Activate() end)
-                    end
-                end
-                wait(1)
-            end
-        end)
-    end
-})
+-- 💎 Tab de cofres
+local ChestsTab = Window:CreateTab("Chests", 4483362458)
 
--- 💎 Teletransportarse a Cofres con numeración
 local chests = {
-    [1] = Vector3.new(100, 50, 200),  -- Ubicación de cofre 1
-    [2] = Vector3.new(300, 50, 200),  -- Ubicación de cofre 2
-    [3] = Vector3.new(500, 50, 200)   -- Ubicación de cofre 3
+    [1] = Vector3.new(100, 50, 200),
+    [2] = Vector3.new(300, 50, 200),
+    [3] = Vector3.new(500, 50, 200)
 }
 
--- Crear botones de teleportación para cada cofre en el tab "Chests"
 for i = 1, 3 do
     ChestsTab:CreateButton({
         Name = "Chest Diamond " .. i,
         Callback = function()
             local player = game.Players.LocalPlayer
             if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                -- Teletransportar al jugador a la ubicación del cofre correspondiente
                 player.Character.HumanoidRootPart.CFrame = CFrame.new(chests[i])
             end
         end
     })
 end
+
+-- ⚔️ AutoFarm Tabs por Sea
+local AutoFarmMainTab = Window:CreateTab("AutoFarm", 4483362458)
+local AutoFarmFirstSea = AutoFarmMainTab:CreateSection("First Sea")
+local AutoFarmSecondSea = AutoFarmMainTab:CreateSection("Second Sea")
+local AutoFarmThirdSea = AutoFarmMainTab:CreateSection("Third Sea")
+
+-- 📌 AutoFarm del Third Sea (solo ejemplo inicial)
+AutoFarmMainTab:CreateButton({
+    Name = "AutoFarm Tercera Sea",
+    SectionParent = AutoFarmThirdSea,
+    Callback = function()
+        local character = player.Character or player.CharacterAdded:Wait()
+        local hrp = character:WaitForChild("HumanoidRootPart")
+        local level = player.Data.Level.Value
+
+        local questNpcName, questLocation, enemyName = "", Vector3.zero, ""
+
+        if level >= 1500 and level < 1575 then
+            questNpcName = "Pirate Port Quest Giver"
+            questLocation = Vector3.new(-5600, 100, 5900)
+            enemyName = "Pirate Recruit"
+        elseif level >= 1575 and level < 1700 then
+            questNpcName = "Castle Quest Giver"
+            questLocation = Vector3.new(-4800, 100, 6200)
+            enemyName = "Pirate Elite"
+        end
+
+        hrp.CFrame = CFrame.new(questLocation)
+        task.wait(2)
+
+        local npc = workspace:FindFirstChild(questNpcName)
+        if npc then
+            fireproximityprompt(npc.ProximityPrompt)
+        end
+
+        task.wait(2)
+        local function attackEnemies()
+            for _, mob in pairs(workspace.Enemies:GetChildren()) do
+                if mob.Name == enemyName and mob:FindFirstChild("HumanoidRootPart") then
+                    hrp.CFrame = mob.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                    local tool = player.Backpack:FindFirstChildOfClass("Tool")
+                    if tool then
+                        player.Character.Humanoid:EquipTool(tool)
+                        pcall(function() tool:Activate() end)
+                    end
+                    wait(1)
+                end
+            end
+        end
+
+        while true do
+            attackEnemies()
+            wait(5)
+        end
+    end
+})
