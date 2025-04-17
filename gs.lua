@@ -155,12 +155,14 @@ AutoFarmTab:CreateButton({
         -- Función para atacar al enemigo
         local function attackTarget()
             if target then
-                -- Buscar una herramienta activa para atacar
+                -- Verificar si el jugador tiene una herramienta activa
                 local tool = player.Backpack:FindFirstChildOfClass("Tool")
                 if tool then
-                    tool.Parent = player.Character
-                    -- Activar la herramienta
-                    tool.Activated:Fire()
+                    -- Ejecutamos la acción de la herramienta (en lugar de `tool.Activated:Fire()`)
+                    if tool:FindFirstChild("Handle") then
+                        tool.Parent = player.Character  -- Colocamos la herramienta en el personaje
+                        tool:Activate()  -- Activamos la herramienta directamente
+                    end
                 end
             end
         end
