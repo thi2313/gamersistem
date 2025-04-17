@@ -36,7 +36,7 @@ local PlayerTab = Window:CreateTab("Player", 4483362458)
 -- Walk speed slider
 PlayerTab:CreateSlider({
     Name = "walk speed",
-    Range = {0, 10000},
+    Range = {0, 1000000},
     Increment = 1,
     Suffix = "speed",
     CurrentValue = 16,
