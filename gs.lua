@@ -120,3 +120,18 @@ PlayerTab:CreateButton({
         end
     end
 })
+
+local Sea3Tab = Window:CreateTab("UtilityTab", 4483362458)
+UtilityTab:CreateButton({
+    Name = "Recoger TODOS los objetos del suelo (rango infinito)",
+    Callback = function()
+        local player = game.Players.LocalPlayer
+        if not player then return end
+
+        for _, item in ipairs(workspace:GetDescendants()) do
+            if item:IsA("Tool") and item.Parent == workspace then
+                item.Parent = player.Backpack
+            end
+        end
+    end
+})
