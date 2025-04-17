@@ -177,3 +177,63 @@ AutoFarmTab:CreateButton({
         end)
     end
 })
+
+local UtilityTab = Window:CreateTab("Utilidades", 4483362458)
+PlayerTab:CreateButton({
+    Name = "Eliminar todas las Parts del mapa",
+    Callback = function()
+        local workspace = game:GetService("Workspace")
+
+        local count = 0
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj:IsDescendantOf(game.Players.LocalPlayer.Character) then
+                obj:Destroy()
+                count += 1
+            end
+        end
+
+        print("Se eliminaron " .. count .. " Parts del mapa.")
+
+        UtilityTab:CreateButton({
+            Name = "Matar a todos (excepto yo)",
+            Callback = function()
+                local localPlayer = game.Players.LocalPlayer
+                for _, player in pairs(game.Players:GetPlayers()) do
+                    if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
+                        player.Character.Humanoid.Health = 0
+                    end
+                end
+            end
+        })
+        
+        local InsertService = game:GetService("InsertService")
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+UtilityTab:CreateInput({
+    Name = "Añadir Accesorio por ID",
+    PlaceholderText = "Poné la ID del accesorio",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(inputId)
+        local assetId = tonumber(inputId)
+        if not assetId then
+            warn("ID inválida.")
+            return
+        end
+
+        local success, accessoryModel = pcall(function()
+            return InsertService:LoadAsset(assetId)
+        end)
+
+        if success and accessoryModel then
+            local accessory = accessoryModel:FindFirstChildWhichIsA("Accessory") or accessoryModel:FindFirstChildOfClass("Hat")
+            if accessory then
+                accessory.Parent = localPlayer.Character
+            else
+                warn("No se encontró accesorio dentro del modelo.")
+            end
+        else
+            warn("No se pudo cargar el accesorio con esa ID.")
+        end
+    end
+})
