@@ -126,7 +126,36 @@ PlayerTab:CreateButton({
     end
 })
 
--- AutoFarm que detecta nivel del jugador y selecciona misión automáticamente (versión simplificada)
+-- AutoFarm que detecta nivel del jugador y selecciona misión automáticamente (versión completa con Sea 1 y Sea 2)
+AutoFarmTab:CreateButton({
+    Name = "Activar AutoFarm Inteligente (Sea 1 y 2)",
+    Callback = function()
+        local char = player.Character or player.CharacterAdded:Wait()
+        local level = player.Data.Level.Value
+
+        local questLocations = {
+            -- Sea 1
+            {Min = 1, Max = 14, Pos = Vector3.new(1039, 16, 1432)}, -- Bandits
+            {Min = 15, Max = 29, Pos = Vector3.new(-1502, 7, 153)}, -- Monkeys
+            {Min = 30, Max = 59, Pos = Vector3.new(-1142, 11, 4325)}, -- Pirates
+            -- Sea 2
+            {Min = 700, Max = 724, Pos = Vector3.new(-6533, 7, -125)}, -- Raiders
+            {Min = 725, Max = 774, Pos = Vector3.new(-7857, 5, 541)}, -- Mercenaries
+            {Min = 775, Max = 874, Pos = Vector3.new(-8803, 6, 642)}, -- Swan Pirates
+            {Min = 875, Max = 949, Pos = Vector3.new(-7918, 5546, 474)}, -- Factory Staff
+            {Min = 950, Max = 999, Pos = Vector3.new(-10564, 332, 1407)} -- Marine Captains
+        }
+
+        for _, zone in ipairs(questLocations) do
+            if level >= zone.Min and level <= zone.Max then
+                char:MoveTo(zone.Pos)
+                break
+            end
+        end
+    end
+})
+
+-- AutoFarm que detecta nivel del jugador y selecciona misión automáticamente (incluyendo Sea 3)
 AutoFarmTab:CreateButton({
     Name = "Activar AutoFarm Inteligente",
     Callback = function()
@@ -134,12 +163,12 @@ AutoFarmTab:CreateButton({
         local level = player.Data.Level.Value
 
         local questLocations = {
-            {Min = 1500, Max = 1749, Pos = Vector3.new(-289, 52, 5346)}, -- Port Town
-            {Min = 1750, Max = 1999, Pos = Vector3.new(5227, 6, -1452)}, -- Hydra Island
-            {Min = 2000, Max = 2249, Pos = Vector3.new(2178, 25, -6718)}, -- Great Tree
-            {Min = 2250, Max = 2499, Pos = Vector3.new(-10379, 332, -8748)}, -- Floating Turtle
-            {Min = 2500, Max = 2749, Pos = Vector3.new(-9507, 142, 5566)}, -- Haunted Castle
-            {Min = 2750, Max = 3000, Pos = Vector3.new(-11575, 47, -5919)}  -- Sea of Treats
+            {Min = 1500, Max = 1749, Pos = Vector3.new(-289, 52, 5346)}, -- Port Town (Sea 3)
+            {Min = 1750, Max = 1999, Pos = Vector3.new(5227, 6, -1452)}, -- Hydra Island (Sea 3)
+            {Min = 2000, Max = 2249, Pos = Vector3.new(2178, 25, -6718)}, -- Great Tree (Sea 3)
+            {Min = 2250, Max = 2499, Pos = Vector3.new(-10379, 332, -8748)}, -- Floating Turtle (Sea 3)
+            {Min = 2500, Max = 2749, Pos = Vector3.new(-9507, 142, 5566)}, -- Haunted Castle (Sea 3)
+            {Min = 2750, Max = 3000, Pos = Vector3.new(-11575, 47, -5919)}  -- Sea of Treats (Sea 3)
         }
 
         for _, zone in ipairs(questLocations) do
@@ -173,22 +202,25 @@ AutoFarmTab:CreateButton({
     end
 })
 
--- Cofres separados por Sea (solo ejemplo con 3 por cada Sea)
+-- Cofres separados por Sea con ubicaciones reales
 local seaChests = {
     Sea1Tab = {
-        Vector3.new(100, 50, 200),
-        Vector3.new(300, 50, 250),
-        Vector3.new(500, 60, 300)
+        Vector3.new(1054, 16, 1327),   -- Ciudad del Medio
+        Vector3.new(1124, 19, 1285),
+        Vector3.new(991, 25, 1383)
     },
     Sea2Tab = {
-        Vector3.new(600, 70, 400),
-        Vector3.new(800, 75, 500),
-        Vector3.new(1000, 80, 600)
+        Vector3.new(-392, 349, 1829), -- Pueblo de Rosas
+        Vector3.new(-452, 350, 1780),
+        Vector3.new(-330, 355, 1880)
     },
     Sea3Tab = {
-        Vector3.new(-289, 52, 5346),
-        Vector3.new(5227, 6, -1452),
-        Vector3.new(2178, 25, -6718)
+        Vector3.new(-289, 52, 5346),    -- Port Town
+        Vector3.new(5227, 6, -1452),    -- Hydra Island
+        Vector3.new(2178, 25, -6718),   -- Great Tree
+        Vector3.new(-10379, 332, -8748),-- Floating Turtle
+        Vector3.new(-9507, 142, 5566),  -- Haunted Castle
+        Vector3.new(-11575, 47, -5919)  -- Sea of Treats
     }
 }
 
@@ -202,3 +234,4 @@ for tabName, positions in pairs(seaChests) do
         })
     end
 end
+
