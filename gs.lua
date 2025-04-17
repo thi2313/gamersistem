@@ -33,11 +33,6 @@ local Window = Rayfield:CreateWindow({
 })
 
 local PlayerTab = Window:CreateTab("Player", 4483362458)
-local AutoFarmTab = Window:CreateTab("AutoFarm", 4483362458)
-local Sea1Tab = Window:CreateTab("Sea 1 Chests", 4483362458)
-local Sea2Tab = Window:CreateTab("Sea 2 Chests", 4483362458)
-local Sea3Tab = Window:CreateTab("Sea 3 Chests", 4483362458)
-
 -- Walk speed slider
 PlayerTab:CreateSlider({
     Name = "walk speed",
@@ -123,58 +118,6 @@ PlayerTab:CreateButton({
             if bodyVelocity then bodyVelocity:Destroy() end
             RunService:UnbindFromRenderStep("FlyMovement")
         end
-    end
-})
-
--- Script para activar el AutoFarm de Ataque dentro de un rango de 20 studs en Blox Fruits
-
-AutoFarmTab:CreateButton({
-    Name = "Activar AutoFarm de Ataque (Rango 20 studs)",
-    Callback = function()
-        local player = game.Players.LocalPlayer
-        local char = player.Character or player.CharacterAdded:Wait()
-        local humanoidRootPart = char:WaitForChild("HumanoidRootPart")
-        local range = 20  -- Rango de ataque en studs
-        local target = nil
-
-        -- Función para buscar enemigos cercanos
-        local function findTarget()
-            for _, entity in pairs(workspace:FindPartsInRegion3(humanoidRootPart.Position - Vector3.new(range, range, range), humanoidRootPart.Position + Vector3.new(range, range, range), nil)) do
-                local character = entity.Parent
-                if character and character:FindFirstChild("Humanoid") then
-                    local humanoid = character:FindFirstChild("Humanoid")
-                    if humanoid and humanoid.Health > 0 and humanoid.Parent ~= player.Character then
-                        target = character
-                        return target
-                    end
-                end
-            end
-            return nil
-        end
-
-        -- Función para atacar al enemigo
-        local function attackTarget()
-            if target then
-                -- Verificar si el jugador tiene una herramienta activa
-                local tool = player.Backpack:FindFirstChildOfClass("Tool")
-                if tool then
-                    -- Ejecutamos la acción de la herramienta (en lugar de `tool.Activated:Fire()`)
-                    if tool:FindFirstChild("Handle") then
-                        tool.Parent = player.Character  -- Colocamos la herramienta en el personaje
-                        tool:Activate()  -- Activamos la herramienta directamente
-                    end
-                end
-            end
-        end
-
-        -- Hacer que el jugador ataque constantemente
-        local runService = game:GetService("RunService")
-        runService.Heartbeat:Connect(function()
-            target = findTarget()
-            if target then
-                attackTarget()
-            end
-        end)
     end
 })
 
