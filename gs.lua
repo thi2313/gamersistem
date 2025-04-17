@@ -120,16 +120,3 @@ PlayerTab:CreateButton({
         end
     end
 })
-
-local UtilityTab = Window:CreateTab("Utilidades", 4483362458)
-        UtilityTab:CreateButton({
-            Name = "Matar a todos (excepto yo)",
-            Callback = function()
-                local localPlayer = game.Players.LocalPlayer
-                for _, player in pairs(game.Players:GetPlayers()) do
-                    if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
-                        player.Character.Humanoid.Health = 0
-                    end
-                end
-            end
-        })
