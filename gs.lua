@@ -126,49 +126,6 @@ PlayerTab:CreateButton({
     end
 })
 
--- AutoFarm que detecta nivel del jugador y selecciona misión automáticamente (versión completa con Sea 1 y Sea 2)
-AutoFarmTab:CreateButton({
-    Name = "Activar AutoFarm Inteligente (Sea 1 y 2)",
-    Callback = function()
-        local char = player.Character or player.CharacterAdded:Wait()
-        local level = player.Data.Level.Value
-
-        local questLocations = {
-            -- Sea 1
-            {Min = 1, Max = 14, Pos = Vector3.new(1039, 16, 1432)}, -- Bandits
-            {Min = 15, Max = 29, Pos = Vector3.new(-1502, 7, 153)}, -- Monkeys
-            {Min = 30, Max = 59, Pos = Vector3.new(-1142, 11, 4325)}, -- Pirates
-            -- Sea 2
-            {Min = 700, Max = 724, Pos = Vector3.new(-6533, 7, -125)}, -- Raiders
-            {Min = 725, Max = 774, Pos = Vector3.new(-7857, 5, 541)}, -- Mercenaries
-            {Min = 775, Max = 874, Pos = Vector3.new(-8803, 6, 642)}, -- Swan Pirates
-            {Min = 875, Max = 949, Pos = Vector3.new(-7918, 5546, 474)}, -- Factory Staff
-            {Min = 950, Max = 999, Pos = Vector3.new(-10564, 332, 1407)} -- Marine Captains
-        }
-
-        for _, zone in ipairs(questLocations) do
-            if level >= zone.Min and level <= zone.Max then
-                char:MoveTo(zone.Pos)
-                break
-            end
-        end
-    end
-})
-
--- AutoFarm que detecta nivel del jugador y selecciona misión automáticamente (incluyendo Sea 3)
--- AutoFarm que detecta nivel del jugador y vuela hacia las islas (incluyendo Sea 3)
-AutoFarmTab:CreateSlider({
-    Name = "Velocidad de vuelo (1 a 100)",
-    Range = {1, 100},
-    Increment = 1,
-    Suffix = "Velocidad",
-    CurrentValue = 50,
-    Flag = "FlySpeed",
-    Callback = function(Value)
-        flightSpeed = Value
-    end,
-})
-
 -- Sistema de Kill Aura para dañar entidades cercanas dentro de un rango de 10 studs
 AutoFarmTab:CreateSlider({
     Name = "Velocidad de Kill Aura (1 a 100)",
@@ -190,11 +147,13 @@ AutoFarmTab:CreateButton({
 
         -- Función de Kill Aura
         local function applyKillAura()
-            -- Buscar todas las entidades cercanas dentro de 10 studs
-            for _, entity in pairs(game.Workspace:GetChildren()) do
+            -- Buscar todos los objetos en el Workspace
+            for _, entity in pairs(workspace:GetChildren()) do
+                -- Asegurarnos de que la entidad tiene un Humanoid y está a 10 studs
                 if entity:IsA("Model") and entity:FindFirstChild("Humanoid") then
                     local humanoid = entity.Humanoid
-                    if (humanoidRootPart.Position - entity.PrimaryPart.Position).magnitude <= 10 then
+                    local distance = (humanoidRootPart.Position - entity.PrimaryPart.Position).Magnitude
+                    if distance <= 10 then
                         -- Si está dentro del rango de 10 studs, aplicar daño
                         local damage = 10  -- Daño que se aplica a cada entidad
                         humanoid:TakeDamage(damage)
@@ -203,7 +162,7 @@ AutoFarmTab:CreateButton({
             end
         end
 
-        -- Ejecutar la kill aura continuamente
+        -- Ejecutar la kill aura continuamente a la velocidad definida
         game:GetService("RunService").Heartbeat:Connect(function()
             applyKillAura()
         end)
