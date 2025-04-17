@@ -156,29 +156,83 @@ AutoFarmTab:CreateButton({
 })
 
 -- AutoFarm que detecta nivel del jugador y selecciona misión automáticamente (incluyendo Sea 3)
+-- AutoFarm que detecta nivel del jugador y vuela hacia las islas (incluyendo Sea 3)
+AutoFarmTab:CreateSlider({
+    Name = "Velocidad de vuelo (1 a 100)",
+    Range = {1, 100},
+    Increment = 1,
+    Suffix = "Velocidad",
+    CurrentValue = 50,
+    Flag = "FlySpeed",
+    Callback = function(Value)
+        flightSpeed = Value
+    end,
+})
+
+-- AutoFarm que detecta nivel del jugador y vuela hacia las islas (Sea 1, Sea 2, y Sea 3)
+AutoFarmTab:CreateSlider({
+    Name = "Velocidad de vuelo (1 a 100)",
+    Range = {1, 100},
+    Increment = 1,
+    Suffix = "Velocidad",
+    CurrentValue = 50,
+    Flag = "FlySpeed",
+    Callback = function(Value)
+        flightSpeed = Value
+    end,
+})
+
 AutoFarmTab:CreateButton({
-    Name = "Activar AutoFarm Inteligente",
+    Name = "Activar AutoFarm Inteligente (Volando)",
     Callback = function()
         local char = player.Character or player.CharacterAdded:Wait()
         local level = player.Data.Level.Value
+        local humanoidRootPart = char:WaitForChild("HumanoidRootPart")
 
+        -- Definición de las ubicaciones para Sea 1, Sea 2 y Sea 3
         local questLocations = {
-            {Min = 1500, Max = 1749, Pos = Vector3.new(-289, 52, 5346)}, -- Port Town (Sea 3)
-            {Min = 1750, Max = 1999, Pos = Vector3.new(5227, 6, -1452)}, -- Hydra Island (Sea 3)
-            {Min = 2000, Max = 2249, Pos = Vector3.new(2178, 25, -6718)}, -- Great Tree (Sea 3)
-            {Min = 2250, Max = 2499, Pos = Vector3.new(-10379, 332, -8748)}, -- Floating Turtle (Sea 3)
-            {Min = 2500, Max = 2749, Pos = Vector3.new(-9507, 142, 5566)}, -- Haunted Castle (Sea 3)
-            {Min = 2750, Max = 3000, Pos = Vector3.new(-11575, 47, -5919)}  -- Sea of Treats (Sea 3)
+            -- Sea 1
+            {Min = 0, Max = 1499, Pos = Vector3.new(1054, 16, 1327)},  -- Ciudad del Medio
+            {Min = 0, Max = 1499, Pos = Vector3.new(1124, 19, 1285)},  -- Otra ubicación en Sea 1
+            {Min = 0, Max = 1499, Pos = Vector3.new(991, 25, 1383)},   -- Otra ubicación en Sea 1
+
+            -- Sea 2
+            {Min = 1500, Max = 1749, Pos = Vector3.new(-392, 349, 1829)},  -- Pueblo de Rosas
+            {Min = 1500, Max = 1749, Pos = Vector3.new(-452, 350, 1780)},  -- Otra ubicación en Sea 2
+            {Min = 1500, Max = 1749, Pos = Vector3.new(-330, 355, 1880)},  -- Otra ubicación en Sea 2
+
+            -- Sea 3 (ya incluido)
+            {Min = 1750, Max = 1999, Pos = Vector3.new(-289, 52, 5346)},   -- Port Town
+            {Min = 1750, Max = 1999, Pos = Vector3.new(5227, 6, -1452)},   -- Hydra Island
+            {Min = 1750, Max = 1999, Pos = Vector3.new(2178, 25, -6718)},  -- Great Tree
+            {Min = 1750, Max = 1999, Pos = Vector3.new(-10379, 332, -8748)}, -- Floating Turtle
+            {Min = 1750, Max = 1999, Pos = Vector3.new(-9507, 142, 5566)},  -- Haunted Castle
+            {Min = 1750, Max = 1999, Pos = Vector3.new(-11575, 47, -5919)}  -- Sea of Treats
         }
 
         for _, zone in ipairs(questLocations) do
             if level >= zone.Min and level <= zone.Max then
-                char:MoveTo(zone.Pos)
+                -- Iniciar vuelo hacia la ubicación seleccionada
+                local destination = zone.Pos
+                local direction = (destination - humanoidRootPart.Position).unit
+                local bodyVelocity = Instance.new("BodyVelocity")
+                bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+                bodyVelocity.P = 1250
+                bodyVelocity.Velocity = direction * flightSpeed
+                bodyVelocity.Parent = humanoidRootPart
+
+                -- Seguir volando hasta llegar a la ubicación
+                game:GetService("RunService").Heartbeat:Connect(function()
+                    if (humanoidRootPart.Position - destination).magnitude <= 5 then
+                        bodyVelocity:Destroy()  -- Detener vuelo cuando llegue al destino
+                    end
+                end)
                 break
             end
         end
     end
 })
+
 
 -- Botones para ir a islas principales según el Sea
 AutoFarmTab:CreateButton({
@@ -234,4 +288,3 @@ for tabName, positions in pairs(seaChests) do
         })
     end
 end
-
