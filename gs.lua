@@ -283,3 +283,41 @@ GameTab:CreateSlider({
         _G.ExtraDamage = Value
     end,
 })
+GameTab:CreateButton({
+    Name = "Teletransportarse a un Jugador",
+    Callback = function()
+        -- Creamos una nueva ventana flotante
+        local Rayfield = require(game:GetService("ReplicatedStorage"):WaitForChild("Rayfield")) -- solo si no tenés ya la variable
+        local Players = game:GetService("Players")
+        local localPlayer = Players.LocalPlayer
+
+        local teleportWindow = Rayfield:CreateWindow({
+            Name = "Lista de Jugadores",
+            Icon = 4483362458,
+            LoadingTitle = "Teleporte",
+            LoadingSubtitle = "Elige un jugador",
+            Theme = "Default",
+            DisableRayfieldPrompts = false,
+        })
+
+        local playerListTab = teleportWindow:CreateTab("Jugadores", 4483362458)
+
+        -- Creamos un botón por cada jugador
+        for _, targetPlayer in pairs(Players:GetPlayers()) do
+            if targetPlayer ~= localPlayer then
+                playerListTab:CreateButton({
+                    Name = targetPlayer.Name,
+                    Callback = function()
+                        -- Teletransportar al jugador local a la posición del jugador elegido
+                        local targetChar = targetPlayer.Character
+                        local localChar = localPlayer.Character
+
+                        if targetChar and targetChar:FindFirstChild("HumanoidRootPart") and localChar and localChar:FindFirstChild("HumanoidRootPart") then
+                            localChar:MoveTo(targetChar.HumanoidRootPart.Position + Vector3.new(0, 3, 0)) -- 3 studs encima
+                        end
+                    end
+                })
+            end
+        end
+    end
+})
