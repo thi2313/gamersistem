@@ -283,6 +283,37 @@ GameTab:CreateSlider({
         _G.ExtraDamage = Value
     end,
 })
+-- Asumimos que PlayerTab y GameTab ya existen
+-- Si no, lo puedes crear con: 
+-- local PlayerTab = Rayfield:CreateTab("Player", 4483362458)
+-- local GameTab = Rayfield:CreateTab("Game", 4483362458)
+
+-- Variable para controlar si el jugador está en noclip
+local noclipEnabled = false
+
+-- Añadir un botón en el PlayerTab para activar/desactivar noclip
+PlayerTab:CreateButton({
+    Name = "Activar/Desactivar Noclip",
+    Callback = function()
+        local character = game.Players.LocalPlayer.Character
+        if character then
+            -- Cambiar el estado de noclip
+            noclipEnabled = not noclipEnabled
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid.PlatformStand = noclipEnabled  -- Activar noclip (desactivar gravedad)
+            end
+            -- Configurar colisiones
+            for _, part in pairs(character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = not noclipEnabled
+                end
+            end
+        end
+    end
+})
+
+-- Añadir un Dropdown en el GameTab para teletransportarse a otros jugadores
 GameTab:CreateDropdown({
     Name = "Teletransportarse a Jugador",
     Options = function()
@@ -304,134 +335,3 @@ GameTab:CreateDropdown({
         end
     end
 })
-
--- Admin Tab Protegido por Contraseña
-local PasswordTab = Window:CreateTab("AdminTab 🔐", 4483362458)
-
-PasswordTab:CreateInput({
-    Name = "Ingresa la contraseña de admin",
-    PlaceholderText = "Contraseña requerida...",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(text)
-        if text == "adminsistem" then
-            Rayfield:Notify({
-                Title = "¡Acceso permitido!",
-                Content = "Bienvenido al panel de admin.",
-                Duration = 5,
-                Image = 4483362458,
-            })
-
-            -- Crear el panel de admin
-            local AdminTab = Window:CreateTab("💻 Panel Admin", 4483362458)
-
-            local NoclipActivo = false
-            local connection
-
-            AdminTab:CreateToggle({
-                Name = "Activar / Desactivar Noclip",
-                CurrentValue = false,
-                Callback = function(Value)
-                    NoclipActivo = Value
-                    local player = game.Players.LocalPlayer
-                    local character = player.Character or player.CharacterAdded:Wait()
-
-                    if NoclipActivo then
-                        -- Activar noclip
-                        connection = game:GetService("RunService").Stepped:Connect(function()
-                            for _, part in pairs(character:GetDescendants()) do
-                                if part:IsA("BasePart") then
-                                    part.CanCollide = false
-                                end
-                            end
-                        end)
-
-                        Rayfield:Notify({
-                            Title = "Noclip Activado",
-                            Content = "Puedes atravesar todo.",
-                            Duration = 4,
-                        })
-                    else
-                        -- Desactivar noclip
-                        if connection then
-                            connection:Disconnect()
-                        end
-                        for _, part in pairs(character:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                part.CanCollide = true
-                            end
-                        end
-
-                        Rayfield:Notify({
-                            Title = "Noclip Desactivado",
-                            Content = "Ya no puedes atravesar objetos.",
-                            Duration = 4,
-                        })
-                    end
-                end
-            })
-        else
-            Rayfield:Notify({
-                Title = "Contraseña Incorrecta",
-                Content = "No tienes acceso al panel de admin.",
-                Duration = 5,
-            })
-        end
-    end
-})
-
-local InvisibleActivo = false
-local originalProperties = {}
-
-AdminTab:CreateToggle({
-    Name = "Activar / Desactivar Invisibilidad",
-    CurrentValue = false,
-    Callback = function(Value)
-        InvisibleActivo = Value
-        local player = game.Players.LocalPlayer
-        local character = player.Character or player.CharacterAdded:Wait()
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-
-        if InvisibleActivo then
-            -- Guardar valores originales y volver todo invisible
-            for _, part in pairs(character:GetDescendants()) do
-                if part:IsA("BasePart") or part:IsA("Decal") then
-                    originalProperties[part] = part.Transparency
-                    part.Transparency = 1
-                elseif part:IsA("Accessory") and part:FindFirstChild("Handle") then
-                    originalProperties[part.Handle] = part.Handle.Transparency
-                    part.Handle.Transparency = 1
-                end
-            end
-
-            if humanoid then
-                humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None -- Oculta el nombre
-            end
-
-            Rayfield:Notify({
-                Title = "Invisibilidad Activada",
-                Content = "Tu personaje es invisible totalmente.",
-                Duration = 4,
-            })
-        else
-            -- Restaurar valores originales
-            for part, transparency in pairs(originalProperties) do
-                if part and part.Parent then
-                    part.Transparency = transparency
-                end
-            end
-            originalProperties = {}
-
-            if humanoid then
-                humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer -- Muestra el nombre otra vez
-            end
-
-            Rayfield:Notify({
-                Title = "Invisibilidad Desactivada",
-                Content = "Tu personaje volvió a la normalidad.",
-                Duration = 4,
-            })
-        end
-    end
-})
-
-
