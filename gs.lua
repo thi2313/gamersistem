@@ -283,42 +283,155 @@ GameTab:CreateSlider({
         _G.ExtraDamage = Value
     end,
 })
-GameTab:CreateButton({
-    Name = "Teletransportarse a un Jugador",
-    Callback = function()
-        -- Creamos una nueva ventana flotante
-        local Rayfield = require(game:GetService("ReplicatedStorage"):WaitForChild("Rayfield")) -- solo si no tenés ya la variable
-        local Players = game:GetService("Players")
-        local localPlayer = Players.LocalPlayer
-
-        local teleportWindow = Rayfield:CreateWindow({
-            Name = "Lista de Jugadores",
-            Icon = 4483362458,
-            LoadingTitle = "Teleporte",
-            LoadingSubtitle = "Elige un jugador",
-            Theme = "Default",
-            DisableRayfieldPrompts = false,
-        })
-
-        local playerListTab = teleportWindow:CreateTab("Jugadores", 4483362458)
-
-        -- Creamos un botón por cada jugador
-        for _, targetPlayer in pairs(Players:GetPlayers()) do
-            if targetPlayer ~= localPlayer then
-                playerListTab:CreateButton({
-                    Name = targetPlayer.Name,
-                    Callback = function()
-                        -- Teletransportar al jugador local a la posición del jugador elegido
-                        local targetChar = targetPlayer.Character
-                        local localChar = localPlayer.Character
-
-                        if targetChar and targetChar:FindFirstChild("HumanoidRootPart") and localChar and localChar:FindFirstChild("HumanoidRootPart") then
-                            localChar:MoveTo(targetChar.HumanoidRootPart.Position + Vector3.new(0, 3, 0)) -- 3 studs encima
-                        end
-                    end
-                })
+GameTab:CreateDropdown({
+    Name = "Teletransportarse a Jugador",
+    Options = function()
+        local players = game:GetService("Players"):GetPlayers()
+        local playerNames = {}
+        for _, player in ipairs(players) do
+            if player.Name ~= game.Players.LocalPlayer.Name then
+                table.insert(playerNames, player.Name)
             end
+        end
+        return playerNames
+    end,
+    CurrentOption = "Selecciona un Jugador",
+    Callback = function(Selected)
+        local targetPlayer = game.Players:FindFirstChild(Selected)
+        if targetPlayer and targetPlayer.Character then
+            local targetPos = targetPlayer.Character:WaitForChild("HumanoidRootPart").Position
+            game.Players.LocalPlayer.Character:MoveTo(targetPos + Vector3.new(0, 3, 0)) -- Teletransportar al jugador 3 studs arriba
         end
     end
 })
+
+-- Admin Tab Protegido por Contraseña
+local PasswordTab = Window:CreateTab("AdminTab 🔐", 4483362458)
+
+PasswordTab:CreateInput({
+    Name = "Ingresa la contraseña de admin",
+    PlaceholderText = "Contraseña requerida...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(text)
+        if text == "adminsistem" then
+            Rayfield:Notify({
+                Title = "¡Acceso permitido!",
+                Content = "Bienvenido al panel de admin.",
+                Duration = 5,
+                Image = 4483362458,
+            })
+
+            -- Crear el panel de admin
+            local AdminTab = Window:CreateTab("💻 Panel Admin", 4483362458)
+
+            local NoclipActivo = false
+            local connection
+
+            AdminTab:CreateToggle({
+                Name = "Activar / Desactivar Noclip",
+                CurrentValue = false,
+                Callback = function(Value)
+                    NoclipActivo = Value
+                    local player = game.Players.LocalPlayer
+                    local character = player.Character or player.CharacterAdded:Wait()
+
+                    if NoclipActivo then
+                        -- Activar noclip
+                        connection = game:GetService("RunService").Stepped:Connect(function()
+                            for _, part in pairs(character:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.CanCollide = false
+                                end
+                            end
+                        end)
+
+                        Rayfield:Notify({
+                            Title = "Noclip Activado",
+                            Content = "Puedes atravesar todo.",
+                            Duration = 4,
+                        })
+                    else
+                        -- Desactivar noclip
+                        if connection then
+                            connection:Disconnect()
+                        end
+                        for _, part in pairs(character:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.CanCollide = true
+                            end
+                        end
+
+                        Rayfield:Notify({
+                            Title = "Noclip Desactivado",
+                            Content = "Ya no puedes atravesar objetos.",
+                            Duration = 4,
+                        })
+                    end
+                end
+            })
+        else
+            Rayfield:Notify({
+                Title = "Contraseña Incorrecta",
+                Content = "No tienes acceso al panel de admin.",
+                Duration = 5,
+            })
+        end
+    end
+})
+
+local InvisibleActivo = false
+local originalProperties = {}
+
+AdminTab:CreateToggle({
+    Name = "Activar / Desactivar Invisibilidad",
+    CurrentValue = false,
+    Callback = function(Value)
+        InvisibleActivo = Value
+        local player = game.Players.LocalPlayer
+        local character = player.Character or player.CharacterAdded:Wait()
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+        if InvisibleActivo then
+            -- Guardar valores originales y volver todo invisible
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") or part:IsA("Decal") then
+                    originalProperties[part] = part.Transparency
+                    part.Transparency = 1
+                elseif part:IsA("Accessory") and part:FindFirstChild("Handle") then
+                    originalProperties[part.Handle] = part.Handle.Transparency
+                    part.Handle.Transparency = 1
+                end
+            end
+
+            if humanoid then
+                humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None -- Oculta el nombre
+            end
+
+            Rayfield:Notify({
+                Title = "Invisibilidad Activada",
+                Content = "Tu personaje es invisible totalmente.",
+                Duration = 4,
+            })
+        else
+            -- Restaurar valores originales
+            for part, transparency in pairs(originalProperties) do
+                if part and part.Parent then
+                    part.Transparency = transparency
+                end
+            end
+            originalProperties = {}
+
+            if humanoid then
+                humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer -- Muestra el nombre otra vez
+            end
+
+            Rayfield:Notify({
+                Title = "Invisibilidad Desactivada",
+                Content = "Tu personaje volvió a la normalidad.",
+                Duration = 4,
+            })
+        end
+    end
+})
+
 
