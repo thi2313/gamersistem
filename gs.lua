@@ -335,3 +335,36 @@ GameTab:CreateDropdown({
         end
     end
 })
+
+-- Asumimos que PlayerTab y GameTab ya existen
+
+-- Añadir un botón en el PlayerTab para mostrar objetos desanclados
+PlayerTab:CreateButton({
+    Name = "Mostrar Objetos Desanclados",
+    Callback = function()
+        local unanchoredObjects = {}
+        
+        -- Recorrer todos los objetos en el juego para encontrar los desanclados
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj.Anchored then
+                table.insert(unanchoredObjects, obj)
+            end
+        end
+        
+        -- Mostrar los objetos desanclados (puedes cambiar la forma de mostrar según prefieras)
+        if #unanchoredObjects > 0 then
+            local objectNames = {}
+            for _, obj in ipairs(unanchoredObjects) do
+                table.insert(objectNames, obj.Name)
+            end
+            
+            -- Mostrar los nombres de los objetos desanclados en el log (o en una interfaz)
+            print("Objetos desanclados encontrados:")
+            for _, name in ipairs(objectNames) do
+                print(name)
+            end
+        else
+            print("No se encontraron objetos desanclados.")
+        end
+    end
+})
