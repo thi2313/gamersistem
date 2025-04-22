@@ -1,94 +1,128 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local Player = game.Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local HRP = Character:WaitForChild("HumanoidRootPart")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-
-local killAuraEnabled = false
-local autoPickupEnabled = false
-
 local Window = Rayfield:CreateWindow({
-    Name = "Auto Farm Hub",
-    LoadingTitle = "Auto Farm System",
+    Name = "gamer sistem",
+    Icon = 0,
+    LoadingTitle = "sistem gamer",
+    LoadingSubtitle = "by th2",
+    Theme = "Default",
+    
+    DisableRayfieldPrompts = false,
+    DisableBuildWarnings = false,
+    
     ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "AutoFarmConfigs",
-        FileName = "PlayerSettings"
+       Enabled = true,
+       FolderName = nil,
+       FileName = "Big Hub"
+    },
+    Discord = {
+       Enabled = true,
+       Invite = "https://discord.gg/MXsWnqwg",
+       RememberJoins = true
+    },
+    KeySystem = true,
+    KeySettings = {
+       Title = "Gamer Sistem",
+       Subtitle = "Gamer System Key",
+       Note = "obtain the key in https://discord.gg/MXsWnqwg",
+       FileName = "Key",
+       SaveKey = false,
+       GrabKeyFromSite = false,
+       Key = {"gamersistem1254"}
     }
 })
 
 local MainTab = Window:CreateTab("Main", 4483362458)
 local GameTab = Window:CreateTab("Game", 4483362458)
+local TeleportTab = Window:CreateTab("Teleport", 4483362458)
 
 MainTab:CreateSection("Auto System")
-
--- Velocidad
-MainTab:CreateSlider({
-    Name = "Velocidad",
-    Range = {16, 500},
+local PlayerTab = Window:CreateTab("Player", 4483362458)
+-- Walk speed slider
+PlayerTab:CreateSlider({
+    Name = "walk speed",
+    Range = {20, 100},
     Increment = 1,
-    Suffix = "Velocidad",
+    Suffix = "speed",
     CurrentValue = 16,
-    Callback = function(value)
-        local humanoid = Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = value
+    Flag = "WalkSpeed",
+    Callback = function(Value)
+        local player = game.Players.LocalPlayer
+        if player and player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.WalkSpeed = Value
         end
     end,
 })
+-- Fly system
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
--- Fly
+local player = Players.LocalPlayer
 local flying = false
-local flySpeed = 50
+local flightSpeed = 50
+local bodyVelocity = nil
 
-local function toggleFly()
-    flying = not flying
-    local bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.Name = "FlyForce"
-    bodyVelocity.MaxForce = Vector3.new(1, 1, 1) * 1000000
-    bodyVelocity.Velocity = Vector3.zero
-    bodyVelocity.Parent = HRP
-
-    local connection
-    connection = RunService.RenderStepped:Connect(function()
-        if not flying then
-            bodyVelocity:Destroy()
-            connection:Disconnect()
-            return
-        end
-
-        local moveDirection = Vector3.zero
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveDirection += workspace.CurrentCamera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveDirection -= workspace.CurrentCamera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            moveDirection -= workspace.CurrentCamera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            moveDirection += workspace.CurrentCamera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            moveDirection += Vector3.yAxis
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            moveDirection -= Vector3.yAxis
-        end
-
-        bodyVelocity.Velocity = moveDirection.Unit * flySpeed
-    end)
-end
-
-MainTab:CreateToggle({
-    Name = "Fly",
-    CurrentValue = false,
-    Callback = function(state)
-        toggleFly()
+PlayerTab:CreateSlider({
+    Name = "fly speed",
+    Range = {10, 300},
+    Increment = 5,
+    Suffix = "speed",
+    CurrentValue = 50,
+    Flag = "FlySpeed",
+    Callback = function(Value)
+        flightSpeed = Value
     end,
+})
+
+PlayerTab:CreateButton({
+    Name = "Activar/Desactivar Vuelo",
+    Callback = function()
+        flying = not flying
+        local character = player.Character or player.CharacterAdded:Wait()
+        local root = character:WaitForChild("HumanoidRootPart")
+
+        if flying then
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            bodyVelocity.P = 1250
+            bodyVelocity.Velocity = Vector3.zero
+            bodyVelocity.Parent = root
+
+            RunService:BindToRenderStep("FlyMovement", Enum.RenderPriority.Input.Value, function()
+                local cam = workspace.CurrentCamera
+                local moveDir = Vector3.zero
+
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                    moveDir += cam.CFrame.LookVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                    moveDir -= cam.CFrame.LookVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                    moveDir -= cam.CFrame.RightVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                    moveDir += cam.CFrame.RightVector
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                    moveDir += Vector3.new(0, 1, 0)
+                end
+                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+                    moveDir -= Vector3.new(0, 1, 0)
+                end
+
+                if moveDir.Magnitude > 0 then
+                    bodyVelocity.Velocity = moveDir.Unit * flightSpeed
+                else
+                    bodyVelocity.Velocity = Vector3.zero
+                end
+            end)
+        else
+            if bodyVelocity then bodyVelocity:Destroy() end
+            RunService:UnbindFromRenderStep("FlyMovement")
+        end
+    end
 })
 
 -- Kill Aura
@@ -119,34 +153,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Teleport to player buttons
-for _, targetPlayer in ipairs(game.Players:GetPlayers()) do
-    if targetPlayer ~= Player then
-        GameTab:CreateButton({
-            Name = "TP a " .. targetPlayer.Name,
-            Callback = function()
-                if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    HRP.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(2, 0, 0)
-                end
-            end,
-        })
-    end
-end
-
--- Rehacer botones si entran nuevos jugadores
-game.Players.PlayerAdded:Connect(function(plr)
-    task.wait(1)
-    GameTab:CreateButton({
-        Name = "TP a " .. plr.Name,
-        Callback = function()
-            if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                HRP.CFrame = plr.Character.HumanoidRootPart.CFrame + Vector3.new(2, 0, 0)
-            end
-        end,
-    })
-end)
-
--- Auto recoger ítems cercanos
+-- Auto recoger ítems
 GameTab:CreateToggle({
     Name = "Auto Agarrar Ítems",
     CurrentValue = false,
@@ -166,4 +173,68 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
+end)
+
+local UtilityTab = Window:CreateTab("UtilityTab", 4483362458)
+UtilityTab:CreateButton({
+    Name = "Mostrar nombres a través de paredes",
+    Callback = function()
+        local localPlayer = game.Players.LocalPlayer
+        local players = game:GetService("Players"):GetPlayers()
+
+        for _, player in ipairs(players) do
+            if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") then
+                local head = player.Character.Head
+
+                -- Eliminar si ya existe
+                if head:FindFirstChild("FloatingNameGui") then
+                    head:FindFirstChild("FloatingNameGui"):Destroy()
+                end
+
+                local billboard = Instance.new("BillboardGui")
+                billboard.Name = "FloatingNameGui"
+                billboard.Adornee = head
+                billboard.Size = UDim2.new(0, 200, 0, 50)
+                billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+                billboard.AlwaysOnTop = true
+                billboard.Parent = head
+
+                local textLabel = Instance.new("TextLabel")
+                textLabel.Size = UDim2.new(1, 0, 1, 0)
+                textLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                textLabel.BackgroundTransparency = 0.3
+                textLabel.BorderSizePixel = 0
+                textLabel.Text = player.Name
+                textLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+                textLabel.TextStrokeTransparency = 0  -- Borde negro
+                textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+                textLabel.TextScaled = true
+                textLabel.Font = Enum.Font.GothamBold
+                textLabel.Parent = billboard
+            end
+        end
+    end
+})
+
+-- Teleport a jugadores en la nueva pestaña
+local function createTeleportButton(plr)
+    TeleportTab:CreateButton({
+        Name = "TP a " .. plr.Name,
+        Callback = function()
+            if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                HRP.CFrame = plr.Character.HumanoidRootPart.CFrame + Vector3.new(2, 0, 0)
+            end
+        end,
+    })
+end
+
+for _, targetPlayer in ipairs(game.Players:GetPlayers()) do
+    if targetPlayer ~= Player then
+        createTeleportButton(targetPlayer)
+    end
+end
+
+game.Players.PlayerAdded:Connect(function(plr)
+    task.wait(1)
+    createTeleportButton(plr)
 end)
