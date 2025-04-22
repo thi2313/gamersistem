@@ -3,7 +3,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "gamer sistem",
     Icon = 0,
-    LoadingTitle = "sistem gamer",
+    LoadingTitle = "system gamer",
     LoadingSubtitle = "by th2",
     Theme = "Default",
     
@@ -28,7 +28,7 @@ local Window = Rayfield:CreateWindow({
        FileName = "Key",
        SaveKey = false,
        GrabKeyFromSite = false,
-       Key = {"gamersistem1254"}
+       Key = {"gamersystem1254"}
     }
 })
 
