@@ -22,7 +22,7 @@ local Window = Rayfield:CreateWindow({
     },
     KeySystem = true,
     KeySettings = {
-       Title = "Gamer Sistem",
+       Title = "Gamer System",
        Subtitle = "Gamer System Key",
        Note = "obtain the key in https://discord.gg/MXsWnqwg",
        FileName = "Key",
@@ -237,4 +237,34 @@ end
 game.Players.PlayerAdded:Connect(function(plr)
     task.wait(1)
     createTeleportButton(plr)
+end)
+
+-- Traer jugadores hacia ti
+local function createBringButton(plr)
+    TeleportTab:CreateButton({
+        Name = "Traer a " .. plr.Name,
+        Callback = function()
+            local target = plr
+            local localHRP = game.Players.LocalPlayer.Character and game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local targetHRP = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+
+            if localHRP and targetHRP then
+                -- Teletransportar al jugador hacia ti (requiere permisos o exploit)
+                targetHRP.CFrame = localHRP.CFrame * CFrame.new(3, 0, 0)
+            end
+        end,
+    })
+end
+
+for _, targetPlayer in ipairs(game.Players:GetPlayers()) do
+    if targetPlayer ~= Player then
+        createBringButton(targetPlayer)
+    end
+end
+
+game.Players.PlayerAdded:Connect(function(plr)
+    task.wait(1)
+    if plr ~= Player then
+        createBringButton(plr)
+    end
 end)
