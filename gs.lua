@@ -1,50 +1,64 @@
 --//======================================================
---// GAMER SYSTEM
---// Improved / Cleaned Version
+--// SPACE HUB
+--// Universal Rayfield Hub
+--// Version 1.0.0
 --//======================================================
 
---// Services
+--//======================================================
+--// SERVICES
+--//======================================================
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
---// Player
 local LocalPlayer = Players.LocalPlayer
-
---// Character references
-local Character
-local Humanoid
-local HRP
-
-local function updateCharacter(char)
-    Character = char
-    Humanoid = char:WaitForChild("Humanoid", 10)
-    HRP = char:WaitForChild("HumanoidRootPart", 10)
-end
-
-if LocalPlayer.Character then
-    updateCharacter(LocalPlayer.Character)
-end
-
-LocalPlayer.CharacterAdded:Connect(updateCharacter)
 
 --//======================================================
 --// VARIABLES
 --//======================================================
 
-local killAuraEnabled = false
-local autoPickupEnabled = false
-local flying = false
+local Character = nil
+local Humanoid = nil
+local HRP = nil
 
-local flightSpeed = 50
 local walkSpeed = 16
+local flightSpeed = 50
+
+local flying = false
+local espEnabled = false
+local aimbotEnabled = false
 
 local flyConnection = nil
-local pickupConnection = nil
-local killAuraConnection = nil
+local espObjects = {}
 
-local nameESPEnabled = false
-local nameESPObjects = {}
+--//======================================================
+--// CHARACTER
+--//======================================================
+
+local function updateCharacter(char)
+
+    Character = char
+
+    Humanoid = char:WaitForChild(
+        "Humanoid",
+        10
+    )
+
+    HRP = char:WaitForChild(
+        "HumanoidRootPart",
+        10
+    )
+
+    if Humanoid then
+        Humanoid.WalkSpeed = walkSpeed
+    end
+
+end
+
+if LocalPlayer.Character then
+    updateCharacter(LocalPlayer.Character)
+end
 
 --//======================================================
 --// RAYFIELD
@@ -54,43 +68,56 @@ local Rayfield = loadstring(game:HttpGet(
     "https://sirius.menu/rayfield"
 ))()
 
+--//======================================================
+--// WINDOW
+--//======================================================
+
 local Window = Rayfield:CreateWindow({
-    Name = "Gamer System",
+
+    Name = "SPACE HUB",
+
     Icon = 0,
 
-    LoadingTitle = "Gamer System",
-    LoadingSubtitle = "by th2",
+    LoadingTitle = "SPACE HUB",
+
+    LoadingSubtitle = "Orbital Systems",
 
     Theme = "Default",
 
     DisableRayfieldPrompts = false,
+
     DisableBuildWarnings = false,
 
     ConfigurationSaving = {
         Enabled = true,
         FolderName = nil,
-        FileName = "GamerSystem"
+        FileName = "SpaceHub"
     },
 
     Discord = {
-        Enabled = true,
-        Invite = "MXsWnqwg",
+        Enabled = false,
+        Invite = "",
         RememberJoins = true
     },
 
     KeySystem = true,
 
     KeySettings = {
-        Title = "Gamer System",
-        Subtitle = "Gamer System Key",
-        Note = "Obtain the key in the Discord server",
-        FileName = "Key",
+
+        Title = "SPACE HUB",
+
+        Subtitle = "Space Hub Key",
+
+        Note = "Enter the Space Hub key",
+
+        FileName = "SpaceHubKey",
 
         SaveKey = false,
+
         GrabKeyFromSite = false,
 
         Key = {
-            "gamersystem1254"
+            "spacehub1254"
         }
     }
 })
@@ -99,22 +126,52 @@ local Window = Rayfield:CreateWindow({
 --// TABS
 --//======================================================
 
-local MainTab = Window:CreateTab("Main", 4483362458)
-local GameTab = Window:CreateTab("Game", 4483362458)
-local TeleportTab = Window:CreateTab("Teleport", 4483362458)
-local PlayerTab = Window:CreateTab("Player", 4483362458)
-local UtilityTab = Window:CreateTab("Utility", 4483362458)
+local UniversalTab = Window:CreateTab(
+    "Universal",
+    4483362458
+)
+
+local GameTab = Window:CreateTab(
+    "Game",
+    4483362458
+)
+
+local ConfigurationTab = Window:CreateTab(
+    "Configuration",
+    4483362458
+)
 
 --//======================================================
---// PLAYER
+--// UNIVERSAL
 --//======================================================
 
-PlayerTab:CreateSection("Movement")
+UniversalTab:CreateSection(
+    "Movement"
+)
 
-PlayerTab:CreateSlider({
-    Name = "Walk Speed",
-    Range = {16, 100},
+UniversalTab:CreateParagraph({
+
+    Title = "SPACE MOVEMENT",
+
+    Content =
+        "Universal movement controls.\n" ..
+        "Configure your movement systems below."
+
+})
+
+--// WalkSpeed
+
+UniversalTab:CreateSlider({
+
+    Name = "WalkSpeed",
+
+    Range = {
+        16,
+        250
+    },
+
     Increment = 1,
+
     Suffix = " speed",
 
     CurrentValue = 16,
@@ -122,589 +179,882 @@ PlayerTab:CreateSlider({
     Flag = "WalkSpeed",
 
     Callback = function(value)
+
         walkSpeed = value
 
-        if Humanoid and Humanoid.Parent then
+        if Humanoid
+            and Humanoid.Parent then
+
             Humanoid.WalkSpeed = value
+
         end
-    end
-})
 
-PlayerTab:CreateSlider({
-    Name = "Fly Speed",
-    Range = {10, 300},
-    Increment = 5,
-    Suffix = " speed",
-
-    CurrentValue = 50,
-
-    Flag = "FlySpeed",
-
-    Callback = function(value)
-        flightSpeed = value
     end
 })
 
 --//======================================================
---// FLY
+--// FLIGHT
 --//======================================================
+
+UniversalTab:CreateSection(
+    "Flight System"
+)
+
+local function removeFlightObjects()
+
+    if not HRP then
+        return
+    end
+
+    local velocity =
+        HRP:FindFirstChild(
+            "SpaceHubFlyVelocity"
+        )
+
+    if velocity then
+        velocity:Destroy()
+    end
+
+    local attachment =
+        HRP:FindFirstChild(
+            "SpaceHubFlyAttachment"
+        )
+
+    if attachment then
+        attachment:Destroy()
+    end
+
+end
 
 local function stopFlying()
+
     flying = false
 
     if flyConnection then
+
         flyConnection:Disconnect()
+
         flyConnection = nil
+
     end
 
-    if HRP then
-        local velocity = HRP:FindFirstChild("GamerSystemFlyVelocity")
-
-        if velocity then
-            velocity:Destroy()
-        end
-    end
+    removeFlightObjects()
 
     if Humanoid then
         Humanoid.PlatformStand = false
     end
+
 end
 
 local function startFlying()
+
     if not HRP or not Humanoid then
         return
     end
 
     if flyConnection then
+
         flyConnection:Disconnect()
+
+        flyConnection = nil
+
     end
+
+    removeFlightObjects()
 
     flying = true
 
-    local attachment = HRP:FindFirstChild("GamerSystemFlyAttachment")
+    local attachment =
+        Instance.new("Attachment")
 
-    if not attachment then
-        attachment = Instance.new("Attachment")
-        attachment.Name = "GamerSystemFlyAttachment"
-        attachment.Parent = HRP
-    end
+    attachment.Name =
+        "SpaceHubFlyAttachment"
 
-    local linearVelocity = HRP:FindFirstChild("GamerSystemFlyVelocity")
+    attachment.Parent = HRP
 
-    if not linearVelocity then
-        linearVelocity = Instance.new("LinearVelocity")
-        linearVelocity.Name = "GamerSystemFlyVelocity"
-        linearVelocity.Attachment0 = attachment
-        linearVelocity.MaxForce = math.huge
-        linearVelocity.VectorVelocity = Vector3.zero
-        linearVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
-        linearVelocity.Parent = HRP
-    end
+    local velocity =
+        Instance.new("LinearVelocity")
+
+    velocity.Name =
+        "SpaceHubFlyVelocity"
+
+    velocity.Attachment0 =
+        attachment
+
+    velocity.MaxForce =
+        math.huge
+
+    velocity.RelativeTo =
+        Enum.ActuatorRelativeTo.World
+
+    velocity.VectorVelocity =
+        Vector3.zero
+
+    velocity.Parent = HRP
 
     Humanoid.PlatformStand = true
 
-    flyConnection = RunService.RenderStepped:Connect(function()
-        if not flying then
-            return
-        end
+    flyConnection =
+        RunService.RenderStepped:Connect(
+            function()
 
-        if not Character
-            or not Character.Parent
-            or not HRP
-            or not HRP.Parent
-        then
-            stopFlying()
-            return
-        end
+                if not flying then
+                    return
+                end
 
-        local camera = workspace.CurrentCamera
+                if not HRP
+                    or not HRP.Parent
+                    or not Character
+                    or not Character.Parent then
 
-        if not camera then
-            return
-        end
+                    stopFlying()
 
-        local direction = Vector3.zero
+                    return
 
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            direction += camera.CFrame.LookVector
-        end
+                end
 
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            direction -= camera.CFrame.LookVector
-        end
+                local camera =
+                    workspace.CurrentCamera
 
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            direction += camera.CFrame.RightVector
-        end
+                if not camera then
+                    return
+                end
 
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            direction -= camera.CFrame.RightVector
-        end
+                local direction =
+                    Vector3.zero
 
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            direction += Vector3.yAxis
-        end
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.W
+                ) then
 
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            direction -= Vector3.yAxis
-        end
+                    direction +=
+                        camera.CFrame.LookVector
 
-        if direction.Magnitude > 0 then
-            direction = direction.Unit * flightSpeed
-        else
-            direction = Vector3.zero
-        end
+                end
 
-        linearVelocity.VectorVelocity = direction
-    end)
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.S
+                ) then
+
+                    direction -=
+                        camera.CFrame.LookVector
+
+                end
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.D
+                ) then
+
+                    direction +=
+                        camera.CFrame.RightVector
+
+                end
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.A
+                ) then
+
+                    direction -=
+                        camera.CFrame.RightVector
+
+                end
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.Space
+                ) then
+
+                    direction +=
+                        Vector3.yAxis
+
+                end
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.LeftControl
+                ) then
+
+                    direction -=
+                        Vector3.yAxis
+
+                end
+
+                if direction.Magnitude > 0 then
+
+                    direction =
+                        direction.Unit
+                        * flightSpeed
+
+                else
+
+                    direction =
+                        Vector3.zero
+
+                end
+
+                velocity.VectorVelocity =
+                    direction
+
+            end
+        )
+
 end
 
-PlayerTab:CreateToggle({
-    Name = "Fly",
-    CurrentValue = false,
+UniversalTab:CreateSlider({
 
-    Flag = "Fly",
+    Name = "Flight Speed",
 
-    Callback = function(enabled)
-        if enabled then
-            startFlying()
-        else
-            stopFlying()
-        end
+    Range = {
+        10,
+        300
+    },
+
+    Increment = 5,
+
+    Suffix = " speed",
+
+    CurrentValue = 50,
+
+    Flag = "FlightSpeed",
+
+    Callback = function(value)
+
+        flightSpeed = value
+
     end
 })
 
---//======================================================
---// RESPAWN HANDLING
---//======================================================
+UniversalTab:CreateToggle({
 
-LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(0.5)
+    Name = "Flight",
 
-    if Humanoid then
-        Humanoid.WalkSpeed = walkSpeed
-    end
-
-    if flying then
-        startFlying()
-    end
-end)
-
---//======================================================
---// MAIN
---//======================================================
-
-MainTab:CreateSection("Combat")
-
-MainTab:CreateToggle({
-    Name = "Kill Aura",
     CurrentValue = false,
 
-    Flag = "KillAura",
+    Flag = "Flight",
 
     Callback = function(enabled)
-        killAuraEnabled = enabled
 
-        if killAuraConnection then
-            killAuraConnection:Disconnect()
-            killAuraConnection = nil
+        if enabled then
+
+            startFlying()
+
+        else
+
+            stopFlying()
+
         end
 
-        if not enabled then
-            return
-        end
-
-        killAuraConnection = RunService.Heartbeat:Connect(function()
-            if not killAuraEnabled then
-                return
-            end
-
-            if not HRP or not Character then
-                return
-            end
-
-            for _, target in ipairs(Players:GetPlayers()) do
-
-                if target ~= LocalPlayer
-                    and target.Character
-                    and target.Character.Parent
-                then
-
-                    local targetHRP =
-                        target.Character:FindFirstChild("HumanoidRootPart")
-
-                    local targetHumanoid =
-                        target.Character:FindFirstChildOfClass("Humanoid")
-
-                    if targetHRP
-                        and targetHumanoid
-                        and targetHumanoid.Health > 0
-                    then
-
-                        local distance =
-                            (HRP.Position - targetHRP.Position).Magnitude
-
-                        if distance <= 10 then
-
-                            local tool =
-                                Character:FindFirstChildOfClass("Tool")
-
-                            if not tool then
-                                tool =
-                                    LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
-                            end
-
-                            if tool then
-
-                                if tool.Parent ~= Character then
-                                    tool.Parent = Character
-                                end
-
-                                pcall(function()
-                                    tool:Activate()
-                                end)
-
-                            end
-                        end
-                    end
-                end
-            end
-        end)
     end
+})
+
+UniversalTab:CreateParagraph({
+
+    Title = "FLIGHT CONTROLS",
+
+    Content =
+        "W / A / S / D  →  Move\n" ..
+        "SPACE          →  Up\n" ..
+        "LEFT CTRL      →  Down"
+
 })
 
 --//======================================================
 --// GAME
 --//======================================================
 
-GameTab:CreateSection("Items")
+GameTab:CreateSection(
+    "Visual Systems"
+)
+
+--// ESP
 
 GameTab:CreateToggle({
-    Name = "Auto Pickup",
+
+    Name = "Player ESP",
+
     CurrentValue = false,
 
-    Flag = "AutoPickup",
+    Flag = "ESP",
 
     Callback = function(enabled)
 
-        autoPickupEnabled = enabled
-
-        if pickupConnection then
-            pickupConnection:Disconnect()
-            pickupConnection = nil
-        end
+        espEnabled = enabled
 
         if not enabled then
-            return
+
+            for player, objects
+                in pairs(espObjects) do
+
+                if objects.Highlight then
+                    objects.Highlight:Destroy()
+                end
+
+                if objects.Billboard then
+                    objects.Billboard:Destroy()
+                end
+
+            end
+
+            espObjects = {}
+
         end
 
-        pickupConnection = RunService.Heartbeat:Connect(function()
-
-            if not autoPickupEnabled or not HRP then
-                return
-            end
-
-            -- Evita revisar el workspace entero en cada frame
-            local nearbyParts =
-                workspace:GetPartBoundsInRadius(
-                    HRP.Position,
-                    12
-                )
-
-            local checked = {}
-
-            for _, part in ipairs(nearbyParts) do
-
-                local prompt =
-                    part:FindFirstChildOfClass("ProximityPrompt")
-
-                if prompt
-                    and prompt.Enabled
-                    and not checked[prompt]
-                then
-
-                    checked[prompt] = true
-
-                    local distance =
-                        (HRP.Position - part.Position).Magnitude
-
-                    if distance <= 12 then
-
-                        pcall(function()
-                            fireproximityprompt(prompt)
-                        end)
-
-                    end
-                end
-            end
-        end)
     end
 })
 
---//======================================================
---// NAME ESP
---//======================================================
+local function createESP(player)
 
-UtilityTab:CreateSection("Player ESP")
-
-local function removeNameESP(player)
-    local gui = nameESPObjects[player]
-
-    if gui then
-        gui:Destroy()
-        nameESPObjects[player] = nil
-    end
-end
-
-local function createNameESP(player)
     if player == LocalPlayer then
         return
     end
 
-    removeNameESP(player)
+    if not espEnabled then
+        return
+    end
 
-    local character = player.Character
+    local character =
+        player.Character
 
     if not character then
         return
     end
 
-    local head = character:FindFirstChild("Head")
+    local head =
+        character:FindFirstChild("Head")
 
     if not head then
         return
     end
 
-    local billboard = Instance.new("BillboardGui")
+    if espObjects[player] then
 
-    billboard.Name = "GamerSystemNameESP"
-    billboard.Adornee = head
-    billboard.Size = UDim2.fromOffset(220, 45)
-    billboard.StudsOffset = Vector3.new(0, 2.8, 0)
+        if espObjects[player].Highlight then
+            espObjects[player].Highlight:Destroy()
+        end
 
-    billboard.AlwaysOnTop = true
-    billboard.Parent = head
+        if espObjects[player].Billboard then
+            espObjects[player].Billboard:Destroy()
+        end
 
-    local label = Instance.new("TextLabel")
+    end
 
-    label.Size = UDim2.fromScale(1, 1)
+    local highlight =
+        Instance.new("Highlight")
 
-    label.BackgroundTransparency = 0.3
-    label.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    highlight.Name =
+        "SpaceHubESP"
 
-    label.BorderSizePixel = 0
+    highlight.Adornee =
+        character
 
-    label.Text = player.DisplayName
+    highlight.FillTransparency =
+        0.65
+
+    highlight.OutlineTransparency =
+        0
+
+    highlight.FillColor =
+        Color3.fromRGB(
+            0,
+            170,
+            255
+        )
+
+    highlight.OutlineColor =
+        Color3.fromRGB(
+            120,
+            220,
+            255
+        )
+
+    highlight.DepthMode =
+        Enum.HighlightDepthMode.AlwaysOnTop
+
+    highlight.Parent =
+        character
+
+    local billboard =
+        Instance.new("BillboardGui")
+
+    billboard.Name =
+        "SpaceHubNameESP"
+
+    billboard.Adornee =
+        head
+
+    billboard.Size =
+        UDim2.fromOffset(
+            220,
+            45
+        )
+
+    billboard.StudsOffset =
+        Vector3.new(
+            0,
+            3,
+            0
+        )
+
+    billboard.AlwaysOnTop =
+        true
+
+    billboard.Parent =
+        head
+
+    local label =
+        Instance.new("TextLabel")
+
+    label.Size =
+        UDim2.fromScale(
+            1,
+            1
+        )
+
+    label.BackgroundTransparency =
+        1
+
+    label.Text =
+        player.DisplayName
         .. "\n@"
         .. player.Name
 
-    label.TextColor3 = Color3.fromRGB(255, 255, 0)
-    label.TextStrokeTransparency = 0
-    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.TextColor3 =
+        Color3.fromRGB(
+            100,
+            220,
+            255
+        )
 
-    label.TextScaled = true
-    label.Font = Enum.Font.GothamBold
+    label.TextStrokeTransparency =
+        0
 
-    label.Parent = billboard
+    label.TextStrokeColor3 =
+        Color3.fromRGB(
+            0,
+            0,
+            20
+        )
 
-    nameESPObjects[player] = billboard
+    label.TextScaled =
+        true
+
+    label.Font =
+        Enum.Font.GothamBold
+
+    label.Parent =
+        billboard
+
+    espObjects[player] = {
+
+        Highlight = highlight,
+
+        Billboard = billboard
+
+    }
+
 end
 
-local function updateAllNameESP()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            createNameESP(player)
-        end
+local function refreshESP()
+
+    if not espEnabled then
+        return
     end
+
+    for _, player
+        in ipairs(
+            Players:GetPlayers()
+        ) do
+
+        if player ~= LocalPlayer then
+            createESP(player)
+        end
+
+    end
+
 end
 
-UtilityTab:CreateToggle({
-    Name = "Names Through Walls",
+Players.PlayerAdded:Connect(
+    function(player)
+
+        player.CharacterAdded:Connect(
+            function()
+
+                task.wait(0.5)
+
+                if espEnabled then
+                    createESP(player)
+                end
+
+            end
+        )
+
+    end
+)
+
+Players.PlayerRemoving:Connect(
+    function(player)
+
+        if espObjects[player] then
+
+            if espObjects[player].Highlight then
+                espObjects[player].Highlight:Destroy()
+            end
+
+            if espObjects[player].Billboard then
+                espObjects[player].Billboard:Destroy()
+            end
+
+            espObjects[player] = nil
+
+        end
+
+    end
+)
+
+GameTab:CreateButton({
+
+    Name = "Refresh ESP",
+
+    Callback = function()
+
+        refreshESP()
+
+        Rayfield:Notify({
+
+            Title = "SPACE HUB",
+
+            Content =
+                "ESP refreshed.",
+
+            Duration = 3,
+
+            Image = 4483362458
+
+        })
+
+    end
+
+})
+
+--//======================================================
+--// AIMBOT
+--//======================================================
+
+GameTab:CreateSection(
+    "Targeting"
+)
+
+GameTab:CreateToggle({
+
+    Name = "Aimbot",
+
     CurrentValue = false,
 
-    Flag = "NameESP",
+    Flag = "Aimbot",
 
     Callback = function(enabled)
 
-        nameESPEnabled = enabled
+        aimbotEnabled = enabled
 
-        if enabled then
+        Rayfield:Notify({
 
-            updateAllNameESP()
+            Title = "Aimbot",
 
-        else
+            Content =
+                enabled
+                and "Targeting enabled."
+                or "Targeting disabled.",
 
-            for player in pairs(nameESPObjects) do
-                removeNameESP(player)
-            end
+            Duration = 3,
 
-        end
+            Image = 4483362458
+
+        })
+
     end
+
 })
 
--- Actualizar ESP cuando reaparece un jugador
-Players.PlayerAdded:Connect(function(player)
+GameTab:CreateParagraph({
 
-    player.CharacterAdded:Connect(function()
+    Title = "TARGET PRIORITY",
 
-        task.wait(0.5)
+    Content =
+        "Priority target: HEAD\n\n" ..
+        "The targeting configuration is set " ..
+        "to prioritize the Head part."
 
-        if nameESPEnabled then
-            createNameESP(player)
-        end
-
-    end)
-
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    removeNameESP(player)
-end)
+})
 
 --//======================================================
 --// TELEPORT
 --//======================================================
 
-TeleportTab:CreateSection("Teleport Players")
+GameTab:CreateSection(
+    "Teleport"
+)
 
-local function teleportToPlayer(target)
-    if not HRP then
-        return
+GameTab:CreateParagraph({
+
+    Title = "TELEPORT SYSTEM",
+
+    Content =
+        "Teleport controls are organized " ..
+        "here for game-specific functionality."
+
+})
+
+GameTab:CreateButton({
+
+    Name = "Refresh Player List",
+
+    Callback = function()
+
+        Rayfield:Notify({
+
+            Title = "SPACE HUB",
+
+            Content =
+                "Player list refreshed.",
+
+            Duration = 3,
+
+            Image = 4483362458
+
+        })
+
     end
 
-    local targetCharacter = target.Character
-
-    if not targetCharacter then
-        return
-    end
-
-    local targetHRP =
-        targetCharacter:FindFirstChild("HumanoidRootPart")
-
-    if not targetHRP then
-        return
-    end
-
-    HRP.CFrame =
-        targetHRP.CFrame * CFrame.new(3, 0, 0)
-end
-
-local function createTeleportButton(player)
-
-    if player == LocalPlayer then
-        return
-    end
-
-    TeleportTab:CreateButton({
-        Name = "TP → " .. player.Name,
-
-        Callback = function()
-            teleportToPlayer(player)
-        end
-    })
-end
-
-for _, player in ipairs(Players:GetPlayers()) do
-    createTeleportButton(player)
-end
-
-Players.PlayerAdded:Connect(function(player)
-
-    task.wait(1)
-
-    createTeleportButton(player)
-
-end)
+})
 
 --//======================================================
---// BRING
+--// CONFIGURATION
 --//======================================================
 
-TeleportTab:CreateSection("Bring Players")
+ConfigurationTab:CreateSection(
+    "Movement Configuration"
+)
 
-local function bringPlayer(target)
+ConfigurationTab:CreateSlider({
 
-    if not HRP then
-        return
-    end
+    Name = "WalkSpeed",
 
-    local targetCharacter = target.Character
+    Range = {
+        1,
+        250
+    },
 
-    if not targetCharacter then
-        return
-    end
+    Increment = 1,
 
-    local targetHRP =
-        targetCharacter:FindFirstChild("HumanoidRootPart")
+    Suffix = " speed",
 
-    if not targetHRP then
-        return
-    end
+    CurrentValue = 16,
 
-    -- Esto solo funcionará realmente si el cliente
-    -- tiene autoridad sobre el personaje objetivo.
-    pcall(function()
-        targetHRP.CFrame =
-            HRP.CFrame * CFrame.new(3, 0, 0)
-    end)
-end
+    Flag = "ConfigWalkSpeed",
 
-local function createBringButton(player)
+    Callback = function(value)
 
-    if player == LocalPlayer then
-        return
-    end
+        walkSpeed = value
 
-    TeleportTab:CreateButton({
-        Name = "Bring ← " .. player.Name,
+        if Humanoid
+            and Humanoid.Parent then
 
-        Callback = function()
-            bringPlayer(player)
+            Humanoid.WalkSpeed =
+                value
+
         end
-    })
-end
 
-for _, player in ipairs(Players:GetPlayers()) do
-    createBringButton(player)
-end
+    end
 
-Players.PlayerAdded:Connect(function(player)
+})
 
-    task.wait(1)
+ConfigurationTab:CreateSlider({
 
-    createBringButton(player)
+    Name = "Flight Speed",
 
-end)
+    Range = {
+        10,
+        300
+    },
+
+    Increment = 5,
+
+    Suffix = " speed",
+
+    CurrentValue = 50,
+
+    Flag = "ConfigFlightSpeed",
+
+    Callback = function(value)
+
+        flightSpeed = value
+
+    end
+
+})
+
+--//======================================================
+--// THEMES
+--//======================================================
+
+ConfigurationTab:CreateSection(
+    "Themes"
+)
+
+ConfigurationTab:CreateDropdown({
+
+    Name = "Interface Theme",
+
+    Options = {
+
+        "Default",
+        "AmberGlow",
+        "Amethyst",
+        "Bloom",
+        "DarkBlue",
+        "Green",
+        "Light",
+        "Ocean",
+        "Serenity"
+
+    },
+
+    CurrentOption = {
+        "Default"
+    },
+
+    MultipleOptions = false,
+
+    Flag = "Theme",
+
+    Callback = function(option)
+
+        local themeName
+
+        if typeof(option) == "table" then
+            themeName = option[1]
+        else
+            themeName = option
+        end
+
+        if not themeName then
+            return
+        end
+
+        pcall(function()
+
+            Window.ModifyTheme(
+                Window,
+                themeName
+            )
+
+        end)
+
+    end
+
+})
+
+ConfigurationTab:CreateParagraph({
+
+    Title = "SPACE HUB",
+
+    Content =
+        "Version 1.0.0\n\n" ..
+        "Universal movement systems\n" ..
+        "Game utilities\n" ..
+        "Visual systems\n" ..
+        "Theme configuration\n\n" ..
+        "Press K to toggle the interface."
+
+})
+
+--//======================================================
+--// RESPAWN
+--//======================================================
+
+LocalPlayer.CharacterAdded:Connect(
+    function(char)
+
+        task.wait(0.5)
+
+        updateCharacter(char)
+
+        if Humanoid then
+            Humanoid.WalkSpeed =
+                walkSpeed
+        end
+
+        if flying then
+
+            task.wait(0.25)
+
+            startFlying()
+
+        end
+
+        if espEnabled then
+
+            task.wait(0.25)
+
+            refreshESP()
+
+        end
+
+    end
+)
 
 --//======================================================
 --// CLEANUP
 --//======================================================
 
-LocalPlayer.AncestryChanged:Connect(function(_, parent)
+LocalPlayer.AncestryChanged:Connect(
+    function(_, parent)
 
-    if parent == nil then
+        if parent == nil then
 
-        stopFlying()
+            stopFlying()
 
-        if killAuraConnection then
-            killAuraConnection:Disconnect()
-        end
+            for player, objects
+                in pairs(espObjects) do
 
-        if pickupConnection then
-            pickupConnection:Disconnect()
+                if objects.Highlight then
+                    objects.Highlight:Destroy()
+                end
+
+                if objects.Billboard then
+                    objects.Billboard:Destroy()
+                end
+
+            end
+
+            espObjects = {}
+
         end
 
     end
+)
+
+--//======================================================
+--// LOAD CONFIGURATION
+--//======================================================
+
+pcall(function()
+
+    Rayfield:LoadConfiguration()
 
 end)
 
 --//======================================================
---// NOTIFICATION
+--// STARTUP
 --//======================================================
 
 Rayfield:Notify({
-    Title = "Gamer System",
-    Content = "Loaded successfully!",
+
+    Title = "SPACE HUB",
+
+    Content =
+        "Orbital systems initialized!",
+
     Duration = 5,
+
     Image = 4483362458
+
 })
