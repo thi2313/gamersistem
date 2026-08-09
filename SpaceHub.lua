@@ -1,8 +1,9 @@
 --//======================================================
 --// SPACE HUB
---// Universal Rayfield Hub
---// Fixed Build
+--// PREMIUM ORBITAL INTERFACE
+--// VERSION 2.1.0
 --//======================================================
+
 
 --//======================================================
 --// SERVICES
@@ -11,34 +12,53 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 
+
 --//======================================================
---// VARIABLES
+--// STATE
 --//======================================================
 
-local Character = nil
-local Humanoid = nil
-local HRP = nil
+local Character
+local Humanoid
+local HRP
 
 local walkSpeed = 16
 local flightSpeed = 50
 
 local flying = false
-local espEnabled = false
-local aimbotEnabled = false
+local infiniteJump = false
+local noclip = false
+local fullbright = false
 
-local flyConnection = nil
-local espConnections = {}
+local espEnabled = false
+
+local aimbotEnabled = false
+local aimbotFOVEnabled = true
+local aimbotFOV = 250
+local aimbotSmoothness = 0.18
+local teamCheck = false
+
+local flyConnection
+local aimbotConnection
+local noclipConnection
+local jumpConnection
+local fullbrightConnection
+
 local espObjects = {}
 
--- Forward declarations
-local startFlying
-local stopFlying
+local originalLighting = {
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd,
+    GlobalShadows = Lighting.GlobalShadows
+}
+
 
 --//======================================================
---// CHARACTER
+--// CHARACTER SYSTEM
 --//======================================================
 
 local function updateCharacter(character)
@@ -61,9 +81,11 @@ local function updateCharacter(character)
 
 end
 
+
 if LocalPlayer.Character then
     updateCharacter(LocalPlayer.Character)
 end
+
 
 --//======================================================
 --// RAYFIELD
@@ -73,6 +95,7 @@ local Rayfield = loadstring(game:HttpGet(
     "https://sirius.menu/rayfield"
 ))()
 
+
 --//======================================================
 --// WINDOW
 --//======================================================
@@ -81,18 +104,14 @@ local Window = Rayfield:CreateWindow({
 
     Name = "SPACE HUB",
 
-    Icon = "orbit",
+    Icon = 0,
 
     LoadingTitle = "SPACE HUB",
 
     LoadingSubtitle =
-        "Initializing orbital systems...",
-
-    ShowText = "SPACE HUB",
+        "Premium Orbital Interface",
 
     Theme = "DarkBlue",
-
-    ToggleUIKeybind = "K",
 
     DisableRayfieldPrompts = false,
 
@@ -100,57 +119,94 @@ local Window = Rayfield:CreateWindow({
 
     ConfigurationSaving = {
         Enabled = true,
-
-        FolderName = "SpaceHub",
-
-        FileName = "SpaceHubConfig"
+        FolderName = nil,
+        FileName = "SpaceHub"
     },
 
     Discord = {
-        Enabled = false
+        Enabled = false,
+        Invite = "",
+        RememberJoins = true
     },
 
-    KeySystem = false
+    KeySystem = true,
+
+    KeySettings = {
+
+        Title = "SPACE HUB",
+
+        Subtitle = "Orbital Access",
+
+        Note =
+            "Enter your Space Hub access key",
+
+        FileName = "SpaceHubKey",
+
+        SaveKey = false,
+
+        GrabKeyFromSite = false,
+
+        Key = {
+            "spacehub1254"
+        }
+
+    }
+
 })
+
 
 --//======================================================
 --// TABS
 --//======================================================
 
-local UniversalTab = Window:CreateTab(
-    "Universal",
-    "rocket"
-)
+local UniversalTab =
+    Window:CreateTab(
+        "Universal",
+        4483362458
+    )
 
-local GameTab = Window:CreateTab(
-    "Game",
-    "crosshair"
-)
+local GameTab =
+    Window:CreateTab(
+        "Game",
+        4483362458
+    )
 
-local ConfigurationTab = Window:CreateTab(
-    "Configuration",
-    "settings"
-)
+local TeleportTab =
+    Window:CreateTab(
+        "Teleport",
+        4483362458
+    )
+
+local ConfigurationTab =
+    Window:CreateTab(
+        "Configuration",
+        4483362458
+    )
+
 
 --//======================================================
---// UNIVERSAL
+--// UNIVERSAL HEADER
 --//======================================================
-
-UniversalTab:CreateSection(
-    "Movement Systems"
-)
 
 UniversalTab:CreateParagraph({
 
-    Title = "SPACE MOVEMENT",
+    Title = "◈ ORBITAL CONTROL",
 
     Content =
-        "Universal movement controls.\n" ..
-        "Adjust your movement parameters below."
+        "Universal movement and player utilities.\n" ..
+        "Configure your personal movement systems below."
 
 })
 
---// WalkSpeed
+
+--//======================================================
+--// MOVEMENT
+--//======================================================
+
+UniversalTab:CreateSection(
+    "MOVEMENT CORE"
+)
+
 
 UniversalTab:CreateSlider({
 
@@ -163,11 +219,11 @@ UniversalTab:CreateSlider({
 
     Increment = 1,
 
-    Suffix = " studs/s",
+    Suffix = " SPD",
 
     CurrentValue = 16,
 
-    Flag = "UniversalWalkSpeed",
+    Flag = "WalkSpeed",
 
     Callback = function(value)
 
@@ -176,7 +232,8 @@ UniversalTab:CreateSlider({
         if Humanoid
             and Humanoid.Parent then
 
-            Humanoid.WalkSpeed = value
+            Humanoid.WalkSpeed =
+                value
 
         end
 
@@ -184,13 +241,15 @@ UniversalTab:CreateSlider({
 
 })
 
+
 --//======================================================
 --// FLIGHT
 --//======================================================
 
 UniversalTab:CreateSection(
-    "Flight System"
+    "FLIGHT SYSTEM"
 )
+
 
 local function removeFlightObjects()
 
@@ -200,7 +259,7 @@ local function removeFlightObjects()
 
     local velocity =
         HRP:FindFirstChild(
-            "SpaceHubFlightVelocity"
+            "SpaceHub_FlightVelocity"
         )
 
     if velocity then
@@ -209,7 +268,7 @@ local function removeFlightObjects()
 
     local attachment =
         HRP:FindFirstChild(
-            "SpaceHubFlightAttachment"
+            "SpaceHub_FlightAttachment"
         )
 
     if attachment then
@@ -218,7 +277,8 @@ local function removeFlightObjects()
 
 end
 
-stopFlying = function()
+
+local function stopFlying()
 
     flying = false
 
@@ -238,25 +298,17 @@ stopFlying = function()
 
 end
 
-startFlying = function()
 
-    if not Character
-        or not Humanoid
-        or not HRP then
+local function startFlying()
+
+    if not HRP
+        or not Humanoid then
 
         return
 
     end
 
-    if flyConnection then
-
-        flyConnection:Disconnect()
-
-        flyConnection = nil
-
-    end
-
-    removeFlightObjects()
+    stopFlying()
 
     flying = true
 
@@ -264,15 +316,17 @@ startFlying = function()
         Instance.new("Attachment")
 
     attachment.Name =
-        "SpaceHubFlightAttachment"
+        "SpaceHub_FlightAttachment"
 
-    attachment.Parent = HRP
+    attachment.Parent =
+        HRP
+
 
     local velocity =
         Instance.new("LinearVelocity")
 
     velocity.Name =
-        "SpaceHubFlightVelocity"
+        "SpaceHub_FlightVelocity"
 
     velocity.Attachment0 =
         attachment
@@ -286,9 +340,13 @@ startFlying = function()
     velocity.VectorVelocity =
         Vector3.zero
 
-    velocity.Parent = HRP
+    velocity.Parent =
+        HRP
 
-    Humanoid.PlatformStand = true
+
+    Humanoid.PlatformStand =
+        true
+
 
     flyConnection =
         RunService.RenderStepped:Connect(
@@ -298,9 +356,7 @@ startFlying = function()
                     return
                 end
 
-                if not Character
-                    or not Character.Parent
-                    or not HRP
+                if not HRP
                     or not HRP.Parent then
 
                     stopFlying()
@@ -309,51 +365,58 @@ startFlying = function()
 
                 end
 
-                local Camera =
+
+                local camera =
                     workspace.CurrentCamera
 
-                if not Camera then
+                if not camera then
                     return
                 end
 
+
                 local direction =
                     Vector3.zero
+
 
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.W
                 ) then
 
                     direction +=
-                        Camera.CFrame.LookVector
+                        camera.CFrame.LookVector
 
                 end
+
 
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.S
                 ) then
 
                     direction -=
-                        Camera.CFrame.LookVector
+                        camera.CFrame.LookVector
 
                 end
 
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.D
-                ) then
-
-                    direction +=
-                        Camera.CFrame.RightVector
-
-                end
 
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.A
                 ) then
 
                     direction -=
-                        Camera.CFrame.RightVector
+                        camera.CFrame.RightVector
 
                 end
+
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.D
+                ) then
+
+                    direction +=
+                        camera.CFrame.RightVector
+
+                end
+
 
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.Space
@@ -364,6 +427,7 @@ startFlying = function()
 
                 end
 
+
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.LeftControl
                 ) then
@@ -373,18 +437,15 @@ startFlying = function()
 
                 end
 
+
                 if direction.Magnitude > 0 then
 
                     direction =
                         direction.Unit
                         * flightSpeed
 
-                else
-
-                    direction =
-                        Vector3.zero
-
                 end
+
 
                 velocity.VectorVelocity =
                     direction
@@ -393,6 +454,7 @@ startFlying = function()
         )
 
 end
+
 
 UniversalTab:CreateSlider({
 
@@ -405,19 +467,21 @@ UniversalTab:CreateSlider({
 
     Increment = 5,
 
-    Suffix = " studs/s",
+    Suffix = " SPD",
 
     CurrentValue = 50,
 
-    Flag = "UniversalFlightSpeed",
+    Flag = "FlightSpeed",
 
     Callback = function(value)
 
-        flightSpeed = value
+        flightSpeed =
+            value
 
     end
 
 })
+
 
 UniversalTab:CreateToggle({
 
@@ -425,80 +489,274 @@ UniversalTab:CreateToggle({
 
     CurrentValue = false,
 
-    Flag = "UniversalFlight",
+    Flag = "Flight",
 
     Callback = function(enabled)
 
         if enabled then
-
             startFlying()
-
         else
-
             stopFlying()
-
         end
 
     end
 
 })
 
+
 UniversalTab:CreateParagraph({
 
-    Title = "Flight Controls",
+    Title = "FLIGHT CONTROLS",
 
     Content =
-        "W / A / S / D  →  Move\n" ..
-        "SPACE          →  Ascend\n" ..
-        "LEFT CTRL      →  Descend\n" ..
-        "K              →  Toggle UI"
+        "W A S D  →  Navigation\n" ..
+        "SPACE  →  Ascend\n" ..
+        "LEFT CTRL  →  Descend"
 
 })
 
+
 --//======================================================
---// GAME
+--// PLAYER UTILITIES
 --//======================================================
 
-GameTab:CreateSection(
-    "Visual Systems"
+UniversalTab:CreateSection(
+    "PLAYER UTILITIES"
 )
 
---// ESP
 
-GameTab:CreateToggle({
+UniversalTab:CreateToggle({
 
-    Name = "Player ESP",
+    Name = "Infinite Jump",
 
     CurrentValue = false,
 
-    Flag = "PlayerESP",
+    Flag = "InfiniteJump",
 
     Callback = function(enabled)
 
-        espEnabled = enabled
+        infiniteJump =
+            enabled
+
+        if jumpConnection then
+
+            jumpConnection:Disconnect()
+
+            jumpConnection = nil
+
+        end
+
 
         if not enabled then
+            return
+        end
 
-            for player, objects
-                in pairs(espObjects) do
 
-                if objects.Highlight then
-                    objects.Highlight:Destroy()
+        jumpConnection =
+            UserInputService.JumpRequest:Connect(
+                function()
+
+                    if Humanoid then
+
+                        Humanoid:ChangeState(
+                            Enum.HumanoidStateType.Jumping
+                        )
+
+                    end
+
                 end
+            )
 
-                if objects.Billboard then
-                    objects.Billboard:Destroy()
+    end
+
+})
+
+
+--//======================================================
+--// NOCLIP
+--//======================================================
+
+UniversalTab:CreateToggle({
+
+    Name = "Noclip",
+
+    CurrentValue = false,
+
+    Flag = "Noclip",
+
+    Callback = function(enabled)
+
+        noclip =
+            enabled
+
+
+        if noclipConnection then
+
+            noclipConnection:Disconnect()
+
+            noclipConnection = nil
+
+        end
+
+
+        if not enabled
+            and Character then
+
+            for _, part in ipairs(
+                Character:GetDescendants()
+            ) do
+
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
                 end
 
             end
 
-            espObjects = {}
+            return
+
+        end
+
+
+        noclipConnection =
+            RunService.Stepped:Connect(
+                function()
+
+                    if not noclip
+                        or not Character then
+
+                        return
+
+                    end
+
+
+                    for _, part in ipairs(
+                        Character:GetDescendants()
+                    ) do
+
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+
+                    end
+
+                end
+            )
+
+    end
+
+})
+
+
+--//======================================================
+--// FULLBRIGHT
+--//======================================================
+
+UniversalTab:CreateToggle({
+
+    Name = "Fullbright",
+
+    CurrentValue = false,
+
+    Flag = "Fullbright",
+
+    Callback = function(enabled)
+
+        fullbright =
+            enabled
+
+
+        if fullbrightConnection then
+
+            fullbrightConnection:Disconnect()
+
+            fullbrightConnection = nil
+
+        end
+
+
+        if enabled then
+
+            fullbrightConnection =
+                RunService.RenderStepped:Connect(
+                    function()
+
+                        Lighting.Brightness = 2
+                        Lighting.ClockTime = 14
+                        Lighting.FogEnd = 100000
+                        Lighting.GlobalShadows = false
+
+                    end
+                )
+
+        else
+
+            Lighting.Brightness =
+                originalLighting.Brightness
+
+            Lighting.ClockTime =
+                originalLighting.ClockTime
+
+            Lighting.FogEnd =
+                originalLighting.FogEnd
+
+            Lighting.GlobalShadows =
+                originalLighting.GlobalShadows
 
         end
 
     end
 
 })
+
+
+--//======================================================
+--// GAME HEADER
+--//======================================================
+
+GameTab:CreateParagraph({
+
+    Title = "◈ TARGETING & VISUALS",
+
+    Content =
+        "Advanced player visualization and targeting controls."
+
+})
+
+
+--//======================================================
+--// ESP
+--//======================================================
+
+GameTab:CreateSection(
+    "PLAYER ESP"
+)
+
+
+local function removeESP(player)
+
+    local data =
+        espObjects[player]
+
+    if not data then
+        return
+    end
+
+
+    if data.Highlight then
+        data.Highlight:Destroy()
+    end
+
+
+    if data.Billboard then
+        data.Billboard:Destroy()
+    end
+
+
+    espObjects[player] =
+        nil
+
+end
+
 
 local function createESP(player)
 
@@ -506,9 +764,14 @@ local function createESP(player)
         return
     end
 
+
+    removeESP(player)
+
+
     if not espEnabled then
         return
     end
+
 
     local character =
         player.Character
@@ -517,38 +780,31 @@ local function createESP(player)
         return
     end
 
+
     local head =
-        character:FindFirstChild("Head")
+        character:FindFirstChild(
+            "Head"
+        )
 
     if not head then
         return
     end
 
-    if espObjects[player] then
-
-        if espObjects[player].Highlight then
-            espObjects[player].Highlight:Destroy()
-        end
-
-        if espObjects[player].Billboard then
-            espObjects[player].Billboard:Destroy()
-        end
-
-    end
-
-    -- Highlight
 
     local highlight =
         Instance.new("Highlight")
 
     highlight.Name =
-        "SpaceHubESP"
+        "SpaceHub_ESP"
 
     highlight.Adornee =
         character
 
+    highlight.DepthMode =
+        Enum.HighlightDepthMode.AlwaysOnTop
+
     highlight.FillTransparency =
-        0.65
+        0.72
 
     highlight.OutlineTransparency =
         0
@@ -556,44 +812,40 @@ local function createESP(player)
     highlight.FillColor =
         Color3.fromRGB(
             0,
-            170,
+            180,
             255
         )
 
     highlight.OutlineColor =
         Color3.fromRGB(
-            150,
-            220,
+            120,
+            235,
             255
         )
-
-    highlight.DepthMode =
-        Enum.HighlightDepthMode.AlwaysOnTop
 
     highlight.Parent =
         character
 
-    -- Name
 
     local billboard =
         Instance.new("BillboardGui")
 
     billboard.Name =
-        "SpaceHubName"
+        "SpaceHub_PlayerInfo"
 
     billboard.Adornee =
         head
 
     billboard.Size =
         UDim2.fromOffset(
-            220,
-            45
+            250,
+            60
         )
 
     billboard.StudsOffset =
         Vector3.new(
             0,
-            3,
+            3.2,
             0
         )
 
@@ -602,6 +854,7 @@ local function createESP(player)
 
     billboard.Parent =
         head
+
 
     local label =
         Instance.new("TextLabel")
@@ -615,15 +868,16 @@ local function createESP(player)
     label.BackgroundTransparency =
         1
 
-    label.Text =
-        player.DisplayName
-        .. "\n@"
-        .. player.Name
+    label.Font =
+        Enum.Font.GothamBold
+
+    label.TextScaled =
+        true
 
     label.TextColor3 =
         Color3.fromRGB(
-            100,
-            220,
+            120,
+            225,
             255
         )
 
@@ -632,40 +886,38 @@ local function createESP(player)
 
     label.TextStrokeColor3 =
         Color3.fromRGB(
-            0,
-            0,
+            5,
+            10,
             20
         )
 
-    label.Font =
-        Enum.Font.GothamBold
-
-    label.TextScaled =
-        true
+    label.Text =
+        player.DisplayName
+        .. "\n@"
+        .. player.Name
 
     label.Parent =
         billboard
 
+
     espObjects[player] = {
 
-        Highlight = highlight,
+        Highlight =
+            highlight,
 
-        Billboard = billboard
+        Billboard =
+            billboard
 
     }
 
 end
 
+
 local function refreshESP()
 
-    if not espEnabled then
-        return
-    end
-
-    for _, player
-        in ipairs(
-            Players:GetPlayers()
-        ) do
+    for _, player in ipairs(
+        Players:GetPlayers()
+    ) do
 
         if player ~= LocalPlayer then
             createESP(player)
@@ -674,6 +926,72 @@ local function refreshESP()
     end
 
 end
+
+
+GameTab:CreateToggle({
+
+    Name = "Player ESP",
+
+    CurrentValue = false,
+
+    Flag = "ESP",
+
+    Callback = function(enabled)
+
+        espEnabled =
+            enabled
+
+
+        if enabled then
+
+            refreshESP()
+
+        else
+
+            for player in pairs(
+                espObjects
+            ) do
+
+                removeESP(player)
+
+            end
+
+        end
+
+    end
+
+})
+
+
+GameTab:CreateButton({
+
+    Name = "Refresh Player Visuals",
+
+    Callback = function()
+
+        refreshESP()
+
+        Rayfield:Notify({
+
+            Title = "VISUAL SYSTEM",
+
+            Content =
+                "Player visuals synchronized.",
+
+            Duration = 3,
+
+            Image = 4483362458
+
+        })
+
+    end
+
+})
+
+
+--//======================================================
+--// PLAYER EVENTS
+--//======================================================
 
 Players.PlayerAdded:Connect(
     function(player)
@@ -693,60 +1011,243 @@ Players.PlayerAdded:Connect(
     end
 )
 
+
 Players.PlayerRemoving:Connect(
     function(player)
 
-        if espObjects[player] then
-
-            if espObjects[player].Highlight then
-                espObjects[player].Highlight:Destroy()
-            end
-
-            if espObjects[player].Billboard then
-                espObjects[player].Billboard:Destroy()
-            end
-
-            espObjects[player] = nil
-
-        end
+        removeESP(player)
 
     end
 )
 
--- Refresh when enabled
-
-GameTab:CreateButton({
-
-    Name = "Refresh ESP",
-
-    Callback = function()
-
-        refreshESP()
-
-        Rayfield:Notify({
-
-            Title = "ESP",
-
-            Content =
-                "Player visuals refreshed.",
-
-            Duration = 3,
-
-            Image = "scan"
-
-        })
-
-    end
-
-})
 
 --//======================================================
 --// AIMBOT
 --//======================================================
 
 GameTab:CreateSection(
-    "Targeting"
+    "TARGETING CORE"
 )
+
+
+local function getNearestPlayer()
+
+    if not HRP then
+        return nil
+    end
+
+
+    local nearestPlayer
+    local nearestDistance =
+        math.huge
+
+
+    for _, player in ipairs(
+        Players:GetPlayers()
+    ) do
+
+        if player ~= LocalPlayer then
+
+            if not (
+                teamCheck
+                and player.Team == LocalPlayer.Team
+            ) then
+
+                local character =
+                    player.Character
+
+                if character then
+
+                    local humanoid =
+                        character:FindFirstChildOfClass(
+                            "Humanoid"
+                        )
+
+                    local targetHRP =
+                        character:FindFirstChild(
+                            "HumanoidRootPart"
+                        )
+
+                    local head =
+                        character:FindFirstChild(
+                            "Head"
+                        )
+
+
+                    if humanoid
+                        and humanoid.Health > 0
+                        and targetHRP
+                        and head then
+
+
+                        local distance =
+                            (
+                                HRP.Position
+                                - targetHRP.Position
+                            ).Magnitude
+
+
+                        if distance <
+                            nearestDistance then
+
+                            nearestDistance =
+                                distance
+
+                            nearestPlayer =
+                                player
+
+                        end
+
+                    end
+
+                end
+
+            end
+
+        end
+
+    end
+
+
+    return nearestPlayer
+
+end
+
+
+local function stopAimbot()
+
+    if aimbotConnection then
+
+        aimbotConnection:Disconnect()
+
+        aimbotConnection = nil
+
+    end
+
+end
+
+
+local function startAimbot()
+
+    stopAimbot()
+
+
+    aimbotConnection =
+        RunService.RenderStepped:Connect(
+            function()
+
+                if not aimbotEnabled then
+                    return
+                end
+
+
+                local camera =
+                    workspace.CurrentCamera
+
+                if not camera
+                    or not HRP then
+
+                    return
+
+                end
+
+
+                local target =
+                    getNearestPlayer()
+
+
+                if not target then
+                    return
+                end
+
+
+                local character =
+                    target.Character
+
+                if not character then
+                    return
+                end
+
+
+                -- HEAD ONLY
+
+                local head =
+                    character:FindFirstChild(
+                        "Head"
+                    )
+
+
+                if not head then
+                    return
+                end
+
+
+                local screenPosition,
+                    onScreen =
+                    camera:WorldToViewportPoint(
+                        head.Position
+                    )
+
+
+                if not onScreen then
+
+                    return
+
+                end
+
+
+                if aimbotFOVEnabled then
+
+                    local viewport =
+                        camera.ViewportSize
+
+                    local center =
+                        Vector2.new(
+                            viewport.X / 2,
+                            viewport.Y / 2
+                        )
+
+                    local targetPosition =
+                        Vector2.new(
+                            screenPosition.X,
+                            screenPosition.Y
+                        )
+
+                    local distance =
+                        (
+                            targetPosition
+                            - center
+                        ).Magnitude
+
+
+                    if distance >
+                        aimbotFOV then
+
+                        return
+
+                    end
+
+                end
+
+
+                local targetCFrame =
+                    CFrame.lookAt(
+                        camera.CFrame.Position,
+                        head.Position
+                    )
+
+
+                camera.CFrame =
+                    camera.CFrame:Lerp(
+                        targetCFrame,
+                        aimbotSmoothness
+                    )
+
+            end
+        )
+
+end
+
 
 GameTab:CreateToggle({
 
@@ -758,86 +1259,332 @@ GameTab:CreateToggle({
 
     Callback = function(enabled)
 
-        aimbotEnabled = enabled
+        aimbotEnabled =
+            enabled
 
-        Rayfield:Notify({
 
-            Title = "Aimbot",
+        if enabled then
 
-            Content = enabled
-                and "Aimbot enabled."
-                or "Aimbot disabled.",
+            startAimbot()
 
-            Duration = 3,
+            Rayfield:Notify({
 
-            Image = "crosshair"
+                Title = "TARGETING CORE",
 
-        })
+                Content =
+                    "Nearest player acquired • HEAD",
+
+                Duration = 3,
+
+                Image = 4483362458
+
+            })
+
+        else
+
+            stopAimbot()
+
+        end
 
     end
 
 })
 
-GameTab:CreateParagraph({
 
-    Title = "Target",
+GameTab:CreateToggle({
 
-    Content =
-        "Target preference: HEAD\n\n" ..
-        "The targeting system is configured " ..
-        "around the player's Head part."
+    Name = "FOV Limiter",
+
+    CurrentValue = true,
+
+    Flag = "AimbotFOVEnabled",
+
+    Callback = function(enabled)
+
+        aimbotFOVEnabled =
+            enabled
+
+    end
 
 })
+
+
+GameTab:CreateSlider({
+
+    Name = "Aimbot FOV",
+
+    Range = {
+        50,
+        1000
+    },
+
+    Increment = 10,
+
+    Suffix = " PX",
+
+    CurrentValue = 250,
+
+    Flag = "AimbotFOV",
+
+    Callback = function(value)
+
+        aimbotFOV =
+            value
+
+    end
+
+})
+
+
+GameTab:CreateSlider({
+
+    Name = "Aimbot Smoothness",
+
+    Range = {
+        0.05,
+        1
+    },
+
+    Increment = 0.05,
+
+    Suffix = "",
+
+    CurrentValue = 0.18,
+
+    Flag = "AimbotSmoothness",
+
+    Callback = function(value)
+
+        aimbotSmoothness =
+            value
+
+    end
+
+})
+
+
+GameTab:CreateToggle({
+
+    Name = "Team Check",
+
+    CurrentValue = false,
+
+    Flag = "TeamCheck",
+
+    Callback = function(enabled)
+
+        teamCheck =
+            enabled
+
+    end
+
+})
+
+
+GameTab:CreateParagraph({
+
+    Title = "TARGET STATUS",
+
+    Content =
+        "Priority  →  NEAREST PLAYER\n" ..
+        "Part      →  HEAD\n" ..
+        "Tracking  →  Camera\n" ..
+        "FOV       →  Configurable"
+
+})
+
 
 --//======================================================
 --// TELEPORT
 --//======================================================
 
-GameTab:CreateSection(
-    "Teleport"
-)
+TeleportTab:CreateParagraph({
 
-GameTab:CreateParagraph({
-
-    Title = "Player Teleport",
+    Title = "◈ ORBITAL TELEPORT",
 
     Content =
-        "Use this section for teleport " ..
-        "systems connected to your own " ..
-        "game/server implementation."
+        "Select a player to move near their current position."
 
 })
 
-GameTab:CreateButton({
 
-    Name = "Refresh Players",
+TeleportTab:CreateSection(
+    "PLAYER DESTINATIONS"
+)
+
+
+local function teleportToPlayer(player)
+
+    if not HRP then
+        return
+    end
+
+
+    local character =
+        player.Character
+
+    if not character then
+        return
+    end
+
+
+    local targetHRP =
+        character:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+
+    if not targetHRP then
+        return
+    end
+
+
+    HRP.CFrame =
+        targetHRP.CFrame
+        * CFrame.new(
+            3,
+            0,
+            0
+        )
+
+
+    Rayfield:Notify({
+
+        Title = "TELEPORT",
+
+        Content =
+            "Arrived near "
+            .. player.DisplayName,
+
+        Duration = 2,
+
+        Image = 4483362458
+
+    })
+
+end
+
+
+local function createTeleportButton(player)
+
+    if player == LocalPlayer then
+        return
+    end
+
+
+    TeleportTab:CreateButton({
+
+        Name =
+            "TP  •  "
+            .. player.Name,
+
+        Callback = function()
+
+            teleportToPlayer(
+                player
+            )
+
+        end
+
+    })
+
+end
+
+
+for _, player in ipairs(
+    Players:GetPlayers()
+) do
+
+    createTeleportButton(player)
+
+end
+
+
+Players.PlayerAdded:Connect(
+    function(player)
+
+        task.wait(0.5)
+
+        createTeleportButton(player)
+
+    end
+)
+
+
+TeleportTab:CreateSection(
+    "SYSTEM DESTINATIONS"
+)
+
+
+TeleportTab:CreateButton({
+
+    Name = "Teleport To Spawn",
 
     Callback = function()
 
-        Rayfield:Notify({
+        if not HRP then
+            return
+        end
 
-            Title = "Teleport",
 
-            Content =
-                "Player list refreshed.",
+        local spawn =
+            workspace:FindFirstChild(
+                "SpawnLocation",
+                true
+            )
 
-            Duration = 3,
 
-            Image = "map-pin"
+        if spawn
+            and spawn:IsA("BasePart") then
 
-        })
+            HRP.CFrame =
+                spawn.CFrame
+                * CFrame.new(
+                    0,
+                    5,
+                    0
+                )
+
+        else
+
+            Rayfield:Notify({
+
+                Title = "TELEPORT",
+
+                Content =
+                    "No SpawnLocation found.",
+
+                Duration = 3,
+
+                Image = 4483362458
+
+            })
+
+        end
 
     end
 
 })
 
+
 --//======================================================
 --// CONFIGURATION
 --//======================================================
 
+ConfigurationTab:CreateParagraph({
+
+    Title = "◈ SYSTEM CONFIGURATION",
+
+    Content =
+        "Tune movement, interface and targeting preferences."
+
+})
+
+
 ConfigurationTab:CreateSection(
-    "Movement Configuration"
+    "MOVEMENT PARAMETERS"
 )
+
 
 ConfigurationTab:CreateSlider({
 
@@ -850,7 +1597,7 @@ ConfigurationTab:CreateSlider({
 
     Increment = 1,
 
-    Suffix = " studs/s",
+    Suffix = " SPD",
 
     CurrentValue = 16,
 
@@ -858,19 +1605,18 @@ ConfigurationTab:CreateSlider({
 
     Callback = function(value)
 
-        walkSpeed = value
+        walkSpeed =
+            value
 
-        if Humanoid
-            and Humanoid.Parent then
-
+        if Humanoid then
             Humanoid.WalkSpeed =
                 value
-
         end
 
     end
 
 })
+
 
 ConfigurationTab:CreateSlider({
 
@@ -883,7 +1629,7 @@ ConfigurationTab:CreateSlider({
 
     Increment = 5,
 
-    Suffix = " studs/s",
+    Suffix = " SPD",
 
     CurrentValue = 50,
 
@@ -891,39 +1637,40 @@ ConfigurationTab:CreateSlider({
 
     Callback = function(value)
 
-        flightSpeed = value
+        flightSpeed =
+            value
 
     end
 
 })
 
+
 --//======================================================
---// THEME
+--// THEMES
 --//======================================================
 
 ConfigurationTab:CreateSection(
-    "Interface Theme"
+    "INTERFACE CORE"
 )
 
-local ThemeList = {
-
-    "Default",
-    "DarkBlue",
-    "Ocean",
-    "Amethyst",
-    "Serenity",
-    "Bloom",
-    "Green",
-    "AmberGlow",
-    "Light"
-
-}
 
 ConfigurationTab:CreateDropdown({
 
-    Name = "Theme",
+    Name = "Interface Theme",
 
-    Options = ThemeList,
+    Options = {
+
+        "Default",
+        "DarkBlue",
+        "Ocean",
+        "Amethyst",
+        "Bloom",
+        "Serenity",
+        "Green",
+        "AmberGlow",
+        "Light"
+
+    },
 
     CurrentOption = {
         "DarkBlue"
@@ -931,19 +1678,26 @@ ConfigurationTab:CreateDropdown({
 
     MultipleOptions = false,
 
-    Flag = "SpaceTheme",
+    Flag = "Theme",
 
-    Callback = function(options)
+    Callback = function(option)
 
-        local themeName =
-            options[1]
+        local theme
 
-        if themeName then
+
+        if typeof(option) == "table" then
+            theme = option[1]
+        else
+            theme = option
+        end
+
+
+        if theme then
 
             pcall(function()
 
                 Window:ModifyTheme(
-                    themeName
+                    theme
                 )
 
             end)
@@ -954,54 +1708,21 @@ ConfigurationTab:CreateDropdown({
 
 })
 
---//======================================================
---// CUSTOM COLOR
---//======================================================
-
-ConfigurationTab:CreateColorPicker({
-
-    Name = "Accent Color",
-
-    Color =
-        Color3.fromRGB(
-            0,
-            170,
-            255
-        ),
-
-    Flag = "AccentColor",
-
-    Callback = function(color)
-
-        -- Rayfield themes control most UI colors.
-        -- This picker is kept as the user's
-        -- preferred accent value.
-
-    end
-
-})
-
---//======================================================
---// INFORMATION
---//======================================================
-
-ConfigurationTab:CreateSection(
-    "System Information"
-)
 
 ConfigurationTab:CreateParagraph({
 
-    Title = "SPACE HUB",
+    Title = "SPACE HUB  •  2.1",
 
     Content =
-        "Version 1.0.1\n\n" ..
-        "Universal Movement System\n" ..
+        "Premium Orbital Interface\n\n" ..
+        "Movement Core\n" ..
+        "Targeting Core\n" ..
         "Visual Systems\n" ..
-        "Targeting Interface\n" ..
-        "Configuration Manager\n\n" ..
-        "UI Toggle: K"
+        "Teleport Network\n" ..
+        "Configuration Core"
 
 })
+
 
 --//======================================================
 --// CHARACTER RESPAWN
@@ -1012,7 +1733,10 @@ LocalPlayer.CharacterAdded:Connect(
 
         task.wait(0.5)
 
-        updateCharacter(character)
+        updateCharacter(
+            character
+        )
+
 
         if Humanoid then
 
@@ -1021,52 +1745,30 @@ LocalPlayer.CharacterAdded:Connect(
 
         end
 
-        if flying then
-
-            task.wait(0.25)
-
-            startFlying()
-
-        end
 
         if espEnabled then
 
-            task.wait(0.25)
+            task.wait(0.2)
 
             refreshESP()
 
         end
 
-    end
-)
 
---//======================================================
---// CLEANUP
---//======================================================
+        if flying then
 
-LocalPlayer.AncestryChanged:Connect(
-    function(_, parent)
+            task.wait(0.2)
 
-        if parent == nil then
-
-            stopFlying()
-
-            for _, connection
-                in pairs(espConnections) do
-
-                pcall(function()
-                    connection:Disconnect()
-                end)
-
-            end
+            startFlying()
 
         end
 
     end
 )
 
+
 --//======================================================
---// LOAD SAVED CONFIGURATION
+--// LOAD CONFIGURATION
 --//======================================================
 
 pcall(function()
@@ -1074,6 +1776,7 @@ pcall(function()
     Rayfield:LoadConfiguration()
 
 end)
+
 
 --//======================================================
 --// STARTUP
@@ -1084,10 +1787,10 @@ Rayfield:Notify({
     Title = "SPACE HUB",
 
     Content =
-        "Orbital systems initialized.",
+        "Orbital systems online.",
 
     Duration = 5,
 
-    Image = "rocket"
+    Image = 4483362458
 
 })
