@@ -94,18 +94,63 @@ local Rayfield = loadstring(game:HttpGet(
 --// WINDOW
 --//======================================================
 
+local SpaceTheme = {
+    TextColor = Color3.fromRGB(232, 244, 255),
+    Background = Color3.fromRGB(8, 12, 22),
+    Topbar = Color3.fromRGB(11, 18, 32),
+    Shadow = Color3.fromRGB(0, 0, 0),
+
+    NotificationBackground = Color3.fromRGB(13, 22, 38),
+    NotificationActionsBackground = Color3.fromRGB(22, 34, 54),
+
+    TabBackground = Color3.fromRGB(12, 20, 34),
+    TabStroke = Color3.fromRGB(28, 45, 67),
+    TabBackgroundSelected = Color3.fromRGB(24, 82, 112),
+    TabTextColor = Color3.fromRGB(145, 169, 194),
+    SelectedTabTextColor = Color3.fromRGB(235, 250, 255),
+
+    ElementBackground = Color3.fromRGB(13, 21, 35),
+    ElementBackgroundHover = Color3.fromRGB(18, 31, 49),
+    SecondaryElementBackground = Color3.fromRGB(9, 16, 28),
+    ElementStroke = Color3.fromRGB(27, 48, 70),
+    SecondaryElementStroke = Color3.fromRGB(20, 36, 54),
+
+    SliderBackground = Color3.fromRGB(23, 48, 70),
+    SliderProgress = Color3.fromRGB(0, 190, 255),
+    SliderStroke = Color3.fromRGB(73, 215, 255),
+
+    ToggleBackground = Color3.fromRGB(17, 28, 43),
+    ToggleEnabled = Color3.fromRGB(0, 170, 230),
+    ToggleDisabled = Color3.fromRGB(57, 72, 91),
+    ToggleEnabledStroke = Color3.fromRGB(72, 220, 255),
+    ToggleDisabledStroke = Color3.fromRGB(74, 91, 112),
+    ToggleEnabledOuterStroke = Color3.fromRGB(30, 88, 113),
+    ToggleDisabledOuterStroke = Color3.fromRGB(36, 49, 66),
+
+    DropdownSelected = Color3.fromRGB(20, 36, 55),
+    DropdownUnselected = Color3.fromRGB(12, 21, 34),
+
+    InputBackground = Color3.fromRGB(11, 20, 33),
+    InputStroke = Color3.fromRGB(34, 58, 81),
+    PlaceholderColor = Color3.fromRGB(108, 132, 158)
+}
+
 local Window = Rayfield:CreateWindow({
 
-    Name = "SPACE HUB",
+    Name = "SPACE HUB  //  ORBITAL",
 
-    Icon = 0,
+    Icon = "orbit",
 
     LoadingTitle = "SPACE HUB",
 
     LoadingSubtitle =
-        "Premium Orbital Interface",
+        "Premium Orbital Interface  •  v2.1.0",
 
-    Theme = "DarkBlue",
+    ShowText = "SPACE HUB",
+
+    ToggleUIKeybind = "K",
+
+    Theme = SpaceTheme,
 
     DisableRayfieldPrompts = false,
 
@@ -152,29 +197,131 @@ local Window = Rayfield:CreateWindow({
 --// TABS
 --//======================================================
 
+local DashboardTab =
+    Window:CreateTab(
+        "Dashboard",
+        "layout-dashboard"
+    )
+
 local UniversalTab =
     Window:CreateTab(
         "Universal",
-        4483362458
+        "move"
     )
 
 local GameTab =
     Window:CreateTab(
         "Game",
-        4483362458
+        "crosshair"
     )
 
 local TeleportTab =
     Window:CreateTab(
         "Teleport",
-        4483362458
+        "map-pin"
     )
 
 local ConfigurationTab =
     Window:CreateTab(
         "Configuration",
-        4483362458
+        "settings-2"
     )
+
+--//======================================================
+--// DASHBOARD
+--//======================================================
+
+DashboardTab:CreateParagraph({
+    Title = "✦ SPACE HUB  /  COMMAND DECK",
+    Content =
+        "A clean orbital control center for movement, visuals, targeting and transportation.\n" ..
+        "Use the navigation rail to access each subsystem."
+})
+
+DashboardTab:CreateDivider()
+
+DashboardTab:CreateSection("SYSTEM STATUS")
+
+local SystemStatusLabel = DashboardTab:CreateLabel(
+    "●  SYSTEM ONLINE",
+    "circle-check"
+)
+
+local PlayerStatusLabel = DashboardTab:CreateLabel(
+    "Operator  •  " .. LocalPlayer.DisplayName .. "  @" .. LocalPlayer.Name,
+    "user"
+)
+
+local CharacterStatusLabel = DashboardTab:CreateLabel(
+    "Character  •  Synchronizing...",
+    "scan"
+)
+
+DashboardTab:CreateDivider()
+
+DashboardTab:CreateSection("ACTIVE MODULES")
+
+DashboardTab:CreateParagraph({
+    Title = "MOVEMENT",
+    Content =
+        "WalkSpeed  •  " .. tostring(walkSpeed) .. "\n" ..
+        "Flight Speed  •  " .. tostring(flightSpeed) .. "\n" ..
+        "Flight  •  " .. (flying and "ONLINE" or "STANDBY")
+})
+
+DashboardTab:CreateParagraph({
+    Title = "VISUALS & TARGETING",
+    Content =
+        "ESP  •  " .. (espEnabled and "ONLINE" or "STANDBY") .. "\n" ..
+        "Aimbot  •  " .. (aimbotEnabled and "ONLINE" or "STANDBY") .. "\n" ..
+        "FOV Limiter  •  " .. (aimbotFOVEnabled and "ENABLED" or "DISABLED")
+})
+
+DashboardTab:CreateParagraph({
+    Title = "PLAYER SYSTEMS",
+    Content =
+        "Infinite Jump  •  " .. (infiniteJump and "ENABLED" or "DISABLED") .. "\n" ..
+        "Noclip  •  " .. (noclip and "ENABLED" or "DISABLED") .. "\n" ..
+        "Fullbright  •  " .. (fullbright and "ENABLED" or "DISABLED")
+})
+
+DashboardTab:CreateDivider()
+
+DashboardTab:CreateSection("INTERFACE")
+
+DashboardTab:CreateParagraph({
+    Title = "KEYBOARD",
+    Content =
+        "Press  K  to hide/show the interface.\n" ..
+        "Flight:  W A S D  •  SPACE  •  LEFT CTRL"
+})
+
+DashboardTab:CreateButton({
+    Name = "Re-Synchronize Character",
+    Callback = function()
+        if LocalPlayer.Character then
+            updateCharacter(LocalPlayer.Character)
+            Rayfield:Notify({
+                Title = "SYSTEM",
+                Content = "Character systems synchronized.",
+                Duration = 3,
+                Image = "refresh-cw"
+            })
+        end
+    end
+})
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if CharacterStatusLabel then
+            local state = Character and Humanoid and HRP and "READY" or "WAITING"
+            CharacterStatusLabel:Set(
+                "Character  •  " .. state,
+                "scan"
+            )
+        end
+    end
+end)
 
 --//======================================================
 --// UNIVERSAL HEADER
@@ -182,7 +329,7 @@ local ConfigurationTab =
 
 UniversalTab:CreateParagraph({
 
-    Title = "◈ ORBITAL CONTROL",
+    Title = "✦ ORBITAL CONTROL  /  MOVEMENT",
 
     Content =
         "Universal movement and player utilities.\n" ..
@@ -195,7 +342,7 @@ UniversalTab:CreateParagraph({
 --//======================================================
 
 UniversalTab:CreateSection(
-    "MOVEMENT CORE"
+    "MOVEMENT  /  CORE"
 )
 
 UniversalTab:CreateSlider({
@@ -236,7 +383,7 @@ UniversalTab:CreateSlider({
 --//======================================================
 
 UniversalTab:CreateSection(
-    "FLIGHT SYSTEM"
+    "MOVEMENT  /  FLIGHT"
 )
 
 local function removeFlightObjects()
@@ -490,7 +637,7 @@ UniversalTab:CreateParagraph({
 --//======================================================
 
 UniversalTab:CreateSection(
-    "PLAYER UTILITIES"
+    "PLAYER  /  UTILITIES"
 )
 
 UniversalTab:CreateToggle({
@@ -672,7 +819,7 @@ UniversalTab:CreateToggle({
 
 GameTab:CreateParagraph({
 
-    Title = "◈ TARGETING & VISUALS",
+    Title = "✦ TARGETING & VISUALS  /  COMBAT",
 
     Content =
         "Advanced player visualization and targeting controls."
@@ -684,7 +831,7 @@ GameTab:CreateParagraph({
 --//======================================================
 
 GameTab:CreateSection(
-    "PLAYER ESP"
+    "VISUALS  /  PLAYER ESP"
 )
 
 local function removeESP(player)
@@ -919,7 +1066,7 @@ GameTab:CreateButton({
 
             Duration = 3,
 
-            Image = 4483362458
+            Image = "sparkles"
 
         })
 
@@ -962,7 +1109,7 @@ Players.PlayerRemoving:Connect(
 --//======================================================
 
 GameTab:CreateSection(
-    "TARGETING CORE"
+    "TARGETING  /  CORE"
 )
 
 local function getNearestPlayer()
@@ -1177,14 +1324,14 @@ GameTab:CreateToggle({
 
             Rayfield:Notify({
 
-                Title = "TARGETING CORE",
+                Title = "TARGETING  /  CORE",
 
                 Content =
                     "Nearest player acquired • HEAD",
 
                 Duration = 3,
 
-                Image = 4483362458
+                Image = "sparkles"
 
             })
 
@@ -1302,7 +1449,7 @@ GameTab:CreateParagraph({
 
 TeleportTab:CreateParagraph({
 
-    Title = "◈ ORBITAL TELEPORT",
+    Title = "✦ ORBITAL TELEPORT  /  TRANSPORT",
 
     Content =
         "Player and world transportation systems."
@@ -1314,7 +1461,7 @@ TeleportTab:CreateParagraph({
 --//======================================================
 
 TeleportTab:CreateSection(
-    "PLAYER DESTINATIONS"
+    "TELEPORT  /  PLAYERS"
 )
 
 local function teleportToPlayer(player)
@@ -1357,7 +1504,7 @@ local function teleportToPlayer(player)
 
         Duration = 2,
 
-        Image = 4483362458
+        Image = "sparkles"
 
     })
 
@@ -1410,7 +1557,7 @@ Players.PlayerAdded:Connect(
 --//======================================================
 
 TeleportTab:CreateSection(
-    "SYSTEM DESTINATIONS"
+    "TELEPORT  /  SYSTEM"
 )
 
 TeleportTab:CreateButton({
@@ -1451,7 +1598,7 @@ TeleportTab:CreateButton({
 
                 Duration = 3,
 
-                Image = 4483362458
+                Image = "sparkles"
 
             })
 
@@ -1466,7 +1613,7 @@ TeleportTab:CreateButton({
 --//======================================================
 
 TeleportTab:CreateSection(
-    "MASS TELEPORT"
+    "TRANSPORT  /  MASS"
 )
 
 TeleportTab:CreateParagraph({
@@ -1485,14 +1632,14 @@ local function teleportAllHumanoids()
 
         Rayfield:Notify({
 
-            Title = "MASS TELEPORT",
+            Title = "TRANSPORT  /  MASS",
 
             Content =
                 "Your character is not ready.",
 
             Duration = 3,
 
-            Image = 4483362458
+            Image = "sparkles"
 
         })
 
@@ -1574,7 +1721,7 @@ local function teleportAllHumanoids()
 
     Rayfield:Notify({
 
-        Title = "MASS TELEPORT",
+        Title = "TRANSPORT  /  MASS",
 
         Content =
             "Transported "
@@ -1583,7 +1730,7 @@ local function teleportAllHumanoids()
 
         Duration = 4,
 
-        Image = 4483362458
+        Image = "sparkles"
 
     })
 
@@ -1691,7 +1838,7 @@ TeleportTab:CreateButton({
 
         Rayfield:Notify({
 
-            Title = "MASS TELEPORT",
+            Title = "TRANSPORT  /  MASS",
 
             Content =
                 "Transported "
@@ -1700,7 +1847,7 @@ TeleportTab:CreateButton({
 
             Duration = 4,
 
-            Image = 4483362458
+            Image = "sparkles"
 
         })
 
@@ -1713,7 +1860,7 @@ TeleportTab:CreateButton({
 --//======================================================
 
 TeleportTab:CreateSection(
-    "PHYSICS CONTROL"
+    "PHYSICS  /  CONTROL"
 )
 
 TeleportTab:CreateParagraph({
@@ -1757,7 +1904,7 @@ TeleportTab:CreateButton({
 
         Rayfield:Notify({
 
-            Title = "PHYSICS CONTROL",
+            Title = "PHYSICS  /  CONTROL",
 
             Content =
                 "Released "
@@ -1766,7 +1913,7 @@ TeleportTab:CreateButton({
 
             Duration = 4,
 
-            Image = 4483362458
+            Image = "sparkles"
 
         })
 
@@ -1780,7 +1927,7 @@ TeleportTab:CreateButton({
 
 ConfigurationTab:CreateParagraph({
 
-    Title = "◈ SYSTEM CONFIGURATION",
+    Title = "✦ SYSTEM CONFIGURATION  /  PREFERENCES",
 
     Content =
         "Tune movement, interface and targeting preferences."
@@ -1788,7 +1935,7 @@ ConfigurationTab:CreateParagraph({
 })
 
 ConfigurationTab:CreateSection(
-    "MOVEMENT PARAMETERS"
+    "PARAMETERS  /  MOVEMENT"
 )
 
 ConfigurationTab:CreateSlider({
@@ -1853,7 +2000,7 @@ ConfigurationTab:CreateSlider({
 --//======================================================
 
 ConfigurationTab:CreateSection(
-    "INTERFACE CORE"
+    "INTERFACE  /  CORE"
 )
 
 ConfigurationTab:CreateDropdown({
@@ -1870,12 +2017,13 @@ ConfigurationTab:CreateDropdown({
         "Serenity",
         "Green",
         "AmberGlow",
-        "Light"
+        "Light",
+        "Orbital"
 
     },
 
     CurrentOption = {
-        "DarkBlue"
+        "Orbital"
     },
 
     MultipleOptions = false,
@@ -1896,9 +2044,11 @@ ConfigurationTab:CreateDropdown({
 
             pcall(function()
 
-                Window:ModifyTheme(
-                    theme
-                )
+                if theme == "Orbital" then
+                    Window:ModifyTheme(SpaceTheme)
+                else
+                    Window:ModifyTheme(theme)
+                end
 
             end)
 
@@ -1910,7 +2060,7 @@ ConfigurationTab:CreateDropdown({
 
 ConfigurationTab:CreateParagraph({
 
-    Title = "SPACE HUB  •  2.1",
+    Title = "SPACE HUB  •  2.1.0  /  ORBITAL EDITION",
 
     Content =
         "Premium Orbital Interface\n\n" ..
@@ -1981,10 +2131,10 @@ Rayfield:Notify({
     Title = "SPACE HUB",
 
     Content =
-        "Orbital systems online.",
+        "Orbital command deck online  •  all systems initialized.",
 
     Duration = 5,
 
-    Image = 4483362458
+    Image = "sparkles"
 
 })
