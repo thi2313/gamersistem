@@ -193,6 +193,22 @@ local ConfigurationTab =
     )
 
 --//======================================================
+--// WAYPOINTS TAB
+--//======================================================
+
+local WaypointsTab =
+    Window:CreateTab(
+        "Waypoints",
+        "map"
+    )
+
+local ConfigurationTab =
+    Window:CreateTab(
+        "Configuration",
+        "settings-2"
+    )
+
+--//======================================================
 --// UNIVERSAL HEADER
 --//======================================================
 
@@ -1824,6 +1840,378 @@ GameTab:CreateParagraph({
 
 })
 
+--//======================================================
+--// WAYPOINTS
+--//======================================================
+
+WaypointsTab:CreateParagraph({
+    Title = "✦ WAYPOINT NETWORK  /  POSITION MANAGER",
+    Content =
+        "Save, manage and teleport to your favorite positions.\n" ..
+        "Create custom waypoints anywhere in the current experience."
+})
+
+WaypointsTab:CreateDivider()
+
+--//======================================================
+--// WAYPOINT STATE
+--//======================================================
+
+local waypoints = {}
+local selectedWaypoint = nil
+local previousPosition = nil
+
+--//======================================================
+--// WAYPOINT FUNCTIONS
+--//======================================================
+
+local function getCurrentPosition()
+    if not HRP or not HRP.Parent then
+        return nil
+    end
+
+    return HRP.CFrame
+end
+
+local function saveWaypoint(name)
+    local position = getCurrentPosition()
+
+    if not position then
+        Rayfield:Notify({
+            Title = "WAYPOINTS",
+            Content = "Character is not ready.",
+            Duration = 3,
+            Image = "map-pin"
+        })
+        return
+    end
+
+    if not name or name == "" then
+        name = "Waypoint " .. tostring(#waypoints + 1)
+    end
+
+    waypoints[name] = position
+    selectedWaypoint = name
+
+    Rayfield:Notify({
+        Title = "WAYPOINT SAVED",
+        Content = name .. " has been saved.",
+        Duration = 3,
+        Image = "map-pin"
+    })
+end
+
+local function teleportToWaypoint(name)
+    if not HRP or not HRP.Parent then
+        return
+    end
+
+    local waypoint = waypoints[name]
+
+    if not waypoint then
+        Rayfield:Notify({
+            Title = "WAYPOINTS",
+            Content = "Waypoint not found.",
+            Duration = 3,
+            Image = "circle-alert"
+        })
+        return
+    end
+
+    previousPosition = HRP.CFrame
+    HRP.CFrame = waypoint
+
+    Rayfield:Notify({
+        Title = "WAYPOINT TELEPORT",
+        Content = "Teleported to " .. name,
+        Duration = 3,
+        Image = "navigation"
+    })
+end
+
+local function deleteWaypoint(name)
+    if not waypoints[name] then
+        return
+    end
+
+    waypoints[name] = nil
+
+    if selectedWaypoint == name then
+        selectedWaypoint = nil
+    end
+
+    Rayfield:Notify({
+        Title = "WAYPOINT REMOVED",
+        Content = name .. " was deleted.",
+        Duration = 3,
+        Image = "trash-2"
+    })
+end
+
+local function clearWaypoints()
+    table.clear(waypoints)
+    selectedWaypoint = nil
+
+    Rayfield:Notify({
+        Title = "WAYPOINTS",
+        Content = "All waypoints have been cleared.",
+        Duration = 3,
+        Image = "trash-2"
+    })
+end
+
+--//======================================================
+--// SAVE CURRENT POSITION
+--//======================================================
+
+WaypointsTab:CreateSection(
+    "WAYPOINTS  /  CREATE"
+)
+
+local WaypointNameInput = WaypointsTab:CreateInput({
+    Name = "Waypoint Name",
+    PlaceholderText = "Example: Base, Spawn, Secret Room",
+    RemoveTextAfterFocusLost = false,
+    Flag = "WaypointName",
+
+    Callback = function(text)
+        -- Name is read when Save is pressed.
+    end
+})
+
+WaypointsTab:CreateButton({
+    Name = "Save Current Position",
+
+    Callback = function()
+        local name = WaypointNameInput.CurrentValue
+
+        if not name or name == "" then
+            name = "Waypoint " .. tostring(#waypoints + 1)
+        end
+
+        saveWaypoint(name)
+    end
+})
+
+WaypointsTab:CreateButton({
+    Name = "Quick Save",
+
+    Callback = function()
+        saveWaypoint(
+            "Quickpoint_" .. tostring(os.time())
+        )
+    end
+})
+
+--//======================================================
+--// CURRENT POSITION
+--//======================================================
+
+WaypointsTab:CreateSection(
+    "POSITION  /  CURRENT"
+)
+
+local PositionLabel = WaypointsTab:CreateLabel(
+    "X: --   Y: --   Z: --",
+    "crosshair"
+)
+
+task.spawn(function()
+    while task.wait(0.2) do
+        if PositionLabel then
+            if HRP and HRP.Parent then
+                local p = HRP.Position
+
+                PositionLabel:Set(
+                    string.format(
+                        "X: %.1f   Y: %.1f   Z: %.1f",
+                        p.X,
+                        p.Y,
+                        p.Z
+                    ),
+                    "crosshair"
+                )
+            else
+                PositionLabel:Set(
+                    "X: --   Y: --   Z: --",
+                    "crosshair"
+                )
+            end
+        end
+    end
+end)
+
+--//======================================================
+--// WAYPOINT SELECTOR
+--//======================================================
+
+WaypointsTab:CreateSection(
+    "WAYPOINTS  /  MANAGER"
+)
+
+local function getWaypointNames()
+    local names = {}
+
+    for name in pairs(waypoints) do
+        table.insert(names, name)
+    end
+
+    table.sort(names)
+
+    if #names == 0 then
+        names = {
+            "No waypoints"
+        }
+    end
+
+    return names
+end
+
+local WaypointDropdown = WaypointsTab:CreateDropdown({
+    Name = "Select Waypoint",
+    Options = getWaypointNames(),
+    CurrentOption = {
+        "No waypoints"
+    },
+    MultipleOptions = false,
+    Flag = "SelectedWaypoint",
+
+    Callback = function(option)
+        if typeof(option) == "table" then
+            selectedWaypoint = option[1]
+        else
+            selectedWaypoint = option
+        end
+
+        if selectedWaypoint == "No waypoints" then
+            selectedWaypoint = nil
+        end
+    end
+})
+
+local function refreshWaypointDropdown()
+    local names = getWaypointNames()
+
+    pcall(function()
+        WaypointDropdown:Refresh(names)
+    end)
+end
+
+WaypointsTab:CreateButton({
+    Name = "Refresh Waypoint List",
+
+    Callback = function()
+        refreshWaypointDropdown()
+
+        Rayfield:Notify({
+            Title = "WAYPOINTS",
+            Content = "Waypoint list refreshed.",
+            Duration = 2,
+            Image = "refresh-cw"
+        })
+    end
+})
+
+WaypointsTab:CreateButton({
+    Name = "Teleport To Selected",
+
+    Callback = function()
+        if not selectedWaypoint then
+            Rayfield:Notify({
+                Title = "WAYPOINTS",
+                Content = "Select a waypoint first.",
+                Duration = 3,
+                Image = "circle-alert"
+            })
+            return
+        end
+
+        teleportToWaypoint(selectedWaypoint)
+    end
+})
+
+WaypointsTab:CreateButton({
+    Name = "Delete Selected",
+
+    Callback = function()
+        if not selectedWaypoint then
+            return
+        end
+
+        deleteWaypoint(selectedWaypoint)
+        refreshWaypointDropdown()
+    end
+})
+
+--//======================================================
+--// POSITION TOOLS
+--//======================================================
+
+WaypointsTab:CreateSection(
+    "POSITION  /  TOOLS"
+)
+
+WaypointsTab:CreateButton({
+    Name = "Return To Previous Position",
+
+    Callback = function()
+        if not HRP or not previousPosition then
+            Rayfield:Notify({
+                Title = "WAYPOINTS",
+                Content = "No previous position available.",
+                Duration = 3,
+                Image = "circle-alert"
+            })
+            return
+        end
+
+        local current = HRP.CFrame
+
+        HRP.CFrame = previousPosition
+        previousPosition = current
+
+        Rayfield:Notify({
+            Title = "WAYPOINTS",
+            Content = "Returned to previous position.",
+            Duration = 3,
+            Image = "undo-2"
+        })
+    end
+})
+
+WaypointsTab:CreateButton({
+    Name = "Save Current As Quickpoint",
+
+    Callback = function()
+        saveWaypoint("Quickpoint")
+        refreshWaypointDropdown()
+    end
+})
+
+WaypointsTab:CreateButton({
+    Name = "Clear All Waypoints",
+
+    Callback = function()
+        clearWaypoints()
+        refreshWaypointDropdown()
+    end
+})
+
+--//======================================================
+--// WAYPOINT INFO
+--//======================================================
+
+WaypointsTab:CreateDivider()
+
+WaypointsTab:CreateParagraph({
+    Title = "WAYPOINT SYSTEM",
+    Content =
+        "Saved Waypoints  •  " .. tostring(#getWaypointNames()) .. "\n" ..
+        "Selected  •  " .. tostring(selectedWaypoint or "NONE") .. "\n\n" ..
+        "Save a position, select it from the manager and teleport whenever you need."
+})
+
+--//======================================================
 --// CONFIGURATION
 --//======================================================
 
