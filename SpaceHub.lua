@@ -581,14 +581,14 @@ UniversalTab:CreateSlider({
 
     Range = {
         10,
-        300
+        3000
     },
 
-    Increment = 5,
+    Increment = 10,
 
     Suffix = " SPD",
 
-    CurrentValue = 50,
+    CurrentValue = 10,
 
     Flag = "FlightSpeed",
 
