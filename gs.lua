@@ -1564,14 +1564,14 @@ TeleportTab:CreateButton({
 --// WAYPOINTS
 --//======================================================
 
-WaypointsTab:CreateParagraph({
+ConfigurationTab:CreateParagraph({
     Title = "✦ WAYPOINT NETWORK  /  POSITION MANAGER",
     Content =
         "Save, manage and teleport to your favorite positions.\n" ..
         "Create custom waypoints anywhere in the current experience."
 })
 
-WaypointsTab:CreateDivider()
+ConfigurationTab:CreateDivider()
 
 --//======================================================
 --// WAYPOINT STATE
@@ -1684,11 +1684,11 @@ end
 --// SAVE CURRENT POSITION
 --//======================================================
 
-WaypointsTab:CreateSection(
+ConfigurationTab:CreateSection(
     "WAYPOINTS  /  CREATE"
 )
 
-local WaypointNameInput = WaypointsTab:CreateInput({
+local WaypointNameInput = ConfigurationTab:CreateInput({
     Name = "Waypoint Name",
     PlaceholderText = "Example: Base, Spawn, Secret Room",
     RemoveTextAfterFocusLost = false,
@@ -1699,7 +1699,7 @@ local WaypointNameInput = WaypointsTab:CreateInput({
     end
 })
 
-WaypointsTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Save Current Position",
 
     Callback = function()
@@ -1713,7 +1713,7 @@ WaypointsTab:CreateButton({
     end
 })
 
-WaypointsTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Quick Save",
 
     Callback = function()
@@ -1727,11 +1727,11 @@ WaypointsTab:CreateButton({
 --// CURRENT POSITION
 --//======================================================
 
-WaypointsTab:CreateSection(
+ConfigurationTab:CreateSection(
     "POSITION  /  CURRENT"
 )
 
-local PositionLabel = WaypointsTab:CreateLabel(
+local PositionLabel = ConfigurationTab:CreateLabel(
     "X: --   Y: --   Z: --",
     "crosshair"
 )
@@ -1765,7 +1765,7 @@ end)
 --// WAYPOINT SELECTOR
 --//======================================================
 
-WaypointsTab:CreateSection(
+ConfigurationTab:CreateSection(
     "WAYPOINTS  /  MANAGER"
 )
 
@@ -1787,7 +1787,7 @@ local function getWaypointNames()
     return names
 end
 
-local WaypointDropdown = WaypointsTab:CreateDropdown({
+local WaypointDropdown = ConfigurationTab:CreateDropdown({
     Name = "Select Waypoint",
     Options = getWaypointNames(),
     CurrentOption = {
@@ -1817,7 +1817,7 @@ local function refreshWaypointDropdown()
     end)
 end
 
-WaypointsTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Refresh Waypoint List",
 
     Callback = function()
@@ -1832,7 +1832,7 @@ WaypointsTab:CreateButton({
     end
 })
 
-WaypointsTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Teleport To Selected",
 
     Callback = function()
@@ -1850,7 +1850,7 @@ WaypointsTab:CreateButton({
     end
 })
 
-WaypointsTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Delete Selected",
 
     Callback = function()
@@ -1867,11 +1867,11 @@ WaypointsTab:CreateButton({
 --// POSITION TOOLS
 --//======================================================
 
-WaypointsTab:CreateSection(
+ConfigurationTab:CreateSection(
     "POSITION  /  TOOLS"
 )
 
-WaypointsTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Return To Previous Position",
 
     Callback = function()
@@ -1899,7 +1899,7 @@ WaypointsTab:CreateButton({
     end
 })
 
-WaypointsTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Save Current As Quickpoint",
 
     Callback = function()
@@ -1908,7 +1908,7 @@ WaypointsTab:CreateButton({
     end
 })
 
-WaypointsTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Clear All Waypoints",
 
     Callback = function()
@@ -1921,9 +1921,9 @@ WaypointsTab:CreateButton({
 --// WAYPOINT INFO
 --//======================================================
 
-WaypointsTab:CreateDivider()
+ConfigurationTab:CreateDivider()
 
-WaypointsTab:CreateParagraph({
+ConfigurationTab:CreateParagraph({
     Title = "WAYPOINT SYSTEM",
     Content =
         "Saved Waypoints  •  " .. tostring(#getWaypointNames()) .. "\n" ..
@@ -1934,7 +1934,7 @@ WaypointsTab:CreateParagraph({
 --// PLAYER MANAGER
 --//======================================================
 
-PlayerManagerTab:CreateParagraph({
+ConfigurationTab:CreateParagraph({
     Title = "✦ PLAYER MANAGER  /  OPERATOR CONSOLE",
     Content =
         "Select a player to inspect their live information, teleport to them or spectate their character."
@@ -1952,7 +1952,7 @@ local function playerNames()
     return names
 end
 
-local PlayerDropdown = PlayerManagerTab:CreateDropdown({
+local PlayerDropdown = ConfigurationTab:CreateDropdown({
     Name = "Select Player",
     Options = playerNames(),
     CurrentOption = {playerNames()[1]},
@@ -1972,14 +1972,14 @@ local function refreshPlayerDropdown()
     end)
 end
 
-PlayerManagerTab:CreateSection("PLAYER INFORMATION")
+ConfigurationTab:CreateSection("PLAYER INFORMATION")
 
-local PMNameLabel = PlayerManagerTab:CreateLabel("Player  •  None", "user")
-local PMHealthLabel = PlayerManagerTab:CreateLabel("Health  •  --", "heart")
-local PMDistanceLabel = PlayerManagerTab:CreateLabel("Distance  •  --", "ruler")
-local PMTeamLabel = PlayerManagerTab:CreateLabel("Team  •  --", "shield")
+local PMNameLabel = ConfigurationTab:CreateLabel("Player  •  None", "user")
+local PMHealthLabel = ConfigurationTab:CreateLabel("Health  •  --", "heart")
+local PMDistanceLabel = ConfigurationTab:CreateLabel("Distance  •  --", "ruler")
+local PMTeamLabel = ConfigurationTab:CreateLabel("Team  •  --", "shield")
 
-PlayerManagerTab:CreateSection("ACTIONS")
+ConfigurationTab:CreateSection("ACTIONS")
 
 local function teleportToSelected()
     if selectedPlayer then
@@ -1987,12 +1987,12 @@ local function teleportToSelected()
     end
 end
 
-PlayerManagerTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Teleport To Selected",
     Callback = teleportToSelected
 })
 
-PlayerManagerTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Spectate Selected",
     Callback = function()
         if selectedPlayer and selectedPlayer.Character then
@@ -2011,7 +2011,7 @@ PlayerManagerTab:CreateButton({
     end
 })
 
-PlayerManagerTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Stop Spectating",
     Callback = function()
         if Humanoid and workspace.CurrentCamera then
@@ -2021,7 +2021,7 @@ PlayerManagerTab:CreateButton({
     end
 })
 
-PlayerManagerTab:CreateButton({
+ConfigurationTab:CreateButton({
     Name = "Highlight Selected",
     Callback = function()
         if not selectedPlayer or not selectedPlayer.Character then return end
@@ -2094,80 +2094,6 @@ end)
 
 --//======================================================
 --// CONFIGURATION
---//======================================================
-
-ConfigurationTab:CreateParagraph({
-
-    Title = "✦ SYSTEM CONFIGURATION  /  PREFERENCES",
-
-    Content =
-        "Tune movement, interface and targeting preferences."
-
-})
-
-ConfigurationTab:CreateSection(
-    "PARAMETERS  /  MOVEMENT"
-)
-
-ConfigurationTab:CreateSlider({
-
-    Name = "Default WalkSpeed",
-
-    Range = {
-        1,
-        250
-    },
-
-    Increment = 1,
-
-    Suffix = " SPD",
-
-    CurrentValue = 16,
-
-    Flag = "ConfigWalkSpeed",
-
-    Callback = function(value)
-
-        walkSpeed =
-            value
-
-        if Humanoid then
-            Humanoid.WalkSpeed =
-                value
-        end
-
-    end
-
-})
-
-ConfigurationTab:CreateSlider({
-
-    Name = "Default FlightSpeed",
-
-    Range = {
-        10,
-        300
-    },
-
-    Increment = 5,
-
-    Suffix = " SPD",
-
-    CurrentValue = 50,
-
-    Flag = "ConfigFlightSpeed",
-
-    Callback = function(value)
-
-        flightSpeed =
-            value
-
-    end
-
-})
-
---//======================================================
---// THEMES
 --//======================================================
 
 ConfigurationTab:CreateSection(
