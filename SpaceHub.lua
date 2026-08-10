@@ -4,7 +4,6 @@
 --// VERSION 2.1.0
 --//======================================================
 
-
 --//======================================================
 --// SERVICES
 --//======================================================
@@ -15,7 +14,6 @@ local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
-
 
 --//======================================================
 --// STATE
@@ -56,7 +54,6 @@ local originalLighting = {
     GlobalShadows = Lighting.GlobalShadows
 }
 
-
 --//======================================================
 --// CHARACTER SYSTEM
 --//======================================================
@@ -81,11 +78,9 @@ local function updateCharacter(character)
 
 end
 
-
 if LocalPlayer.Character then
     updateCharacter(LocalPlayer.Character)
 end
-
 
 --//======================================================
 --// RAYFIELD
@@ -94,7 +89,6 @@ end
 local Rayfield = loadstring(game:HttpGet(
     "https://sirius.menu/rayfield"
 ))()
-
 
 --//======================================================
 --// WINDOW
@@ -154,7 +148,6 @@ local Window = Rayfield:CreateWindow({
 
 })
 
-
 --//======================================================
 --// TABS
 --//======================================================
@@ -183,7 +176,6 @@ local ConfigurationTab =
         4483362458
     )
 
-
 --//======================================================
 --// UNIVERSAL HEADER
 --//======================================================
@@ -198,7 +190,6 @@ UniversalTab:CreateParagraph({
 
 })
 
-
 --//======================================================
 --// MOVEMENT
 --//======================================================
@@ -206,7 +197,6 @@ UniversalTab:CreateParagraph({
 UniversalTab:CreateSection(
     "MOVEMENT CORE"
 )
-
 
 UniversalTab:CreateSlider({
 
@@ -241,7 +231,6 @@ UniversalTab:CreateSlider({
 
 })
 
-
 --//======================================================
 --// FLIGHT
 --//======================================================
@@ -249,7 +238,6 @@ UniversalTab:CreateSlider({
 UniversalTab:CreateSection(
     "FLIGHT SYSTEM"
 )
-
 
 local function removeFlightObjects()
 
@@ -277,7 +265,6 @@ local function removeFlightObjects()
 
 end
 
-
 local function stopFlying()
 
     flying = false
@@ -297,7 +284,6 @@ local function stopFlying()
     end
 
 end
-
 
 local function startFlying()
 
@@ -321,7 +307,6 @@ local function startFlying()
     attachment.Parent =
         HRP
 
-
     local velocity =
         Instance.new("LinearVelocity")
 
@@ -343,10 +328,8 @@ local function startFlying()
     velocity.Parent =
         HRP
 
-
     Humanoid.PlatformStand =
         true
-
 
     flyConnection =
         RunService.RenderStepped:Connect(
@@ -365,7 +348,6 @@ local function startFlying()
 
                 end
 
-
                 local camera =
                     workspace.CurrentCamera
 
@@ -373,10 +355,8 @@ local function startFlying()
                     return
                 end
 
-
                 local direction =
                     Vector3.zero
-
 
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.W
@@ -387,7 +367,6 @@ local function startFlying()
 
                 end
 
-
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.S
                 ) then
@@ -396,7 +375,6 @@ local function startFlying()
                         camera.CFrame.LookVector
 
                 end
-
 
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.A
@@ -407,7 +385,6 @@ local function startFlying()
 
                 end
 
-
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.D
                 ) then
@@ -416,7 +393,6 @@ local function startFlying()
                         camera.CFrame.RightVector
 
                 end
-
 
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.Space
@@ -427,7 +403,6 @@ local function startFlying()
 
                 end
 
-
                 if UserInputService:IsKeyDown(
                     Enum.KeyCode.LeftControl
                 ) then
@@ -437,7 +412,6 @@ local function startFlying()
 
                 end
 
-
                 if direction.Magnitude > 0 then
 
                     direction =
@@ -446,7 +420,6 @@ local function startFlying()
 
                 end
 
-
                 velocity.VectorVelocity =
                     direction
 
@@ -454,7 +427,6 @@ local function startFlying()
         )
 
 end
-
 
 UniversalTab:CreateSlider({
 
@@ -482,7 +454,6 @@ UniversalTab:CreateSlider({
 
 })
 
-
 UniversalTab:CreateToggle({
 
     Name = "Flight",
@@ -503,7 +474,6 @@ UniversalTab:CreateToggle({
 
 })
 
-
 UniversalTab:CreateParagraph({
 
     Title = "FLIGHT CONTROLS",
@@ -515,7 +485,6 @@ UniversalTab:CreateParagraph({
 
 })
 
-
 --//======================================================
 --// PLAYER UTILITIES
 --//======================================================
@@ -523,7 +492,6 @@ UniversalTab:CreateParagraph({
 UniversalTab:CreateSection(
     "PLAYER UTILITIES"
 )
-
 
 UniversalTab:CreateToggle({
 
@@ -546,11 +514,9 @@ UniversalTab:CreateToggle({
 
         end
 
-
         if not enabled then
             return
         end
-
 
         jumpConnection =
             UserInputService.JumpRequest:Connect(
@@ -571,7 +537,6 @@ UniversalTab:CreateToggle({
 
 })
 
-
 --//======================================================
 --// NOCLIP
 --//======================================================
@@ -589,7 +554,6 @@ UniversalTab:CreateToggle({
         noclip =
             enabled
 
-
         if noclipConnection then
 
             noclipConnection:Disconnect()
@@ -597,7 +561,6 @@ UniversalTab:CreateToggle({
             noclipConnection = nil
 
         end
-
 
         if not enabled
             and Character then
@@ -616,7 +579,6 @@ UniversalTab:CreateToggle({
 
         end
 
-
         noclipConnection =
             RunService.Stepped:Connect(
                 function()
@@ -627,7 +589,6 @@ UniversalTab:CreateToggle({
                         return
 
                     end
-
 
                     for _, part in ipairs(
                         Character:GetDescendants()
@@ -646,7 +607,6 @@ UniversalTab:CreateToggle({
 
 })
 
-
 --//======================================================
 --// FULLBRIGHT
 --//======================================================
@@ -664,7 +624,6 @@ UniversalTab:CreateToggle({
         fullbright =
             enabled
 
-
         if fullbrightConnection then
 
             fullbrightConnection:Disconnect()
@@ -672,7 +631,6 @@ UniversalTab:CreateToggle({
             fullbrightConnection = nil
 
         end
-
 
         if enabled then
 
@@ -708,7 +666,6 @@ UniversalTab:CreateToggle({
 
 })
 
-
 --//======================================================
 --// GAME HEADER
 --//======================================================
@@ -722,7 +679,6 @@ GameTab:CreateParagraph({
 
 })
 
-
 --//======================================================
 --// ESP
 --//======================================================
@@ -730,7 +686,6 @@ GameTab:CreateParagraph({
 GameTab:CreateSection(
     "PLAYER ESP"
 )
-
 
 local function removeESP(player)
 
@@ -741,22 +696,18 @@ local function removeESP(player)
         return
     end
 
-
     if data.Highlight then
         data.Highlight:Destroy()
     end
-
 
     if data.Billboard then
         data.Billboard:Destroy()
     end
 
-
     espObjects[player] =
         nil
 
 end
-
 
 local function createESP(player)
 
@@ -764,14 +715,11 @@ local function createESP(player)
         return
     end
 
-
     removeESP(player)
-
 
     if not espEnabled then
         return
     end
-
 
     local character =
         player.Character
@@ -779,7 +727,6 @@ local function createESP(player)
     if not character then
         return
     end
-
 
     local head =
         character:FindFirstChild(
@@ -789,7 +736,6 @@ local function createESP(player)
     if not head then
         return
     end
-
 
     local highlight =
         Instance.new("Highlight")
@@ -826,7 +772,6 @@ local function createESP(player)
     highlight.Parent =
         character
 
-
     local billboard =
         Instance.new("BillboardGui")
 
@@ -854,7 +799,6 @@ local function createESP(player)
 
     billboard.Parent =
         head
-
 
     local label =
         Instance.new("TextLabel")
@@ -899,7 +843,6 @@ local function createESP(player)
     label.Parent =
         billboard
 
-
     espObjects[player] = {
 
         Highlight =
@@ -911,7 +854,6 @@ local function createESP(player)
     }
 
 end
-
 
 local function refreshESP()
 
@@ -927,7 +869,6 @@ local function refreshESP()
 
 end
 
-
 GameTab:CreateToggle({
 
     Name = "Player ESP",
@@ -940,7 +881,6 @@ GameTab:CreateToggle({
 
         espEnabled =
             enabled
-
 
         if enabled then
 
@@ -961,7 +901,6 @@ GameTab:CreateToggle({
     end
 
 })
-
 
 GameTab:CreateButton({
 
@@ -988,7 +927,6 @@ GameTab:CreateButton({
 
 })
 
-
 --//======================================================
 --// PLAYER EVENTS
 --//======================================================
@@ -1011,7 +949,6 @@ Players.PlayerAdded:Connect(
     end
 )
 
-
 Players.PlayerRemoving:Connect(
     function(player)
 
@@ -1019,7 +956,6 @@ Players.PlayerRemoving:Connect(
 
     end
 )
-
 
 --//======================================================
 --// AIMBOT
@@ -1029,18 +965,15 @@ GameTab:CreateSection(
     "TARGETING CORE"
 )
 
-
 local function getNearestPlayer()
 
     if not HRP then
         return nil
     end
 
-
     local nearestPlayer
     local nearestDistance =
         math.huge
-
 
     for _, player in ipairs(
         Players:GetPlayers()
@@ -1073,19 +1006,16 @@ local function getNearestPlayer()
                             "Head"
                         )
 
-
                     if humanoid
                         and humanoid.Health > 0
                         and targetHRP
                         and head then
-
 
                         local distance =
                             (
                                 HRP.Position
                                 - targetHRP.Position
                             ).Magnitude
-
 
                         if distance <
                             nearestDistance then
@@ -1108,11 +1038,9 @@ local function getNearestPlayer()
 
     end
 
-
     return nearestPlayer
 
 end
-
 
 local function stopAimbot()
 
@@ -1126,11 +1054,9 @@ local function stopAimbot()
 
 end
 
-
 local function startAimbot()
 
     stopAimbot()
-
 
     aimbotConnection =
         RunService.RenderStepped:Connect(
@@ -1139,7 +1065,6 @@ local function startAimbot()
                 if not aimbotEnabled then
                     return
                 end
-
 
                 local camera =
                     workspace.CurrentCamera
@@ -1151,15 +1076,12 @@ local function startAimbot()
 
                 end
 
-
                 local target =
                     getNearestPlayer()
-
 
                 if not target then
                     return
                 end
-
 
                 local character =
                     target.Character
@@ -1168,19 +1090,14 @@ local function startAimbot()
                     return
                 end
 
-
-                -- HEAD ONLY
-
                 local head =
                     character:FindFirstChild(
                         "Head"
                     )
 
-
                 if not head then
                     return
                 end
-
 
                 local screenPosition,
                     onScreen =
@@ -1188,13 +1105,9 @@ local function startAimbot()
                         head.Position
                     )
 
-
                 if not onScreen then
-
                     return
-
                 end
-
 
                 if aimbotFOVEnabled then
 
@@ -1219,7 +1132,6 @@ local function startAimbot()
                             - center
                         ).Magnitude
 
-
                     if distance >
                         aimbotFOV then
 
@@ -1229,13 +1141,11 @@ local function startAimbot()
 
                 end
 
-
                 local targetCFrame =
                     CFrame.lookAt(
                         camera.CFrame.Position,
                         head.Position
                     )
-
 
                 camera.CFrame =
                     camera.CFrame:Lerp(
@@ -1247,7 +1157,6 @@ local function startAimbot()
         )
 
 end
-
 
 GameTab:CreateToggle({
 
@@ -1261,7 +1170,6 @@ GameTab:CreateToggle({
 
         aimbotEnabled =
             enabled
-
 
         if enabled then
 
@@ -1290,7 +1198,6 @@ GameTab:CreateToggle({
 
 })
 
-
 GameTab:CreateToggle({
 
     Name = "FOV Limiter",
@@ -1307,7 +1214,6 @@ GameTab:CreateToggle({
     end
 
 })
-
 
 GameTab:CreateSlider({
 
@@ -1335,7 +1241,6 @@ GameTab:CreateSlider({
 
 })
 
-
 GameTab:CreateSlider({
 
     Name = "Aimbot Smoothness",
@@ -1362,7 +1267,6 @@ GameTab:CreateSlider({
 
 })
 
-
 GameTab:CreateToggle({
 
     Name = "Team Check",
@@ -1380,7 +1284,6 @@ GameTab:CreateToggle({
 
 })
 
-
 GameTab:CreateParagraph({
 
     Title = "TARGET STATUS",
@@ -1393,7 +1296,6 @@ GameTab:CreateParagraph({
 
 })
 
-
 --//======================================================
 --// TELEPORT
 --//======================================================
@@ -1403,22 +1305,23 @@ TeleportTab:CreateParagraph({
     Title = "◈ ORBITAL TELEPORT",
 
     Content =
-        "Select a player to move near their current position."
+        "Player and world transportation systems."
 
 })
 
+--//======================================================
+--// PLAYER DESTINATIONS
+--//======================================================
 
 TeleportTab:CreateSection(
     "PLAYER DESTINATIONS"
 )
-
 
 local function teleportToPlayer(player)
 
     if not HRP then
         return
     end
-
 
     local character =
         player.Character
@@ -1427,17 +1330,14 @@ local function teleportToPlayer(player)
         return
     end
 
-
     local targetHRP =
         character:FindFirstChild(
             "HumanoidRootPart"
         )
 
-
     if not targetHRP then
         return
     end
-
 
     HRP.CFrame =
         targetHRP.CFrame
@@ -1446,7 +1346,6 @@ local function teleportToPlayer(player)
             0,
             0
         )
-
 
     Rayfield:Notify({
 
@@ -1464,13 +1363,11 @@ local function teleportToPlayer(player)
 
 end
 
-
 local function createTeleportButton(player)
 
     if player == LocalPlayer then
         return
     end
-
 
     TeleportTab:CreateButton({
 
@@ -1490,7 +1387,6 @@ local function createTeleportButton(player)
 
 end
 
-
 for _, player in ipairs(
     Players:GetPlayers()
 ) do
@@ -1498,7 +1394,6 @@ for _, player in ipairs(
     createTeleportButton(player)
 
 end
-
 
 Players.PlayerAdded:Connect(
     function(player)
@@ -1510,11 +1405,13 @@ Players.PlayerAdded:Connect(
     end
 )
 
+--//======================================================
+--// SYSTEM DESTINATIONS
+--//======================================================
 
 TeleportTab:CreateSection(
     "SYSTEM DESTINATIONS"
 )
-
 
 TeleportTab:CreateButton({
 
@@ -1526,13 +1423,11 @@ TeleportTab:CreateButton({
             return
         end
 
-
         local spawn =
             workspace:FindFirstChild(
                 "SpawnLocation",
                 true
             )
-
 
         if spawn
             and spawn:IsA("BasePart") then
@@ -1566,6 +1461,252 @@ TeleportTab:CreateButton({
 
 })
 
+--//======================================================
+--// MASS TELEPORT
+--//======================================================
+
+TeleportTab:CreateSection(
+    "MASS TELEPORT"
+)
+
+TeleportTab:CreateParagraph({
+
+    Title = "◈ MASS TRANSPORT",
+
+    Content =
+        "Searches Workspace for valid humanoid models.\n" ..
+        "Models with Humanoid + HumanoidRootPart will be moved near you."
+
+})
+
+local function teleportAllHumanoids()
+
+    if not HRP then
+
+        Rayfield:Notify({
+
+            Title = "MASS TELEPORT",
+
+            Content =
+                "Your character is not ready.",
+
+            Duration = 3,
+
+            Image = 4483362458
+
+        })
+
+        return
+
+    end
+
+    local moved = 0
+
+    local baseCFrame =
+        HRP.CFrame
+
+    for _, object in ipairs(
+        workspace:GetDescendants()
+    ) do
+
+        if object:IsA("Model")
+            and object ~= Character then
+
+            local humanoid =
+                object:FindFirstChildOfClass(
+                    "Humanoid"
+                )
+
+            local root =
+                object:FindFirstChild(
+                    "HumanoidRootPart"
+                )
+
+            if humanoid
+                and root
+                and root:IsA("BasePart")
+                and humanoid.Health > 0 then
+
+                local angle =
+                    moved
+                    * math.rad(45)
+
+                local radius =
+                    5
+                    + (
+                        (moved % 4)
+                        * 2
+                    )
+
+                local offset =
+                    Vector3.new(
+                        math.cos(angle)
+                        * radius,
+
+                        0,
+
+                        math.sin(angle)
+                        * radius
+                    )
+
+                pcall(function()
+
+                    root.CFrame =
+                        CFrame.new(
+                            baseCFrame.Position
+                            + offset
+                        )
+                        * CFrame.Angles(
+                            0,
+                            baseCFrame:
+                                ToEulerAnglesYXZ()
+                        )
+
+                    moved += 1
+
+                end)
+
+            end
+
+        end
+
+    end
+
+    Rayfield:Notify({
+
+        Title = "MASS TELEPORT",
+
+        Content =
+            "Transported "
+            .. tostring(moved)
+            .. " humanoid(s).",
+
+        Duration = 4,
+
+        Image = 4483362458
+
+    })
+
+end
+
+TeleportTab:CreateButton({
+
+    Name =
+        "Teleport All Humanoids",
+
+    Callback = function()
+
+        teleportAllHumanoids()
+
+    end
+
+})
+
+--//======================================================
+--// MASS TELEPORT - PLAYERS ONLY
+--//======================================================
+
+TeleportTab:CreateButton({
+
+    Name =
+        "Teleport All Players",
+
+    Callback = function()
+
+        if not HRP then
+            return
+        end
+
+        local baseCFrame =
+            HRP.CFrame
+
+        local moved = 0
+
+        for _, player in ipairs(
+            Players:GetPlayers()
+        ) do
+
+            if player ~= LocalPlayer then
+
+                local character =
+                    player.Character
+
+                if character then
+
+                    local humanoid =
+                        character:FindFirstChildOfClass(
+                            "Humanoid"
+                        )
+
+                    local root =
+                        character:FindFirstChild(
+                            "HumanoidRootPart"
+                        )
+
+                    if humanoid
+                        and root
+                        and humanoid.Health > 0 then
+
+                        local angle =
+                            moved
+                            * math.rad(45)
+
+                        local radius =
+                            5
+                            + (
+                                (moved % 4)
+                                * 2
+                            )
+
+                        local offset =
+                            Vector3.new(
+                                math.cos(angle)
+                                * radius,
+
+                                0,
+
+                                math.sin(angle)
+                                * radius
+                            )
+
+                        pcall(function()
+
+                            root.CFrame =
+                                CFrame.new(
+                                    baseCFrame.Position
+                                    + offset
+                                )
+
+                        end)
+
+                        moved += 1
+
+                    end
+
+                end
+
+            end
+
+        end
+
+        Rayfield:Notify({
+
+            Title = "MASS TELEPORT",
+
+            Content =
+                "Transported "
+                .. tostring(moved)
+                .. " player(s).",
+
+            Duration = 4,
+
+            Image = 4483362458
+
+        })
+
+    end
+
+})
 
 --//======================================================
 --// CONFIGURATION
@@ -1580,11 +1721,9 @@ ConfigurationTab:CreateParagraph({
 
 })
 
-
 ConfigurationTab:CreateSection(
     "MOVEMENT PARAMETERS"
 )
-
 
 ConfigurationTab:CreateSlider({
 
@@ -1617,7 +1756,6 @@ ConfigurationTab:CreateSlider({
 
 })
 
-
 ConfigurationTab:CreateSlider({
 
     Name = "Default FlightSpeed",
@@ -1644,7 +1782,6 @@ ConfigurationTab:CreateSlider({
 
 })
 
-
 --//======================================================
 --// THEMES
 --//======================================================
@@ -1652,7 +1789,6 @@ ConfigurationTab:CreateSlider({
 ConfigurationTab:CreateSection(
     "INTERFACE CORE"
 )
-
 
 ConfigurationTab:CreateDropdown({
 
@@ -1684,13 +1820,11 @@ ConfigurationTab:CreateDropdown({
 
         local theme
 
-
         if typeof(option) == "table" then
             theme = option[1]
         else
             theme = option
         end
-
 
         if theme then
 
@@ -1708,7 +1842,6 @@ ConfigurationTab:CreateDropdown({
 
 })
 
-
 ConfigurationTab:CreateParagraph({
 
     Title = "SPACE HUB  •  2.1",
@@ -1719,10 +1852,10 @@ ConfigurationTab:CreateParagraph({
         "Targeting Core\n" ..
         "Visual Systems\n" ..
         "Teleport Network\n" ..
+        "Mass Transport\n" ..
         "Configuration Core"
 
 })
-
 
 --//======================================================
 --// CHARACTER RESPAWN
@@ -1737,14 +1870,12 @@ LocalPlayer.CharacterAdded:Connect(
             character
         )
 
-
         if Humanoid then
 
             Humanoid.WalkSpeed =
                 walkSpeed
 
         end
-
 
         if espEnabled then
 
@@ -1753,7 +1884,6 @@ LocalPlayer.CharacterAdded:Connect(
             refreshESP()
 
         end
-
 
         if flying then
 
@@ -1766,7 +1896,6 @@ LocalPlayer.CharacterAdded:Connect(
     end
 )
 
-
 --//======================================================
 --// LOAD CONFIGURATION
 --//======================================================
@@ -1776,7 +1905,6 @@ pcall(function()
     Rayfield:LoadConfiguration()
 
 end)
-
 
 --//======================================================
 --// STARTUP
