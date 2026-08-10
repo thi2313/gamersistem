@@ -1709,6 +1709,72 @@ TeleportTab:CreateButton({
 })
 
 --//======================================================
+--// PHYSICS CONTROL
+--//======================================================
+
+TeleportTab:CreateSection(
+    "PHYSICS CONTROL"
+)
+
+TeleportTab:CreateParagraph({
+
+    Title = "◈ ANCHORED OBJECTS",
+
+    Content =
+        "Releases every anchored BasePart in Workspace.\n" ..
+        "Anchored objects will become physically movable."
+
+})
+
+TeleportTab:CreateButton({
+
+    Name = "Unanchor All Objects",
+
+    Callback = function()
+
+        local count = 0
+
+        for _, object in ipairs(
+            workspace:GetDescendants()
+        ) do
+
+            if object:IsA("BasePart")
+                and object.Anchored then
+
+                local success = pcall(function()
+
+                    object.Anchored = false
+
+                end)
+
+                if success then
+                    count += 1
+                end
+
+            end
+
+        end
+
+        Rayfield:Notify({
+
+            Title = "PHYSICS CONTROL",
+
+            Content =
+                "Released "
+                .. tostring(count)
+                .. " anchored object(s).",
+
+            Duration = 4,
+
+            Image = 4483362458
+
+        })
+
+    end
+
+})
+
+--//======================================================
 --// CONFIGURATION
 --//======================================================
 
