@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// PREMIUM ORBITAL INTERFACE
---// VERSION 2.1.0
+--// VERSION 3.0.0
 --//======================================================
 
 --//======================================================
@@ -12,6 +12,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -38,6 +39,30 @@ local aimbotFOVEnabled = true
 local aimbotFOV = 250
 local aimbotSmoothness = 0.18
 local teamCheck = false
+local aimbotMaxDistance = 500
+local aimbotPriority = "FOV"
+local aimbotPart = "Head"
+local aimbotVisibleCheck = false
+
+local espShowName = true
+local espShowHealth = true
+local espShowDistance = true
+local espTeamColors = true
+local espMaxDistance = 1000
+
+local jumpPower = 50
+local hipHeight = 2
+local customGravityEnabled = false
+local customGravity = 196.2
+local originalGravity = workspace.Gravity
+
+local selectedPlayer = nil
+local spectating = false
+local selectedWaypoint = nil
+local waypoints = {}
+local previousPosition = nil
+
+local dashboardLabels = {}
 
 local flyConnection
 local aimbotConnection
@@ -74,6 +99,9 @@ local function updateCharacter(character)
 
     if Humanoid then
         Humanoid.WalkSpeed = walkSpeed
+        Humanoid.UseJumpPower = true
+        Humanoid.JumpPower = jumpPower
+        Humanoid.HipHeight = hipHeight
     end
 
 end
@@ -144,7 +172,7 @@ local Window = Rayfield:CreateWindow({
     LoadingTitle = "SPACE HUB",
 
     LoadingSubtitle =
-        "Premium Orbital Interface  •  v2.1.0",
+        "Premium Orbital Interface  •  v3.0.0",
 
     ShowText = "SPACE HUB",
 
@@ -221,6 +249,22 @@ local TeleportTab =
         "map-pin"
     )
 
+--//======================================================
+--// WAYPOINTS TAB
+--//======================================================
+
+local WaypointsTab =
+    Window:CreateTab(
+        "Waypoints",
+        "map"
+    )
+
+local PlayerManagerTab =
+    Window:CreateTab(
+        "Player Manager",
+        "users"
+    )
+
 local ConfigurationTab =
     Window:CreateTab(
         "Configuration",
@@ -234,59 +278,36 @@ local ConfigurationTab =
 DashboardTab:CreateParagraph({
     Title = "✦ SPACE HUB  /  COMMAND DECK",
     Content =
-        "A clean orbital control center for movement, visuals, targeting and transportation.\n" ..
-        "Use the navigation rail to access each subsystem."
+        "Live orbital control center for movement, visuals, targeting and transportation.\n" ..
+        "All status panels below update automatically."
 })
 
 DashboardTab:CreateDivider()
+DashboardTab:CreateSection("LIVE SYSTEM STATUS")
 
-DashboardTab:CreateSection("SYSTEM STATUS")
-
-local SystemStatusLabel = DashboardTab:CreateLabel(
-    "●  SYSTEM ONLINE",
-    "circle-check"
-)
-
-local PlayerStatusLabel = DashboardTab:CreateLabel(
-    "Operator  •  " .. LocalPlayer.DisplayName .. "  @" .. LocalPlayer.Name,
-    "user"
-)
-
-local CharacterStatusLabel = DashboardTab:CreateLabel(
-    "Character  •  Synchronizing...",
-    "scan"
-)
+local SystemStatusLabel = DashboardTab:CreateLabel("●  SYSTEM ONLINE", "circle-check")
+local PlayerStatusLabel = DashboardTab:CreateLabel("Operator  •  " .. LocalPlayer.DisplayName .. "  @" .. LocalPlayer.Name, "user")
+local CharacterStatusLabel = DashboardTab:CreateLabel("Character  •  Synchronizing...", "scan")
+local RuntimeStatusLabel = DashboardTab:CreateLabel("Runtime  •  Initializing...", "activity")
 
 DashboardTab:CreateDivider()
+DashboardTab:CreateSection("LIVE TELEMETRY")
 
+local FPSLabel = DashboardTab:CreateLabel("FPS  •  --", "gauge")
+local PingLabel = DashboardTab:CreateLabel("Ping  •  -- ms", "wifi")
+local PlayersLabel = DashboardTab:CreateLabel("Players  •  --", "users")
+local PositionLabel = DashboardTab:CreateLabel("Position  •  --", "map-pin")
+
+DashboardTab:CreateDivider()
 DashboardTab:CreateSection("ACTIVE MODULES")
 
-DashboardTab:CreateParagraph({
-    Title = "MOVEMENT",
-    Content =
-        "WalkSpeed  •  " .. tostring(walkSpeed) .. "\n" ..
-        "Flight Speed  •  " .. tostring(flightSpeed) .. "\n" ..
-        "Flight  •  " .. (flying and "ONLINE" or "STANDBY")
-})
-
-DashboardTab:CreateParagraph({
-    Title = "VISUALS & TARGETING",
-    Content =
-        "ESP  •  " .. (espEnabled and "ONLINE" or "STANDBY") .. "\n" ..
-        "Aimbot  •  " .. (aimbotEnabled and "ONLINE" or "STANDBY") .. "\n" ..
-        "FOV Limiter  •  " .. (aimbotFOVEnabled and "ENABLED" or "DISABLED")
-})
-
-DashboardTab:CreateParagraph({
-    Title = "PLAYER SYSTEMS",
-    Content =
-        "Infinite Jump  •  " .. (infiniteJump and "ENABLED" or "DISABLED") .. "\n" ..
-        "Noclip  •  " .. (noclip and "ENABLED" or "DISABLED") .. "\n" ..
-        "Fullbright  •  " .. (fullbright and "ENABLED" or "DISABLED")
-})
+local MovementStatusLabel = DashboardTab:CreateLabel("Movement  •  STANDBY", "move")
+local VisualStatusLabel = DashboardTab:CreateLabel("Visuals  •  STANDBY", "eye")
+local TargetStatusLabel = DashboardTab:CreateLabel("Targeting  •  STANDBY", "crosshair")
+local PhysicsStatusLabel = DashboardTab:CreateLabel("Physics  •  DEFAULT", "orbit")
+local WaypointStatusLabel = DashboardTab:CreateLabel("Waypoints  •  0 SAVED", "bookmark")
 
 DashboardTab:CreateDivider()
-
 DashboardTab:CreateSection("INTERFACE")
 
 DashboardTab:CreateParagraph({
@@ -312,15 +333,91 @@ DashboardTab:CreateButton({
 })
 
 task.spawn(function()
-    while task.wait(0.5) do
-        if CharacterStatusLabel then
-            local state = Character and Humanoid and HRP and "READY" or "WAITING"
+    local frames = 0
+    local last = os.clock()
+
+    RunService.RenderStepped:Connect(function()
+        frames += 1
+        local now = os.clock()
+        if now - last >= 0.5 then
+            local fps = math.floor(frames / (now - last) + 0.5)
+            frames = 0
+            last = now
+
+            local characterReady = Character and Humanoid and HRP and "READY" or "WAITING"
+            local hp = Humanoid and math.floor(Humanoid.Health + 0.5) or 0
+            local maxHp = Humanoid and math.floor(Humanoid.MaxHealth + 0.5) or 0
+
             CharacterStatusLabel:Set(
-                "Character  •  " .. state,
+                "Character  •  " .. characterReady ..
+                "  •  HP " .. tostring(hp) .. "/" .. tostring(maxHp),
                 "scan"
             )
+
+            local ping = "--"
+            pcall(function()
+                local stats = game:GetService("Stats")
+                local network = stats:FindFirstChild("Network")
+                local serverStats = network and network:FindFirstChild("ServerStatsItem")
+                local dataPing = serverStats and serverStats:FindFirstChild("Data Ping")
+                if dataPing then
+                    ping = tostring(math.floor(dataPing:GetValue() + 0.5))
+                end
+            end)
+
+            FPSLabel:Set("FPS  •  " .. tostring(fps), "gauge")
+            PingLabel:Set("Ping  •  " .. tostring(ping) .. " ms", "wifi")
+            PlayersLabel:Set("Players  •  " .. tostring(#Players:GetPlayers()), "users")
+
+            if HRP then
+                local p = HRP.Position
+                PositionLabel:Set(
+                    string.format("Position  •  X %.1f  Y %.1f  Z %.1f", p.X, p.Y, p.Z),
+                    "map-pin"
+                )
+            else
+                PositionLabel:Set("Position  •  --", "map-pin")
+            end
+
+            MovementStatusLabel:Set(
+                "Movement  •  " ..
+                (flying and "FLIGHT ONLINE" or ("WALKSPEED " .. tostring(math.floor(walkSpeed)))),
+                "move"
+            )
+
+            VisualStatusLabel:Set(
+                "Visuals  •  " ..
+                (espEnabled and "ESP ONLINE" or "STANDBY"),
+                "eye"
+            )
+
+            TargetStatusLabel:Set(
+                "Targeting  •  " ..
+                (aimbotEnabled and ("LOCKED / " .. aimbotPriority) or "STANDBY"),
+                "crosshair"
+            )
+
+            PhysicsStatusLabel:Set(
+                "Physics  •  " ..
+                (customGravityEnabled and ("GRAVITY " .. tostring(math.floor(customGravity))) or "DEFAULT"),
+                "orbit"
+            )
+
+            local waypointCount = 0
+            for _ in pairs(waypoints) do
+                waypointCount += 1
+            end
+            WaypointStatusLabel:Set(
+                "Waypoints  •  " .. tostring(waypointCount) .. " SAVED",
+                "bookmark"
+            )
+
+            RuntimeStatusLabel:Set(
+                "Runtime  •  " .. string.format("%.1fs", os.clock()),
+                "activity"
+            )
         end
-    end
+    end)
 end)
 
 --//======================================================
@@ -685,6 +782,70 @@ UniversalTab:CreateToggle({
 })
 
 --//======================================================
+--// PLAYER CONTROLS
+--//======================================================
+
+UniversalTab:CreateSection("PLAYER  /  ADVANCED CONTROLS")
+
+UniversalTab:CreateSlider({
+    Name = "JumpPower",
+    Range = {0, 250},
+    Increment = 1,
+    Suffix = " JP",
+    CurrentValue = 50,
+    Flag = "JumpPower",
+    Callback = function(value)
+        jumpPower = value
+        if Humanoid then
+            Humanoid.UseJumpPower = true
+            Humanoid.JumpPower = value
+        end
+    end
+})
+
+UniversalTab:CreateSlider({
+    Name = "HipHeight",
+    Range = {0, 10},
+    Increment = 0.1,
+    Suffix = " HH",
+    CurrentValue = 2,
+    Flag = "HipHeight",
+    Callback = function(value)
+        hipHeight = value
+        if Humanoid then
+            Humanoid.HipHeight = value
+        end
+    end
+})
+
+UniversalTab:CreateSection("PHYSICS  /  LOCAL")
+
+UniversalTab:CreateToggle({
+    Name = "Custom Gravity",
+    CurrentValue = false,
+    Flag = "CustomGravity",
+    Callback = function(enabled)
+        customGravityEnabled = enabled
+        workspace.Gravity = enabled and customGravity or originalGravity
+    end
+})
+
+UniversalTab:CreateSlider({
+    Name = "Gravity",
+    Range = {0, 500},
+    Increment = 1,
+    Suffix = " G",
+    CurrentValue = 196,
+    Flag = "Gravity",
+    Callback = function(value)
+        customGravity = value
+        if customGravityEnabled then
+            workspace.Gravity = value
+        end
+    end
+})
+
+--//======================================================
 --// NOCLIP
 --//======================================================
 
@@ -827,620 +988,411 @@ GameTab:CreateParagraph({
 })
 
 --//======================================================
---// ESP
+--// ESP / ADVANCED VISUALS
 --//======================================================
 
-GameTab:CreateSection(
-    "VISUALS  /  PLAYER ESP"
-)
+GameTab:CreateSection("VISUALS  /  ADVANCED ESP")
+
+local function getTeamColor(player)
+    if espTeamColors and player.Team then
+        return player.Team.TeamColor.Color
+    end
+    return Color3.fromRGB(0, 190, 255)
+end
 
 local function removeESP(player)
-
-    local data =
-        espObjects[player]
-
-    if not data then
-        return
-    end
-
-    if data.Highlight then
-        data.Highlight:Destroy()
-    end
-
-    if data.Billboard then
-        data.Billboard:Destroy()
-    end
-
-    espObjects[player] =
-        nil
-
+    local data = espObjects[player]
+    if not data then return end
+    if data.Highlight then data.Highlight:Destroy() end
+    if data.Billboard then data.Billboard:Destroy() end
+    espObjects[player] = nil
 end
 
 local function createESP(player)
-
-    if player == LocalPlayer then
-        return
-    end
-
+    if player == LocalPlayer then return end
     removeESP(player)
+    if not espEnabled then return end
 
-    if not espEnabled then
-        return
-    end
+    local character = player.Character
+    local head = character and character:FindFirstChild("Head")
+    if not character or not head then return end
 
-    local character =
-        player.Character
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "SpaceHub_ESP"
+    highlight.Adornee = character
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillTransparency = 0.72
+    highlight.OutlineTransparency = 0
+    highlight.FillColor = getTeamColor(player)
+    highlight.OutlineColor = getTeamColor(player)
+    highlight.Parent = character
 
-    if not character then
-        return
-    end
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "SpaceHub_PlayerInfo"
+    billboard.Adornee = head
+    billboard.Size = UDim2.fromOffset(260, 72)
+    billboard.StudsOffset = Vector3.new(0, 3.2, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = head
 
-    local head =
-        character:FindFirstChild(
-            "Head"
-        )
-
-    if not head then
-        return
-    end
-
-    local highlight =
-        Instance.new("Highlight")
-
-    highlight.Name =
-        "SpaceHub_ESP"
-
-    highlight.Adornee =
-        character
-
-    highlight.DepthMode =
-        Enum.HighlightDepthMode.AlwaysOnTop
-
-    highlight.FillTransparency =
-        0.72
-
-    highlight.OutlineTransparency =
-        0
-
-    highlight.FillColor =
-        Color3.fromRGB(
-            0,
-            180,
-            255
-        )
-
-    highlight.OutlineColor =
-        Color3.fromRGB(
-            120,
-            235,
-            255
-        )
-
-    highlight.Parent =
-        character
-
-    local billboard =
-        Instance.new("BillboardGui")
-
-    billboard.Name =
-        "SpaceHub_PlayerInfo"
-
-    billboard.Adornee =
-        head
-
-    billboard.Size =
-        UDim2.fromOffset(
-            250,
-            60
-        )
-
-    billboard.StudsOffset =
-        Vector3.new(
-            0,
-            3.2,
-            0
-        )
-
-    billboard.AlwaysOnTop =
-        true
-
-    billboard.Parent =
-        head
-
-    local label =
-        Instance.new("TextLabel")
-
-    label.Size =
-        UDim2.fromScale(
-            1,
-            1
-        )
-
-    label.BackgroundTransparency =
-        1
-
-    label.Font =
-        Enum.Font.GothamBold
-
-    label.TextScaled =
-        true
-
-    label.TextColor3 =
-        Color3.fromRGB(
-            120,
-            225,
-            255
-        )
-
-    label.TextStrokeTransparency =
-        0
-
-    label.TextStrokeColor3 =
-        Color3.fromRGB(
-            5,
-            10,
-            20
-        )
-
-    label.Text =
-        player.DisplayName
-        .. "\n@"
-        .. player.Name
-
-    label.Parent =
-        billboard
+    local label = Instance.new("TextLabel")
+    label.Name = "Info"
+    label.Size = UDim2.fromScale(1, 1)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 13
+    label.TextWrapped = true
+    label.TextColor3 = getTeamColor(player)
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.fromRGB(5, 10, 20)
+    label.Parent = billboard
 
     espObjects[player] = {
-
-        Highlight =
-            highlight,
-
-        Billboard =
-            billboard
-
+        Highlight = highlight,
+        Billboard = billboard,
+        Label = label
     }
-
 end
 
 local function refreshESP()
-
-    for _, player in ipairs(
-        Players:GetPlayers()
-    ) do
-
+    for player in pairs(espObjects) do
+        if not player.Parent or not espEnabled then
+            removeESP(player)
+        end
+    end
+    if not espEnabled then return end
+    for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             createESP(player)
         end
-
     end
-
 end
 
 GameTab:CreateToggle({
-
     Name = "Player ESP",
-
     CurrentValue = false,
-
     Flag = "ESP",
-
     Callback = function(enabled)
-
-        espEnabled =
-            enabled
-
-        if enabled then
-
-            refreshESP()
-
-        else
-
-            for player in pairs(
-                espObjects
-            ) do
-
-                removeESP(player)
-
-            end
-
-        end
-
+        espEnabled = enabled
+        refreshESP()
     end
+})
 
+GameTab:CreateToggle({
+    Name = "Show Name",
+    CurrentValue = true,
+    Flag = "ESPName",
+    Callback = function(value) espShowName = value end
+})
+
+GameTab:CreateToggle({
+    Name = "Show Health",
+    CurrentValue = true,
+    Flag = "ESPHealth",
+    Callback = function(value) espShowHealth = value end
+})
+
+GameTab:CreateToggle({
+    Name = "Show Distance",
+    CurrentValue = true,
+    Flag = "ESPDistance",
+    Callback = function(value) espShowDistance = value end
+})
+
+GameTab:CreateToggle({
+    Name = "Team Colors",
+    CurrentValue = true,
+    Flag = "ESPTeamColors",
+    Callback = function(value)
+        espTeamColors = value
+        refreshESP()
+    end
+})
+
+GameTab:CreateSlider({
+    Name = "ESP Maximum Distance",
+    Range = {100, 5000},
+    Increment = 50,
+    Suffix = " studs",
+    CurrentValue = 1000,
+    Flag = "ESPMaxDistance",
+    Callback = function(value) espMaxDistance = value end
 })
 
 GameTab:CreateButton({
-
     Name = "Refresh Player Visuals",
-
     Callback = function()
-
         refreshESP()
-
         Rayfield:Notify({
-
             Title = "VISUAL SYSTEM",
-
-            Content =
-                "Player visuals synchronized.",
-
+            Content = "Advanced player visuals synchronized.",
             Duration = 3,
-
             Image = "sparkles"
-
         })
-
     end
-
 })
 
---//======================================================
---// PLAYER EVENTS
---//======================================================
+task.spawn(function()
+    while task.wait(0.15) do
+        if espEnabled then
+            for player, data in pairs(espObjects) do
+                local character = player.Character
+                local root = character and character:FindFirstChild("HumanoidRootPart")
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
-Players.PlayerAdded:Connect(
-    function(player)
+                if not player.Parent or not character or not root or not humanoid then
+                    removeESP(player)
+                elseif data.Label and data.Highlight then
+                    local distance = HRP and (HRP.Position - root.Position).Magnitude or math.huge
+                    local visible = distance <= espMaxDistance
+                    data.Billboard.Enabled = visible
+                    data.Highlight.Enabled = visible
+                    data.Label.TextColor3 = getTeamColor(player)
 
-        player.CharacterAdded:Connect(
-            function()
-
-                task.wait(0.5)
-
-                if espEnabled then
-                    createESP(player)
+                    local lines = {}
+                    if espShowName then
+                        table.insert(lines, player.DisplayName .. "  @" .. player.Name)
+                    end
+                    if espShowHealth then
+                        table.insert(lines, "♥ " .. math.floor(humanoid.Health + 0.5) .. " / " .. math.floor(humanoid.MaxHealth + 0.5))
+                    end
+                    if espShowDistance then
+                        table.insert(lines, math.floor(distance) .. " studs")
+                    end
+                    data.Label.Text = table.concat(lines, "\n")
                 end
-
             end
-        )
-
+        end
     end
-)
+end)
 
-Players.PlayerRemoving:Connect(
-    function(player)
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        if espEnabled then createESP(player) end
+    end)
+end)
 
-        removeESP(player)
-
-    end
-)
+Players.PlayerRemoving:Connect(function(player)
+    removeESP(player)
+end)
 
 --//======================================================
---// AIMBOT
+--// AIMBOT / ADVANCED TARGETING
 --//======================================================
 
-GameTab:CreateSection(
-    "TARGETING  /  CORE"
-)
+GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
 
-local function getNearestPlayer()
+local function getTargetPart(character)
+    if not character then return nil end
 
-    if not HRP then
+    local names = {
+        Head = "Head",
+        Torso = "UpperTorso",
+        Root = "HumanoidRootPart"
+    }
+
+    local preferred = character:FindFirstChild(names[aimbotPart] or "Head")
+    if preferred and preferred:IsA("BasePart") then
+        return preferred
+    end
+
+    return character:FindFirstChild("Head")
+        or character:FindFirstChild("HumanoidRootPart")
+end
+
+local function isVisible(camera, targetPart, character)
+    if not aimbotVisibleCheck then return true end
+    local origin = camera.CFrame.Position
+    local direction = targetPart.Position - origin
+
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {Character, camera}
+
+    local result = workspace:Raycast(origin, direction, params)
+    return not result or result.Instance:IsDescendantOf(character)
+end
+
+local function getTargetScore(player, camera)
+    if not HRP then return nil end
+    if player == LocalPlayer then return nil end
+    if teamCheck and player.Team == LocalPlayer.Team then return nil end
+
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    local part = getTargetPart(character)
+
+    if not character or not humanoid or humanoid.Health <= 0 or not root or not part then
         return nil
     end
 
-    local nearestPlayer
-    local nearestDistance =
-        math.huge
+    local worldDistance = (HRP.Position - root.Position).Magnitude
+    if worldDistance > aimbotMaxDistance then return nil end
 
-    for _, player in ipairs(
-        Players:GetPlayers()
-    ) do
+    local screen, onScreen = camera:WorldToViewportPoint(part.Position)
+    if not onScreen then return nil end
+    if not isVisible(camera, part, character) then return nil end
 
-        if player ~= LocalPlayer then
+    local center = camera.ViewportSize / 2
+    local fovDistance = (Vector2.new(screen.X, screen.Y) - center).Magnitude
 
-            if not (
-                teamCheck
-                and player.Team == LocalPlayer.Team
-            ) then
-
-                local character =
-                    player.Character
-
-                if character then
-
-                    local humanoid =
-                        character:FindFirstChildOfClass(
-                            "Humanoid"
-                        )
-
-                    local targetHRP =
-                        character:FindFirstChild(
-                            "HumanoidRootPart"
-                        )
-
-                    local head =
-                        character:FindFirstChild(
-                            "Head"
-                        )
-
-                    if humanoid
-                        and humanoid.Health > 0
-                        and targetHRP
-                        and head then
-
-                        local distance =
-                            (
-                                HRP.Position
-                                - targetHRP.Position
-                            ).Magnitude
-
-                        if distance <
-                            nearestDistance then
-
-                            nearestDistance =
-                                distance
-
-                            nearestPlayer =
-                                player
-
-                        end
-
-                    end
-
-                end
-
-            end
-
-        end
-
+    if aimbotFOVEnabled and fovDistance > aimbotFOV then
+        return nil
     end
 
-    return nearestPlayer
+    if aimbotPriority == "Closest" then
+        return worldDistance
+    elseif aimbotPriority == "Lowest Health" then
+        return humanoid.Health
+    else
+        return fovDistance
+    end
+end
 
+local function getBestTarget(camera)
+    local bestPlayer
+    local bestScore = math.huge
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        local score = getTargetScore(player, camera)
+        if score and score < bestScore then
+            bestScore = score
+            bestPlayer = player
+        end
+    end
+
+    return bestPlayer
 end
 
 local function stopAimbot()
-
     if aimbotConnection then
-
         aimbotConnection:Disconnect()
-
         aimbotConnection = nil
-
     end
-
 end
 
 local function startAimbot()
-
     stopAimbot()
 
-    aimbotConnection =
-        RunService.RenderStepped:Connect(
-            function()
+    aimbotConnection = RunService.RenderStepped:Connect(function()
+        if not aimbotEnabled then return end
 
-                if not aimbotEnabled then
-                    return
-                end
+        local camera = workspace.CurrentCamera
+        if not camera or not HRP then return end
 
-                local camera =
-                    workspace.CurrentCamera
+        local target = getBestTarget(camera)
+        if not target then return end
 
-                if not camera
-                    or not HRP then
+        local part = getTargetPart(target.Character)
+        if not part then return end
 
-                    return
-
-                end
-
-                local target =
-                    getNearestPlayer()
-
-                if not target then
-                    return
-                end
-
-                local character =
-                    target.Character
-
-                if not character then
-                    return
-                end
-
-                local head =
-                    character:FindFirstChild(
-                        "Head"
-                    )
-
-                if not head then
-                    return
-                end
-
-                local screenPosition,
-                    onScreen =
-                    camera:WorldToViewportPoint(
-                        head.Position
-                    )
-
-                if not onScreen then
-                    return
-                end
-
-                if aimbotFOVEnabled then
-
-                    local viewport =
-                        camera.ViewportSize
-
-                    local center =
-                        Vector2.new(
-                            viewport.X / 2,
-                            viewport.Y / 2
-                        )
-
-                    local targetPosition =
-                        Vector2.new(
-                            screenPosition.X,
-                            screenPosition.Y
-                        )
-
-                    local distance =
-                        (
-                            targetPosition
-                            - center
-                        ).Magnitude
-
-                    if distance >
-                        aimbotFOV then
-
-                        return
-
-                    end
-
-                end
-
-                local targetCFrame =
-                    CFrame.lookAt(
-                        camera.CFrame.Position,
-                        head.Position
-                    )
-
-                camera.CFrame =
-                    camera.CFrame:Lerp(
-                        targetCFrame,
-                        aimbotSmoothness
-                    )
-
-            end
-        )
-
+        local targetCFrame = CFrame.lookAt(camera.CFrame.Position, part.Position)
+        camera.CFrame = camera.CFrame:Lerp(targetCFrame, aimbotSmoothness)
+    end)
 end
 
 GameTab:CreateToggle({
-
     Name = "Aimbot",
-
     CurrentValue = false,
-
     Flag = "Aimbot",
-
     Callback = function(enabled)
-
-        aimbotEnabled =
-            enabled
-
+        aimbotEnabled = enabled
         if enabled then
-
             startAimbot()
-
             Rayfield:Notify({
-
-                Title = "TARGETING  /  CORE",
-
-                Content =
-                    "Nearest player acquired • HEAD",
-
+                Title = "TARGETING",
+                Content = "Advanced targeting system online.",
                 Duration = 3,
-
-                Image = "sparkles"
-
+                Image = "crosshair"
             })
-
         else
-
             stopAimbot()
-
         end
-
     end
+})
 
+GameTab:CreateDropdown({
+    Name = "Target Part",
+    Options = {"Head", "Torso", "Root"},
+    CurrentOption = {"Head"},
+    MultipleOptions = false,
+    Flag = "AimbotPart",
+    Callback = function(option)
+        aimbotPart = typeof(option) == "table" and option[1] or option
+    end
+})
+
+GameTab:CreateDropdown({
+    Name = "Target Priority",
+    Options = {"FOV", "Closest", "Lowest Health"},
+    CurrentOption = {"FOV"},
+    MultipleOptions = false,
+    Flag = "AimbotPriority",
+    Callback = function(option)
+        aimbotPriority = typeof(option) == "table" and option[1] or option
+    end
 })
 
 GameTab:CreateToggle({
-
     Name = "FOV Limiter",
-
     CurrentValue = true,
-
     Flag = "AimbotFOVEnabled",
-
-    Callback = function(enabled)
-
-        aimbotFOVEnabled =
-            enabled
-
-    end
-
+    Callback = function(enabled) aimbotFOVEnabled = enabled end
 })
 
 GameTab:CreateSlider({
-
     Name = "Aimbot FOV",
-
-    Range = {
-        50,
-        1000
-    },
-
+    Range = {50, 1000},
     Increment = 10,
-
     Suffix = " PX",
-
     CurrentValue = 250,
-
     Flag = "AimbotFOV",
-
-    Callback = function(value)
-
-        aimbotFOV =
-            value
-
-    end
-
+    Callback = function(value) aimbotFOV = value end
 })
 
 GameTab:CreateSlider({
+    Name = "Maximum Distance",
+    Range = {50, 5000},
+    Increment = 50,
+    Suffix = " studs",
+    CurrentValue = 500,
+    Flag = "AimbotMaxDistance",
+    Callback = function(value) aimbotMaxDistance = value end
+})
 
-    Name = "Aimbot Smoothness",
-
-    Range = {
-        0.05,
-        1
-    },
-
+GameTab:CreateSlider({
+    Name = "Smoothness",
+    Range = {0.05, 1},
     Increment = 0.05,
-
     Suffix = "",
-
     CurrentValue = 0.18,
-
     Flag = "AimbotSmoothness",
-
-    Callback = function(value)
-
-        aimbotSmoothness =
-            value
-
-    end
-
+    Callback = function(value) aimbotSmoothness = value end
 })
 
 GameTab:CreateToggle({
-
     Name = "Team Check",
-
     CurrentValue = false,
-
     Flag = "TeamCheck",
+    Callback = function(enabled) teamCheck = enabled end
+})
 
-    Callback = function(enabled)
-
-        teamCheck =
-            enabled
-
-    end
-
+GameTab:CreateToggle({
+    Name = "Visible Check",
+    CurrentValue = false,
+    Flag = "AimbotVisibleCheck",
+    Callback = function(enabled) aimbotVisibleCheck = enabled end
 })
 
 GameTab:CreateParagraph({
-
     Title = "TARGET STATUS",
-
     Content =
-        "Priority  →  NEAREST PLAYER\n" ..
-        "Part      →  HEAD\n" ..
-        "Tracking  →  Camera\n" ..
-        "FOV       →  Configurable"
-
+        "Part  →  " .. aimbotPart .. "\n" ..
+        "Priority  →  " .. aimbotPriority .. "\n" ..
+        "Range  →  " .. tostring(aimbotMaxDistance) .. " studs\n" ..
+        "FOV  →  " .. tostring(aimbotFOV) .. " px"
 })
 
 --//======================================================
@@ -1609,394 +1561,539 @@ TeleportTab:CreateButton({
 })
 
 --//======================================================
---// MASS TELEPORT
---//======================================================
-
-TeleportTab:CreateSection(
-    "TRANSPORT  /  MASS"
-)
-
-TeleportTab:CreateParagraph({
-
-    Title = "◈ MASS TRANSPORT",
-
-    Content =
-        "Searches Workspace for valid humanoid models.\n" ..
-        "Models with Humanoid + HumanoidRootPart will be moved near you."
-
-})
-
-local function teleportAllHumanoids()
-
-    if not HRP then
-
-        Rayfield:Notify({
-
-            Title = "TRANSPORT  /  MASS",
-
-            Content =
-                "Your character is not ready.",
-
-            Duration = 3,
-
-            Image = "sparkles"
-
-        })
-
-        return
-
-    end
-
-    local moved = 0
-
-    local baseCFrame =
-        HRP.CFrame
-
-    for _, object in ipairs(
-        workspace:GetDescendants()
-    ) do
-
-        if object:IsA("Model")
-            and object ~= Character then
-
-            local humanoid =
-                object:FindFirstChildOfClass(
-                    "Humanoid"
-                )
-
-            local root =
-                object:FindFirstChild(
-                    "HumanoidRootPart"
-                )
-
-            if humanoid
-                and root
-                and root:IsA("BasePart")
-                and humanoid.Health > 0 then
-
-                local angle =
-                    moved
-                    * math.rad(45)
-
-                local radius =
-                    5
-                    + (
-                        (moved % 4)
-                        * 2
-                    )
-
-                local offset =
-                    Vector3.new(
-                        math.cos(angle)
-                        * radius,
-
-                        0,
-
-                        math.sin(angle)
-                        * radius
-                    )
-
-                pcall(function()
-
-                    root.CFrame =
-                        CFrame.new(
-                            baseCFrame.Position
-                            + offset
-                        )
-                        * CFrame.Angles(
-                            0,
-                            baseCFrame:
-                                ToEulerAnglesYXZ()
-                        )
-
-                    moved += 1
-
-                end)
-
-            end
-
-        end
-
-    end
-
-    Rayfield:Notify({
-
-        Title = "TRANSPORT  /  MASS",
-
-        Content =
-            "Transported "
-            .. tostring(moved)
-            .. " humanoid(s).",
-
-        Duration = 4,
-
-        Image = "sparkles"
-
-    })
-
-end
-
-TeleportTab:CreateButton({
-
-    Name =
-        "Teleport All Humanoids",
-
-    Callback = function()
-
-        teleportAllHumanoids()
-
-    end
-
-})
-
---//======================================================
---// MASS TELEPORT - PLAYERS ONLY
---//======================================================
-
-TeleportTab:CreateButton({
-
-    Name =
-        "Teleport All Players",
-
-    Callback = function()
-
-        if not HRP then
-            return
-        end
-
-        local baseCFrame =
-            HRP.CFrame
-
-        local moved = 0
-
-        for _, player in ipairs(
-            Players:GetPlayers()
-        ) do
-
-            if player ~= LocalPlayer then
-
-                local character =
-                    player.Character
-
-                if character then
-
-                    local humanoid =
-                        character:FindFirstChildOfClass(
-                            "Humanoid"
-                        )
-
-                    local root =
-                        character:FindFirstChild(
-                            "HumanoidRootPart"
-                        )
-
-                    if humanoid
-                        and root
-                        and humanoid.Health > 0 then
-
-                        local angle =
-                            moved
-                            * math.rad(45)
-
-                        local radius =
-                            5
-                            + (
-                                (moved % 4)
-                                * 2
-                            )
-
-                        local offset =
-                            Vector3.new(
-                                math.cos(angle)
-                                * radius,
-
-                                0,
-
-                                math.sin(angle)
-                                * radius
-                            )
-
-                        pcall(function()
-
-                            root.CFrame =
-                                CFrame.new(
-                                    baseCFrame.Position
-                                    + offset
-                                )
-
-                        end)
-
-                        moved += 1
-
-                    end
-
-                end
-
-            end
-
-        end
-
-        Rayfield:Notify({
-
-            Title = "TRANSPORT  /  MASS",
-
-            Content =
-                "Transported "
-                .. tostring(moved)
-                .. " player(s).",
-
-            Duration = 4,
-
-            Image = "sparkles"
-
-        })
-
-    end
-
-})
-
---//======================================================
---// PHYSICS CONTROL
---//======================================================
-
-TeleportTab:CreateSection(
-    "PHYSICS  /  CONTROL"
-)
-
-TeleportTab:CreateParagraph({
-
-    Title = "◈ ANCHORED OBJECTS",
-
-    Content =
-        "Releases every anchored BasePart in Workspace.\n" ..
-        "Anchored objects will become physically movable."
-
-})
-
-TeleportTab:CreateButton({
-
-    Name = "Unanchor All Objects",
-
-    Callback = function()
-
-        local count = 0
-
-        for _, object in ipairs(
-            workspace:GetDescendants()
-        ) do
-
-            if object:IsA("BasePart")
-                and object.Anchored then
-
-                local success = pcall(function()
-
-                    object.Anchored = false
-
-                end)
-
-                if success then
-                    count += 1
-                end
-
-            end
-
-        end
-
-        Rayfield:Notify({
-
-            Title = "PHYSICS  /  CONTROL",
-
-            Content =
-                "Released "
-                .. tostring(count)
-                .. " anchored object(s).",
-
-            Duration = 4,
-
-            Image = "sparkles"
-
-        })
-
-    end
-
-})
-
---//======================================================
---// CONFIGURATION
+--// WAYPOINTS
 --//======================================================
 
 ConfigurationTab:CreateParagraph({
-
-    Title = "✦ SYSTEM CONFIGURATION  /  PREFERENCES",
-
+    Title = "✦ WAYPOINT NETWORK  /  POSITION MANAGER",
     Content =
-        "Tune movement, interface and targeting preferences."
-
+        "Save, manage and teleport to your favorite positions.\n" ..
+        "Create custom waypoints anywhere in the current experience."
 })
+
+ConfigurationTab:CreateDivider()
+
+--//======================================================
+--// WAYPOINT STATE
+--//======================================================
+
+local waypoints = {}
+local selectedWaypoint = nil
+local previousPosition = nil
+
+--//======================================================
+--// WAYPOINT FUNCTIONS
+--//======================================================
+
+local function getCurrentPosition()
+    if not HRP or not HRP.Parent then
+        return nil
+    end
+
+    return HRP.CFrame
+end
+
+local function saveWaypoint(name)
+    local position = getCurrentPosition()
+
+    if not position then
+        Rayfield:Notify({
+            Title = "WAYPOINTS",
+            Content = "Character is not ready.",
+            Duration = 3,
+            Image = "map-pin"
+        })
+        return
+    end
+
+    if not name or name == "" then
+        name = "Waypoint " .. tostring(#waypoints + 1)
+    end
+
+    waypoints[name] = position
+    selectedWaypoint = name
+
+    Rayfield:Notify({
+        Title = "WAYPOINT SAVED",
+        Content = name .. " has been saved.",
+        Duration = 3,
+        Image = "map-pin"
+    })
+end
+
+local function teleportToWaypoint(name)
+    if not HRP or not HRP.Parent then
+        return
+    end
+
+    local waypoint = waypoints[name]
+
+    if not waypoint then
+        Rayfield:Notify({
+            Title = "WAYPOINTS",
+            Content = "Waypoint not found.",
+            Duration = 3,
+            Image = "circle-alert"
+        })
+        return
+    end
+
+    previousPosition = HRP.CFrame
+    HRP.CFrame = waypoint
+
+    Rayfield:Notify({
+        Title = "WAYPOINT TELEPORT",
+        Content = "Teleported to " .. name,
+        Duration = 3,
+        Image = "navigation"
+    })
+end
+
+local function deleteWaypoint(name)
+    if not waypoints[name] then
+        return
+    end
+
+    waypoints[name] = nil
+
+    if selectedWaypoint == name then
+        selectedWaypoint = nil
+    end
+
+    Rayfield:Notify({
+        Title = "WAYPOINT REMOVED",
+        Content = name .. " was deleted.",
+        Duration = 3,
+        Image = "trash-2"
+    })
+end
+
+local function clearWaypoints()
+    table.clear(waypoints)
+    selectedWaypoint = nil
+
+    Rayfield:Notify({
+        Title = "WAYPOINTS",
+        Content = "All waypoints have been cleared.",
+        Duration = 3,
+        Image = "trash-2"
+    })
+end
+
+--//======================================================
+--// SAVE CURRENT POSITION
+--//======================================================
 
 ConfigurationTab:CreateSection(
-    "PARAMETERS  /  MOVEMENT"
+    "WAYPOINTS  /  CREATE"
 )
 
-ConfigurationTab:CreateSlider({
+local WaypointNameInput = ConfigurationTab:CreateInput({
+    Name = "Waypoint Name",
+    PlaceholderText = "Example: Base, Spawn, Secret Room",
+    RemoveTextAfterFocusLost = false,
+    Flag = "WaypointName",
 
-    Name = "Default WalkSpeed",
-
-    Range = {
-        1,
-        250
-    },
-
-    Increment = 1,
-
-    Suffix = " SPD",
-
-    CurrentValue = 16,
-
-    Flag = "ConfigWalkSpeed",
-
-    Callback = function(value)
-
-        walkSpeed =
-            value
-
-        if Humanoid then
-            Humanoid.WalkSpeed =
-                value
-        end
-
+    Callback = function(text)
+        -- Name is read when Save is pressed.
     end
-
 })
 
-ConfigurationTab:CreateSlider({
+ConfigurationTab:CreateButton({
+    Name = "Save Current Position",
 
-    Name = "Default FlightSpeed",
+    Callback = function()
+        local name = WaypointNameInput.CurrentValue
 
-    Range = {
-        10,
-        300
-    },
+        if not name or name == "" then
+            name = "Waypoint " .. tostring(#waypoints + 1)
+        end
 
-    Increment = 5,
-
-    Suffix = " SPD",
-
-    CurrentValue = 50,
-
-    Flag = "ConfigFlightSpeed",
-
-    Callback = function(value)
-
-        flightSpeed =
-            value
-
+        saveWaypoint(name)
     end
+})
 
+ConfigurationTab:CreateButton({
+    Name = "Quick Save",
+
+    Callback = function()
+        saveWaypoint(
+            "Quickpoint_" .. tostring(os.time())
+        )
+    end
 })
 
 --//======================================================
---// THEMES
+--// CURRENT POSITION
+--//======================================================
+
+ConfigurationTab:CreateSection(
+    "POSITION  /  CURRENT"
+)
+
+local PositionLabel = ConfigurationTab:CreateLabel(
+    "X: --   Y: --   Z: --",
+    "crosshair"
+)
+
+task.spawn(function()
+    while task.wait(0.2) do
+        if PositionLabel then
+            if HRP and HRP.Parent then
+                local p = HRP.Position
+
+                PositionLabel:Set(
+                    string.format(
+                        "X: %.1f   Y: %.1f   Z: %.1f",
+                        p.X,
+                        p.Y,
+                        p.Z
+                    ),
+                    "crosshair"
+                )
+            else
+                PositionLabel:Set(
+                    "X: --   Y: --   Z: --",
+                    "crosshair"
+                )
+            end
+        end
+    end
+end)
+
+--//======================================================
+--// WAYPOINT SELECTOR
+--//======================================================
+
+ConfigurationTab:CreateSection(
+    "WAYPOINTS  /  MANAGER"
+)
+
+local function getWaypointNames()
+    local names = {}
+
+    for name in pairs(waypoints) do
+        table.insert(names, name)
+    end
+
+    table.sort(names)
+
+    if #names == 0 then
+        names = {
+            "No waypoints"
+        }
+    end
+
+    return names
+end
+
+local WaypointDropdown = ConfigurationTab:CreateDropdown({
+    Name = "Select Waypoint",
+    Options = getWaypointNames(),
+    CurrentOption = {
+        "No waypoints"
+    },
+    MultipleOptions = false,
+    Flag = "SelectedWaypoint",
+
+    Callback = function(option)
+        if typeof(option) == "table" then
+            selectedWaypoint = option[1]
+        else
+            selectedWaypoint = option
+        end
+
+        if selectedWaypoint == "No waypoints" then
+            selectedWaypoint = nil
+        end
+    end
+})
+
+local function refreshWaypointDropdown()
+    local names = getWaypointNames()
+
+    pcall(function()
+        WaypointDropdown:Refresh(names)
+    end)
+end
+
+ConfigurationTab:CreateButton({
+    Name = "Refresh Waypoint List",
+
+    Callback = function()
+        refreshWaypointDropdown()
+
+        Rayfield:Notify({
+            Title = "WAYPOINTS",
+            Content = "Waypoint list refreshed.",
+            Duration = 2,
+            Image = "refresh-cw"
+        })
+    end
+})
+
+ConfigurationTab:CreateButton({
+    Name = "Teleport To Selected",
+
+    Callback = function()
+        if not selectedWaypoint then
+            Rayfield:Notify({
+                Title = "WAYPOINTS",
+                Content = "Select a waypoint first.",
+                Duration = 3,
+                Image = "circle-alert"
+            })
+            return
+        end
+
+        teleportToWaypoint(selectedWaypoint)
+    end
+})
+
+ConfigurationTab:CreateButton({
+    Name = "Delete Selected",
+
+    Callback = function()
+        if not selectedWaypoint then
+            return
+        end
+
+        deleteWaypoint(selectedWaypoint)
+        refreshWaypointDropdown()
+    end
+})
+
+--//======================================================
+--// POSITION TOOLS
+--//======================================================
+
+ConfigurationTab:CreateSection(
+    "POSITION  /  TOOLS"
+)
+
+ConfigurationTab:CreateButton({
+    Name = "Return To Previous Position",
+
+    Callback = function()
+        if not HRP or not previousPosition then
+            Rayfield:Notify({
+                Title = "WAYPOINTS",
+                Content = "No previous position available.",
+                Duration = 3,
+                Image = "circle-alert"
+            })
+            return
+        end
+
+        local current = HRP.CFrame
+
+        HRP.CFrame = previousPosition
+        previousPosition = current
+
+        Rayfield:Notify({
+            Title = "WAYPOINTS",
+            Content = "Returned to previous position.",
+            Duration = 3,
+            Image = "undo-2"
+        })
+    end
+})
+
+ConfigurationTab:CreateButton({
+    Name = "Save Current As Quickpoint",
+
+    Callback = function()
+        saveWaypoint("Quickpoint")
+        refreshWaypointDropdown()
+    end
+})
+
+ConfigurationTab:CreateButton({
+    Name = "Clear All Waypoints",
+
+    Callback = function()
+        clearWaypoints()
+        refreshWaypointDropdown()
+    end
+})
+
+--//======================================================
+--// WAYPOINT INFO
+--//======================================================
+
+ConfigurationTab:CreateDivider()
+
+ConfigurationTab:CreateParagraph({
+    Title = "WAYPOINT SYSTEM",
+    Content =
+        "Saved Waypoints  •  " .. tostring(#getWaypointNames()) .. "\n" ..
+        "Selected  •  " .. tostring(selectedWaypoint or "NONE") .. "\n\n" ..
+        "Save a position, select it from the manager and teleport whenever you need."
+})
+--//======================================================
+--// PLAYER MANAGER
+--//======================================================
+
+ConfigurationTab:CreateParagraph({
+    Title = "✦ PLAYER MANAGER  /  OPERATOR CONSOLE",
+    Content =
+        "Select a player to inspect their live information, teleport to them or spectate their character."
+})
+
+local function playerNames()
+    local names = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            table.insert(names, player.Name)
+        end
+    end
+    table.sort(names)
+    if #names == 0 then names = {"No players"} end
+    return names
+end
+
+local PlayerDropdown = ConfigurationTab:CreateDropdown({
+    Name = "Select Player",
+    Options = playerNames(),
+    CurrentOption = {playerNames()[1]},
+    MultipleOptions = false,
+    Flag = "SelectedPlayer",
+    Callback = function(option)
+        local name = typeof(option) == "table" and option[1] or option
+        selectedPlayer = Players:FindFirstChild(name)
+        if name == "No players" then selectedPlayer = nil end
+    end
+})
+
+local function refreshPlayerDropdown()
+    local names = playerNames()
+    pcall(function()
+        PlayerDropdown:Refresh(names, true)
+    end)
+end
+
+ConfigurationTab:CreateSection("PLAYER INFORMATION")
+
+local PMNameLabel = ConfigurationTab:CreateLabel("Player  •  None", "user")
+local PMHealthLabel = ConfigurationTab:CreateLabel("Health  •  --", "heart")
+local PMDistanceLabel = ConfigurationTab:CreateLabel("Distance  •  --", "ruler")
+local PMTeamLabel = ConfigurationTab:CreateLabel("Team  •  --", "shield")
+
+ConfigurationTab:CreateSection("ACTIONS")
+
+local function teleportToSelected()
+    if selectedPlayer then
+        teleportToPlayer(selectedPlayer)
+    end
+end
+
+ConfigurationTab:CreateButton({
+    Name = "Teleport To Selected",
+    Callback = teleportToSelected
+})
+
+ConfigurationTab:CreateButton({
+    Name = "Spectate Selected",
+    Callback = function()
+        if selectedPlayer and selectedPlayer.Character then
+            local hum = selectedPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum and workspace.CurrentCamera then
+                workspace.CurrentCamera.CameraSubject = hum
+                spectating = true
+                Rayfield:Notify({
+                    Title = "PLAYER MANAGER",
+                    Content = "Spectating  •  " .. selectedPlayer.DisplayName,
+                    Duration = 2,
+                    Image = "eye"
+                })
+            end
+        end
+    end
+})
+
+ConfigurationTab:CreateButton({
+    Name = "Stop Spectating",
+    Callback = function()
+        if Humanoid and workspace.CurrentCamera then
+            workspace.CurrentCamera.CameraSubject = Humanoid
+        end
+        spectating = false
+    end
+})
+
+ConfigurationTab:CreateButton({
+    Name = "Highlight Selected",
+    Callback = function()
+        if not selectedPlayer or not selectedPlayer.Character then return end
+
+        local existing = selectedPlayer.Character:FindFirstChild("SpaceHub_Selected")
+        if existing then
+            existing:Destroy()
+            return
+        end
+
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "SpaceHub_Selected"
+        highlight.FillTransparency = 0.65
+        highlight.OutlineTransparency = 0
+        highlight.FillColor = Color3.fromRGB(255, 210, 80)
+        highlight.OutlineColor = Color3.fromRGB(255, 245, 180)
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Parent = selectedPlayer.Character
+    end
+})
+
+task.spawn(function()
+    while task.wait(0.25) do
+        if selectedPlayer and selectedPlayer.Parent then
+            local character = selectedPlayer.Character
+            local hum = character and character:FindFirstChildOfClass("Humanoid")
+            local root = character and character:FindFirstChild("HumanoidRootPart")
+
+            PMNameLabel:Set(
+                "Player  •  " .. selectedPlayer.DisplayName .. "  @" .. selectedPlayer.Name,
+                "user"
+            )
+
+            PMHealthLabel:Set(
+                "Health  •  " ..
+                (hum and (math.floor(hum.Health + 0.5) .. " / " .. math.floor(hum.MaxHealth + 0.5)) or "--"),
+                "heart"
+            )
+
+            local distance = HRP and root and (HRP.Position - root.Position).Magnitude
+            PMDistanceLabel:Set(
+                "Distance  •  " .. (distance and (math.floor(distance) .. " studs") or "--"),
+                "ruler"
+            )
+
+            PMTeamLabel:Set(
+                "Team  •  " .. (selectedPlayer.Team and selectedPlayer.Team.Name or "Neutral"),
+                "shield"
+            )
+        else
+            PMNameLabel:Set("Player  •  None", "user")
+            PMHealthLabel:Set("Health  •  --", "heart")
+            PMDistanceLabel:Set("Distance  •  --", "ruler")
+            PMTeamLabel:Set("Team  •  --", "shield")
+        end
+    end
+end)
+
+Players.PlayerAdded:Connect(function()
+    task.wait(0.5)
+    refreshPlayerDropdown()
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if selectedPlayer == player then
+        selectedPlayer = nil
+    end
+    refreshPlayerDropdown()
+end)
+
+--//======================================================
+--// CONFIGURATION
 --//======================================================
 
 ConfigurationTab:CreateSection(
@@ -2060,7 +2157,7 @@ ConfigurationTab:CreateDropdown({
 
 ConfigurationTab:CreateParagraph({
 
-    Title = "SPACE HUB  •  2.1.0  /  ORBITAL EDITION",
+    Title = "SPACE HUB  •  3.0.0  /  ORBITAL EDITION",
 
     Content =
         "Premium Orbital Interface\n\n" ..
@@ -2087,10 +2184,14 @@ LocalPlayer.CharacterAdded:Connect(
         )
 
         if Humanoid then
+            Humanoid.WalkSpeed = walkSpeed
+            Humanoid.UseJumpPower = true
+            Humanoid.JumpPower = jumpPower
+            Humanoid.HipHeight = hipHeight
+        end
 
-            Humanoid.WalkSpeed =
-                walkSpeed
-
+        if customGravityEnabled then
+            workspace.Gravity = customGravity
         end
 
         if espEnabled then
