@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// PREMIUM ORBITAL INTERFACE
---// VERSION 3.1.0
+--// VERSION 3.1.1
 --//======================================================
 
 --//======================================================
@@ -174,7 +174,7 @@ local Window = Rayfield:CreateWindow({
     LoadingTitle = "SPACE HUB",
 
     LoadingSubtitle =
-        "Premium Orbital Interface  •  v3.1.0",
+        "Premium Orbital Interface  •  v3.1.1",
 
     ShowText = "SPACE HUB",
 
@@ -1246,9 +1246,19 @@ end
 
 -- Finds NPCs / entities that are NOT Roblox Players
 -- but have both a Humanoid and HumanoidRootPart.
-local function getEntityModels()
+-- Entity cache.
+-- IMPORTANT: do not call workspace:GetDescendants() from the
+-- RenderStepped aimbot loop. That caused severe FPS drops because
+-- the entire workspace was scanned every frame.
+local entityCache = {}
+local entityCacheDirty = true
+local entityCacheLastUpdate = 0
+local ENTITY_CACHE_INTERVAL = 0.5
+
+local function rebuildEntityCache()
     local entities = {}
 
+    -- This scan happens at most twice per second, not every frame.
     for _, descendant in ipairs(
         workspace:GetDescendants()
     ) do
@@ -1266,25 +1276,54 @@ local function getEntityModels()
             if humanoid
                 and root
                 and root:IsA("BasePart")
-                and humanoid.Health > 0 then
+                and humanoid.Health > 0
+                and not Players:GetPlayerFromCharacter(
+                    descendant
+                ) then
 
-                local player =
-                    Players:GetPlayerFromCharacter(
-                        descendant
-                    )
-
-                if not player then
-                    table.insert(
-                        entities,
-                        descendant
-                    )
-                end
+                table.insert(
+                    entities,
+                    descendant
+                )
             end
         end
     end
 
-    return entities
+    entityCache = entities
+    entityCacheDirty = false
+    entityCacheLastUpdate = os.clock()
 end
+
+local function getEntityModels()
+    if entityCacheDirty
+        or os.clock() - entityCacheLastUpdate
+            >= ENTITY_CACHE_INTERVAL then
+
+        rebuildEntityCache()
+    end
+
+    return entityCache
+end
+
+-- Mark the cache dirty when the world changes. The next entity
+-- update will rebuild it, instead of rebuilding continuously.
+workspace.DescendantAdded:Connect(function(instance)
+    if instance:IsA("Model")
+        or instance.Name == "Humanoid"
+        or instance.Name == "HumanoidRootPart" then
+
+        entityCacheDirty = true
+    end
+end)
+
+workspace.DescendantRemoving:Connect(function(instance)
+    if instance:IsA("Model")
+        or instance.Name == "Humanoid"
+        or instance.Name == "HumanoidRootPart" then
+
+        entityCacheDirty = true
+    end
+end)
 
 local function getPlayerTargetScore(
     player,
@@ -1676,6 +1715,10 @@ GameTab:CreateToggle({
         aimbotOnlyEntities =
             enabled
 
+        if enabled then
+            entityCacheDirty = true
+        end
+
         -- The two modes are exclusive:
         -- enabling one disables the other.
         if enabled then
@@ -1696,7 +1739,8 @@ GameTab:CreateParagraph({
     Content =
         "ONLY PLAYERS  →  Roblox Players\n" ..
         "ONLY ENTITIES  →  NPCs / entities with Humanoid + HumanoidRootPart\n\n" ..
-        "Entity mode ignores anything that is a Player character."
+        "Entity mode ignores anything that is a Player character.\n" ..
+        "Entity scanning is cached to avoid frame-rate drops."
 })
 
 GameTab:CreateDropdown({
