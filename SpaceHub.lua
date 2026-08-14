@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// PREMIUM ORBITAL INTERFACE
---// VERSION 3.0.0
+--// VERSION 3.1.0
 --//======================================================
 
 --//======================================================
@@ -43,6 +43,8 @@ local aimbotMaxDistance = 500
 local aimbotPriority = "FOV"
 local aimbotPart = "Head"
 local aimbotVisibleCheck = false
+local aimbotOnlyPlayers = true
+local aimbotOnlyEntities = false
 
 local espShowName = true
 local espShowHealth = true
@@ -172,7 +174,7 @@ local Window = Rayfield:CreateWindow({
     LoadingTitle = "SPACE HUB",
 
     LoadingSubtitle =
-        "Premium Orbital Interface  •  v3.0.0",
+        "Premium Orbital Interface  •  v3.1.0",
 
     ShowText = "SPACE HUB",
 
@@ -1180,7 +1182,9 @@ end)
 GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
 
 local function getTargetPart(character)
-    if not character then return nil end
+    if not character then
+        return nil
+    end
 
     local names = {
         Head = "Head",
@@ -1188,78 +1192,355 @@ local function getTargetPart(character)
         Root = "HumanoidRootPart"
     }
 
-    local preferred = character:FindFirstChild(names[aimbotPart] or "Head")
+    local preferred =
+        character:FindFirstChild(
+            names[aimbotPart] or "Head"
+        )
+
     if preferred and preferred:IsA("BasePart") then
         return preferred
     end
 
+    -- Entities may not have a Head or UpperTorso.
+    -- HumanoidRootPart is therefore the universal fallback.
     return character:FindFirstChild("Head")
+        or character:FindFirstChild("UpperTorso")
+        or character:FindFirstChild("Torso")
         or character:FindFirstChild("HumanoidRootPart")
 end
 
 local function isVisible(camera, targetPart, character)
-    if not aimbotVisibleCheck then return true end
-    local origin = camera.CFrame.Position
-    local direction = targetPart.Position - origin
+    if not aimbotVisibleCheck then
+        return true
+    end
 
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = {Character, camera}
+    local origin =
+        camera.CFrame.Position
 
-    local result = workspace:Raycast(origin, direction, params)
-    return not result or result.Instance:IsDescendantOf(character)
+    local direction =
+        targetPart.Position - origin
+
+    local params =
+        RaycastParams.new()
+
+    params.FilterType =
+        Enum.RaycastFilterType.Exclude
+
+    params.FilterDescendantsInstances = {
+        Character,
+        camera
+    }
+
+    local result =
+        workspace:Raycast(
+            origin,
+            direction,
+            params
+        )
+
+    return not result
+        or result.Instance:IsDescendantOf(
+            character
+        )
 end
 
-local function getTargetScore(player, camera)
-    if not HRP then return nil end
-    if player == LocalPlayer then return nil end
-    if teamCheck and player.Team == LocalPlayer.Team then return nil end
+-- Finds NPCs / entities that are NOT Roblox Players
+-- but have both a Humanoid and HumanoidRootPart.
+local function getEntityModels()
+    local entities = {}
 
-    local character = player.Character
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-    local part = getTargetPart(character)
+    for _, descendant in ipairs(
+        workspace:GetDescendants()
+    ) do
+        if descendant:IsA("Model") then
+            local humanoid =
+                descendant:FindFirstChildOfClass(
+                    "Humanoid"
+                )
 
-    if not character or not humanoid or humanoid.Health <= 0 or not root or not part then
+            local root =
+                descendant:FindFirstChild(
+                    "HumanoidRootPart"
+                )
+
+            if humanoid
+                and root
+                and root:IsA("BasePart")
+                and humanoid.Health > 0 then
+
+                local player =
+                    Players:GetPlayerFromCharacter(
+                        descendant
+                    )
+
+                if not player then
+                    table.insert(
+                        entities,
+                        descendant
+                    )
+                end
+            end
+        end
+    end
+
+    return entities
+end
+
+local function getPlayerTargetScore(
+    player,
+    camera
+)
+    if not HRP then
         return nil
     end
 
-    local worldDistance = (HRP.Position - root.Position).Magnitude
-    if worldDistance > aimbotMaxDistance then return nil end
+    if player == LocalPlayer then
+        return nil
+    end
 
-    local screen, onScreen = camera:WorldToViewportPoint(part.Position)
-    if not onScreen then return nil end
-    if not isVisible(camera, part, character) then return nil end
+    if teamCheck
+        and player.Team == LocalPlayer.Team then
+        return nil
+    end
 
-    local center = camera.ViewportSize / 2
-    local fovDistance = (Vector2.new(screen.X, screen.Y) - center).Magnitude
+    local character =
+        player.Character
 
-    if aimbotFOVEnabled and fovDistance > aimbotFOV then
+    local humanoid =
+        character
+        and character:FindFirstChildOfClass(
+            "Humanoid"
+        )
+
+    local root =
+        character
+        and character:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+    local part =
+        getTargetPart(character)
+
+    if not character
+        or not humanoid
+        or humanoid.Health <= 0
+        or not root
+        or not part then
+
+        return nil
+    end
+
+    local worldDistance =
+        (
+            HRP.Position
+            - root.Position
+        ).Magnitude
+
+    if worldDistance >
+        aimbotMaxDistance then
+
+        return nil
+    end
+
+    local screen, onScreen =
+        camera:WorldToViewportPoint(
+            part.Position
+        )
+
+    if not onScreen then
+        return nil
+    end
+
+    if not isVisible(
+        camera,
+        part,
+        character
+    ) then
+
+        return nil
+    end
+
+    local center =
+        camera.ViewportSize / 2
+
+    local fovDistance =
+        (
+            Vector2.new(
+                screen.X,
+                screen.Y
+            )
+            - center
+        ).Magnitude
+
+    if aimbotFOVEnabled
+        and fovDistance > aimbotFOV then
+
         return nil
     end
 
     if aimbotPriority == "Closest" then
         return worldDistance
+
     elseif aimbotPriority == "Lowest Health" then
         return humanoid.Health
+
+    else
+        return fovDistance
+    end
+end
+
+local function getEntityTargetScore(
+    entity,
+    camera
+)
+    if not HRP
+        or not entity
+        or not entity.Parent then
+
+        return nil
+    end
+
+    -- Safety: an entity must not actually be a Player character.
+    if Players:GetPlayerFromCharacter(entity) then
+        return nil
+    end
+
+    local humanoid =
+        entity:FindFirstChildOfClass(
+            "Humanoid"
+        )
+
+    local root =
+        entity:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+    local part =
+        getTargetPart(entity)
+
+    if not humanoid
+        or humanoid.Health <= 0
+        or not root
+        or not root:IsA("BasePart")
+        or not part then
+
+        return nil
+    end
+
+    local worldDistance =
+        (
+            HRP.Position
+            - root.Position
+        ).Magnitude
+
+    if worldDistance >
+        aimbotMaxDistance then
+
+        return nil
+    end
+
+    local screen, onScreen =
+        camera:WorldToViewportPoint(
+            part.Position
+        )
+
+    if not onScreen then
+        return nil
+    end
+
+    if not isVisible(
+        camera,
+        part,
+        entity
+    ) then
+
+        return nil
+    end
+
+    local center =
+        camera.ViewportSize / 2
+
+    local fovDistance =
+        (
+            Vector2.new(
+                screen.X,
+                screen.Y
+            )
+            - center
+        ).Magnitude
+
+    if aimbotFOVEnabled
+        and fovDistance > aimbotFOV then
+
+        return nil
+    end
+
+    if aimbotPriority == "Closest" then
+        return worldDistance
+
+    elseif aimbotPriority == "Lowest Health" then
+        return humanoid.Health
+
     else
         return fovDistance
     end
 end
 
 local function getBestTarget(camera)
-    local bestPlayer
+    local bestTarget = nil
     local bestScore = math.huge
 
-    for _, player in ipairs(Players:GetPlayers()) do
-        local score = getTargetScore(player, camera)
-        if score and score < bestScore then
-            bestScore = score
-            bestPlayer = player
+    -- ONLY PLAYERS
+    if aimbotOnlyPlayers then
+        for _, player in ipairs(
+            Players:GetPlayers()
+        ) do
+
+            local score =
+                getPlayerTargetScore(
+                    player,
+                    camera
+                )
+
+            if score
+                and score < bestScore then
+
+                bestScore = score
+                bestTarget = {
+                    Type = "Player",
+                    Object = player,
+                    Character = player.Character
+                }
+            end
         end
     end
 
-    return bestPlayer
+    -- ONLY ENTITIES
+    if aimbotOnlyEntities then
+        for _, entity in ipairs(
+            getEntityModels()
+        ) do
+
+            local score =
+                getEntityTargetScore(
+                    entity,
+                    camera
+                )
+
+            if score
+                and score < bestScore then
+
+                bestScore = score
+                bestTarget = {
+                    Type = "Entity",
+                    Object = entity,
+                    Character = entity
+                }
+            end
+        end
+    end
+
+    return bestTarget
 end
 
 local function stopAimbot()
@@ -1272,62 +1553,189 @@ end
 local function startAimbot()
     stopAimbot()
 
-    aimbotConnection = RunService.RenderStepped:Connect(function()
-        if not aimbotEnabled then return end
+    aimbotConnection =
+        RunService.RenderStepped:Connect(
+            function()
 
-        local camera = workspace.CurrentCamera
-        if not camera or not HRP then return end
+                if not aimbotEnabled then
+                    return
+                end
 
-        local target = getBestTarget(camera)
-        if not target then return end
+                -- If neither target mode is enabled,
+                -- the aimbot intentionally has no targets.
+                if not aimbotOnlyPlayers
+                    and not aimbotOnlyEntities then
 
-        local part = getTargetPart(target.Character)
-        if not part then return end
+                    return
+                end
 
-        local targetCFrame = CFrame.lookAt(camera.CFrame.Position, part.Position)
-        camera.CFrame = camera.CFrame:Lerp(targetCFrame, aimbotSmoothness)
-    end)
+                local camera =
+                    workspace.CurrentCamera
+
+                if not camera
+                    or not HRP then
+
+                    return
+                end
+
+                local target =
+                    getBestTarget(camera)
+
+                if not target
+                    or not target.Character then
+
+                    return
+                end
+
+                local part =
+                    getTargetPart(
+                        target.Character
+                    )
+
+                if not part then
+                    return
+                end
+
+                local targetCFrame =
+                    CFrame.lookAt(
+                        camera.CFrame.Position,
+                        part.Position
+                    )
+
+                camera.CFrame =
+                    camera.CFrame:Lerp(
+                        targetCFrame,
+                        aimbotSmoothness
+                    )
+            end
+        )
 end
 
 GameTab:CreateToggle({
     Name = "Aimbot",
     CurrentValue = false,
     Flag = "Aimbot",
+
     Callback = function(enabled)
-        aimbotEnabled = enabled
+
+        aimbotEnabled =
+            enabled
+
         if enabled then
             startAimbot()
+
             Rayfield:Notify({
                 Title = "TARGETING",
-                Content = "Advanced targeting system online.",
+                Content =
+                    "Advanced targeting system online.",
                 Duration = 3,
                 Image = "crosshair"
             })
+
         else
             stopAimbot()
         end
     end
 })
 
+--========================================================
+-- AIMBOT TARGET MODES
+--========================================================
+
+GameTab:CreateToggle({
+    Name = "Only Players",
+    CurrentValue = true,
+    Flag = "AimbotOnlyPlayers",
+
+    Callback = function(enabled)
+
+        aimbotOnlyPlayers =
+            enabled
+
+        -- The two modes are exclusive:
+        -- enabling one disables the other.
+        if enabled then
+            aimbotOnlyEntities = false
+
+            pcall(function()
+                Rayfield.Flags[
+                    "AimbotOnlyEntities"
+                ]:Set(false)
+            end)
+        end
+    end
+})
+
+GameTab:CreateToggle({
+    Name = "Only Entities",
+    CurrentValue = false,
+    Flag = "AimbotOnlyEntities",
+
+    Callback = function(enabled)
+
+        aimbotOnlyEntities =
+            enabled
+
+        -- The two modes are exclusive:
+        -- enabling one disables the other.
+        if enabled then
+            aimbotOnlyPlayers = false
+
+            pcall(function()
+                Rayfield.Flags[
+                    "AimbotOnlyPlayers"
+                ]:Set(false)
+            end)
+        end
+    end
+})
+
+GameTab:CreateParagraph({
+    Title = "TARGET MODES",
+
+    Content =
+        "ONLY PLAYERS  →  Roblox Players\n" ..
+        "ONLY ENTITIES  →  NPCs / entities with Humanoid + HumanoidRootPart\n\n" ..
+        "Entity mode ignores anything that is a Player character."
+})
+
 GameTab:CreateDropdown({
     Name = "Target Part",
-    Options = {"Head", "Torso", "Root"},
+    Options = {
+        "Head",
+        "Torso",
+        "Root"
+    },
     CurrentOption = {"Head"},
     MultipleOptions = false,
     Flag = "AimbotPart",
+
     Callback = function(option)
-        aimbotPart = typeof(option) == "table" and option[1] or option
+
+        aimbotPart =
+            typeof(option) == "table"
+            and option[1]
+            or option
     end
 })
 
 GameTab:CreateDropdown({
     Name = "Target Priority",
-    Options = {"FOV", "Closest", "Lowest Health"},
+    Options = {
+        "FOV",
+        "Closest",
+        "Lowest Health"
+    },
     CurrentOption = {"FOV"},
     MultipleOptions = false,
     Flag = "AimbotPriority",
+
     Callback = function(option)
-        aimbotPriority = typeof(option) == "table" and option[1] or option
+
+        aimbotPriority =
+            typeof(option) == "table"
+            and option[1]
+            or option
     end
 })
 
@@ -1335,60 +1743,117 @@ GameTab:CreateToggle({
     Name = "FOV Limiter",
     CurrentValue = true,
     Flag = "AimbotFOVEnabled",
-    Callback = function(enabled) aimbotFOVEnabled = enabled end
+
+    Callback = function(enabled)
+        aimbotFOVEnabled =
+            enabled
+    end
 })
 
 GameTab:CreateSlider({
     Name = "Aimbot FOV",
-    Range = {50, 1000},
+    Range = {
+        50,
+        1000
+    },
     Increment = 10,
     Suffix = " PX",
     CurrentValue = 250,
     Flag = "AimbotFOV",
-    Callback = function(value) aimbotFOV = value end
+
+    Callback = function(value)
+        aimbotFOV =
+            value
+    end
 })
 
 GameTab:CreateSlider({
     Name = "Maximum Distance",
-    Range = {50, 5000},
+    Range = {
+        50,
+        5000
+    },
     Increment = 50,
     Suffix = " studs",
     CurrentValue = 500,
     Flag = "AimbotMaxDistance",
-    Callback = function(value) aimbotMaxDistance = value end
+
+    Callback = function(value)
+        aimbotMaxDistance =
+            value
+    end
 })
 
 GameTab:CreateSlider({
     Name = "Smoothness",
-    Range = {0.05, 1},
+    Range = {
+        0.05,
+        1
+    },
     Increment = 0.05,
     Suffix = "",
     CurrentValue = 0.18,
     Flag = "AimbotSmoothness",
-    Callback = function(value) aimbotSmoothness = value end
+
+    Callback = function(value)
+        aimbotSmoothness =
+            value
+    end
 })
 
 GameTab:CreateToggle({
     Name = "Team Check",
     CurrentValue = false,
     Flag = "TeamCheck",
-    Callback = function(enabled) teamCheck = enabled end
+
+    Callback = function(enabled)
+        teamCheck =
+            enabled
+    end
 })
 
 GameTab:CreateToggle({
     Name = "Visible Check",
     CurrentValue = false,
     Flag = "AimbotVisibleCheck",
-    Callback = function(enabled) aimbotVisibleCheck = enabled end
+
+    Callback = function(enabled)
+        aimbotVisibleCheck =
+            enabled
+    end
 })
 
 GameTab:CreateParagraph({
     Title = "TARGET STATUS",
+
     Content =
-        "Part  →  " .. aimbotPart .. "\n" ..
-        "Priority  →  " .. aimbotPriority .. "\n" ..
-        "Range  →  " .. tostring(aimbotMaxDistance) .. " studs\n" ..
-        "FOV  →  " .. tostring(aimbotFOV) .. " px"
+        "Mode  →  "
+        .. (
+            aimbotOnlyPlayers
+            and "ONLY PLAYERS"
+            or (
+                aimbotOnlyEntities
+                and "ONLY ENTITIES"
+                or "NONE"
+            )
+        )
+        .. "\n"
+        .. "Part  →  "
+        .. aimbotPart
+        .. "\n"
+        .. "Priority  →  "
+        .. aimbotPriority
+        .. "\n"
+        .. "Range  →  "
+        .. tostring(
+            aimbotMaxDistance
+        )
+        .. " studs\n"
+        .. "FOV  →  "
+        .. tostring(
+            aimbotFOV
+        )
+        .. " px"
 })
 
 --//======================================================
