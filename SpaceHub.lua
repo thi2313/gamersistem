@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// PREMIUM ORBITAL INTERFACE
---// VERSION 3.1.1
+--// VERSION 3.2.2
 --//======================================================
 
 --//======================================================
@@ -33,6 +33,9 @@ local noclip = false
 local fullbright = false
 
 local espEnabled = false
+local toolEspEnabled = false
+local toolEspMaxDistance = 1000
+local toolEspObjects = {}
 
 local aimbotEnabled = false
 local aimbotFOVEnabled = true
@@ -385,7 +388,9 @@ task.spawn(function()
 
             VisualStatusLabel:Set(
                 "Visuals  •  " ..
-                (espEnabled and "ESP ONLINE" or "STANDBY"),
+                (espEnabled and "PLAYER ESP" or "STANDBY")
+                .. "  /  "
+                .. (toolEspEnabled and "TOOL ESP" or "TOOLS OFF"),
                 "eye"
             )
 
@@ -1129,6 +1134,247 @@ GameTab:CreateButton({
         })
     end
 })
+
+--//======================================================
+--// TOOL ESP / DROPPED ITEMS
+--//======================================================
+
+local function getToolPart(tool)
+    if not tool or not tool:IsA("Tool") then
+        return nil
+    end
+
+    local handle = tool:FindFirstChild("Handle")
+    if handle and handle:IsA("BasePart") then
+        return handle
+    end
+
+    for _, descendant in ipairs(tool:GetDescendants()) do
+        if descendant:IsA("BasePart") then
+            return descendant
+        end
+    end
+
+    return nil
+end
+
+local function isDroppedTool(tool)
+    if not tool or not tool:IsA("Tool") or not tool:IsDescendantOf(workspace) then
+        return false
+    end
+
+    -- Tools inside a player's character are equipped, not dropped.
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character and tool:IsDescendantOf(player.Character) then
+            return false
+        end
+    end
+
+    return true
+end
+
+local function removeToolESP(tool)
+    local data = toolEspObjects[tool]
+    if not data then
+        return
+    end
+
+    if data.Highlight then
+        data.Highlight:Destroy()
+    end
+
+    if data.Billboard then
+        data.Billboard:Destroy()
+    end
+
+    toolEspObjects[tool] = nil
+end
+
+local function createToolESP(tool)
+    if not toolEspEnabled or not isDroppedTool(tool) then
+        return
+    end
+
+    local part = getToolPart(tool)
+    if not part then
+        return
+    end
+
+    removeToolESP(tool)
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "SpaceHub_ToolESP"
+    highlight.Adornee = tool
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillTransparency = 0.72
+    highlight.OutlineTransparency = 0
+    highlight.FillColor = Color3.fromRGB(255, 190, 70)
+    highlight.OutlineColor = Color3.fromRGB(255, 225, 130)
+    highlight.Parent = tool
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "SpaceHub_ToolInfo"
+    billboard.Adornee = part
+    billboard.Size = UDim2.fromOffset(240, 48)
+    billboard.StudsOffset = Vector3.new(0, 2.2, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = part
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Info"
+    label.Size = UDim2.fromScale(1, 1)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 13
+    label.TextWrapped = true
+    label.TextColor3 = Color3.fromRGB(255, 220, 120)
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.fromRGB(20, 14, 5)
+    label.Text = "TOOL  •  " .. tool.Name
+    label.Parent = billboard
+
+    toolEspObjects[tool] = {
+        Highlight = highlight,
+        Billboard = billboard,
+        Label = label
+    }
+end
+
+local function refreshToolESP()
+    for tool in pairs(toolEspObjects) do
+        if not tool.Parent or not isDroppedTool(tool) or not toolEspEnabled then
+            removeToolESP(tool)
+        end
+    end
+
+    if not toolEspEnabled then
+        return
+    end
+
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Tool") then
+            createToolESP(descendant)
+        end
+    end
+end
+
+GameTab:CreateToggle({
+    Name = "Tool ESP  •  Dropped Items",
+    CurrentValue = false,
+    Flag = "ToolESP",
+    Callback = function(enabled)
+        toolEspEnabled = enabled
+        refreshToolESP()
+
+        Rayfield:Notify({
+            Title = "TOOL ESP",
+            Content = enabled and "Dropped tools are now highlighted." or "Dropped tool visuals disabled.",
+            Duration = 3,
+            Image = enabled and "eye" or "eye-off"
+        })
+    end
+})
+
+GameTab:CreateSlider({
+    Name = "Tool ESP Maximum Distance",
+    Range = {100, 5000},
+    Increment = 50,
+    Suffix = " studs",
+    CurrentValue = 1000,
+    Flag = "ToolESPMaxDistance",
+    Callback = function(value)
+        toolEspMaxDistance = value
+    end
+})
+
+GameTab:CreateButton({
+    Name = "Refresh Tool Visuals",
+    Callback = function()
+        refreshToolESP()
+
+        Rayfield:Notify({
+            Title = "TOOL ESP",
+            Content = "Workspace tools rescanned.",
+            Duration = 2,
+            Image = "refresh-cw"
+        })
+    end
+})
+
+task.spawn(function()
+    while task.wait(0.15) do
+        if toolEspEnabled then
+            for tool, data in pairs(toolEspObjects) do
+                if not tool.Parent or not isDroppedTool(tool) then
+                    removeToolESP(tool)
+                else
+                    local part = getToolPart(tool)
+
+                    if not part then
+                        removeToolESP(tool)
+                    else
+                        local distance =
+                            HRP and (HRP.Position - part.Position).Magnitude
+                            or math.huge
+
+                        local visible = distance <= toolEspMaxDistance
+
+                        if data.Billboard then
+                            data.Billboard.Enabled = visible
+                        end
+
+                        if data.Highlight then
+                            data.Highlight.Enabled = visible
+                        end
+
+                        if data.Label then
+                            data.Label.Text =
+                                "TOOL  •  "
+                                .. tool.Name
+                                .. "\n"
+                                .. math.floor(distance)
+                                .. " studs"
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+workspace.DescendantAdded:Connect(function(instance)
+    if instance:IsA("Tool") then
+        task.defer(function()
+            if toolEspEnabled then
+                createToolESP(instance)
+            end
+        end)
+    end
+end)
+
+workspace.DescendantRemoving:Connect(function(instance)
+    if instance:IsA("Tool") then
+        removeToolESP(instance)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1) do
+        if toolEspEnabled then
+            -- A tool can move from Backpack/Character into Workspace without
+            -- firing a useful state change for our visual system, so keep a
+            -- lightweight synchronization pass.
+            for _, descendant in ipairs(workspace:GetDescendants()) do
+                if descendant:IsA("Tool")
+                    and isDroppedTool(descendant)
+                    and not toolEspObjects[descendant] then
+
+                    createToolESP(descendant)
+                end
+            end
+        end
+    end
+end)
 
 task.spawn(function()
     while task.wait(0.15) do
