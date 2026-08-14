@@ -1181,37 +1181,90 @@ end)
 
 GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
 
+--//======================================================
+--// AIMBOT STATE
+--//======================================================
+
+local aimbotOnlyPlayers = true
+local aimbotOnlyEntities = false
+
+local currentAimbotTarget = nil
+local aimbotConnection = nil
+
+-- Target search is intentionally throttled.
+-- Camera smoothing still runs every frame.
+local nextTargetSearch = 0
+local AIMBOT_TARGET_REFRESH = 0.10
+
+-- Entity cache
+local entityCache = {}
+local entityCacheInitialized = false
+
+
+--//======================================================
+--// TARGET PART
+--//======================================================
+
 local function getTargetPart(character)
+
     if not character then
         return nil
     end
 
-    local names = {
-        Head = "Head",
-        Torso = "UpperTorso",
-        Root = "HumanoidRootPart"
-    }
+    local preferredPart
 
-    local preferred =
-        character:FindFirstChild(
-            names[aimbotPart] or "Head"
-        )
+    if aimbotPart == "Head" then
 
-    if preferred and preferred:IsA("BasePart") then
-        return preferred
+        preferredPart =
+            character:FindFirstChild("Head")
+
+    elseif aimbotPart == "Torso" then
+
+        preferredPart =
+            character:FindFirstChild("UpperTorso")
+            or character:FindFirstChild("Torso")
+
+    elseif aimbotPart == "Root" then
+
+        preferredPart =
+            character:FindFirstChild(
+                "HumanoidRootPart"
+            )
     end
 
-    -- Entities may not have a Head or UpperTorso.
-    -- HumanoidRootPart is therefore the universal fallback.
+    if preferredPart
+        and preferredPart:IsA("BasePart") then
+
+        return preferredPart
+    end
+
+    -- Universal fallback.
     return character:FindFirstChild("Head")
         or character:FindFirstChild("UpperTorso")
         or character:FindFirstChild("Torso")
         or character:FindFirstChild("HumanoidRootPart")
 end
 
-local function isVisible(camera, targetPart, character)
+
+--//======================================================
+--// VISIBILITY CHECK
+--//======================================================
+
+local function isVisible(
+    camera,
+    targetPart,
+    character
+)
+
     if not aimbotVisibleCheck then
         return true
+    end
+
+    if not camera
+        or not targetPart
+        or not character then
+
+        return false
     end
 
     local origin =
@@ -1238,97 +1291,240 @@ local function isVisible(camera, targetPart, character)
             params
         )
 
-    return not result
-        or result.Instance:IsDescendantOf(
-            character
-        )
+    if not result then
+        return true
+    end
+
+    return result.Instance:IsDescendantOf(
+        character
+    )
 end
 
--- Finds NPCs / entities that are NOT Roblox Players
--- but have both a Humanoid and HumanoidRootPart.
--- Entity cache.
--- IMPORTANT: do not call workspace:GetDescendants() from the
--- RenderStepped aimbot loop. That caused severe FPS drops because
--- the entire workspace was scanned every frame.
-local entityCache = {}
-local entityCacheDirty = true
-local entityCacheLastUpdate = 0
-local ENTITY_CACHE_INTERVAL = 0.5
 
-local function rebuildEntityCache()
-    local entities = {}
+--//======================================================
+--// ENTITY CACHE
+--//======================================================
 
-    -- This scan happens at most twice per second, not every frame.
+local function registerEntity(model)
+
+    if not model
+        or not model:IsA("Model")
+        or not model.Parent then
+
+        return
+    end
+
+    -- Never register Player characters.
+    if Players:GetPlayerFromCharacter(model) then
+
+        entityCache[model] = nil
+
+        return
+    end
+
+    local humanoid =
+        model:FindFirstChildOfClass(
+            "Humanoid"
+        )
+
+    local root =
+        model:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+    if humanoid
+        and root
+        and root:IsA("BasePart")
+        and humanoid.Health > 0 then
+
+        entityCache[model] = true
+
+    else
+
+        entityCache[model] = nil
+
+    end
+end
+
+
+local function unregisterEntity(model)
+
+    entityCache[model] = nil
+
+end
+
+
+--//======================================================
+--// INITIAL ENTITY SCAN
+--//======================================================
+
+local function initializeEntityCache()
+
+    if entityCacheInitialized then
+        return
+    end
+
+    entityCacheInitialized = true
+
+    -- This full scan happens ONLY ONCE,
+    -- when entity mode is first activated.
+
     for _, descendant in ipairs(
         workspace:GetDescendants()
     ) do
+
         if descendant:IsA("Model") then
+
+            registerEntity(
+                descendant
+            )
+
+        end
+    end
+end
+
+
+--//======================================================
+--// DETECT NEW / REMOVED ENTITIES
+--//======================================================
+
+workspace.DescendantAdded:Connect(
+    function(instance)
+
+        if instance:IsA("Model") then
+
+            task.defer(function()
+
+                registerEntity(
+                    instance
+                )
+
+            end)
+
+            return
+        end
+
+        if instance.Name == "Humanoid"
+            or instance.Name == "HumanoidRootPart" then
+
+            local model =
+                instance:FindFirstAncestorOfClass(
+                    "Model"
+                )
+
+            if model then
+
+                task.defer(function()
+
+                    registerEntity(
+                        model
+                    )
+
+                end)
+
+            end
+        end
+    end
+)
+
+
+workspace.DescendantRemoving:Connect(
+    function(instance)
+
+        if instance:IsA("Model") then
+
+            unregisterEntity(
+                instance
+            )
+
+            return
+        end
+
+        if instance.Name == "Humanoid"
+            or instance.Name == "HumanoidRootPart" then
+
+            local model =
+                instance:FindFirstAncestorOfClass(
+                    "Model"
+                )
+
+            if model then
+
+                unregisterEntity(
+                    model
+                )
+
+            end
+        end
+    end
+)
+
+
+--//======================================================
+--// GET ENTITY LIST
+--//======================================================
+
+local function getEntityModels()
+
+    initializeEntityCache()
+
+    local entities = {}
+
+    for model in pairs(entityCache) do
+
+        if model
+            and model.Parent then
+
             local humanoid =
-                descendant:FindFirstChildOfClass(
+                model:FindFirstChildOfClass(
                     "Humanoid"
                 )
 
             local root =
-                descendant:FindFirstChild(
+                model:FindFirstChild(
                     "HumanoidRootPart"
                 )
 
+            -- Make sure it is still a valid entity.
             if humanoid
                 and root
                 and root:IsA("BasePart")
                 and humanoid.Health > 0
                 and not Players:GetPlayerFromCharacter(
-                    descendant
+                    model
                 ) then
 
-                table.insert(
-                    entities,
-                    descendant
-                )
+                entities[#entities + 1] =
+                    model
+
+            else
+
+                entityCache[model] =
+                    nil
+
             end
+
+        else
+
+            entityCache[model] =
+                nil
+
         end
     end
 
-    entityCache = entities
-    entityCacheDirty = false
-    entityCacheLastUpdate = os.clock()
+    return entities
 end
 
-local function getEntityModels()
-    if entityCacheDirty
-        or os.clock() - entityCacheLastUpdate
-            >= ENTITY_CACHE_INTERVAL then
 
-        rebuildEntityCache()
-    end
-
-    return entityCache
-end
-
--- Mark the cache dirty when the world changes. The next entity
--- update will rebuild it, instead of rebuilding continuously.
-workspace.DescendantAdded:Connect(function(instance)
-    if instance:IsA("Model")
-        or instance.Name == "Humanoid"
-        or instance.Name == "HumanoidRootPart" then
-
-        entityCacheDirty = true
-    end
-end)
-
-workspace.DescendantRemoving:Connect(function(instance)
-    if instance:IsA("Model")
-        or instance.Name == "Humanoid"
-        or instance.Name == "HumanoidRootPart" then
-
-        entityCacheDirty = true
-    end
-end)
+--//======================================================
+--// PLAYER TARGET SCORE
+--//======================================================
 
 local function getPlayerTargetScore(
     player,
     camera
 )
+
     if not HRP then
         return nil
     end
@@ -1337,31 +1533,36 @@ local function getPlayerTargetScore(
         return nil
     end
 
+    -- Team check
     if teamCheck
         and player.Team == LocalPlayer.Team then
+
         return nil
     end
 
     local character =
         player.Character
 
+    if not character then
+        return nil
+    end
+
     local humanoid =
-        character
-        and character:FindFirstChildOfClass(
+        character:FindFirstChildOfClass(
             "Humanoid"
         )
 
     local root =
-        character
-        and character:FindFirstChild(
+        character:FindFirstChild(
             "HumanoidRootPart"
         )
 
     local part =
-        getTargetPart(character)
+        getTargetPart(
+            character
+        )
 
-    if not character
-        or not humanoid
+    if not humanoid
         or humanoid.Health <= 0
         or not root
         or not part then
@@ -1369,6 +1570,7 @@ local function getPlayerTargetScore(
         return nil
     end
 
+    -- World distance
     local worldDistance =
         (
             HRP.Position
@@ -1381,7 +1583,9 @@ local function getPlayerTargetScore(
         return nil
     end
 
-    local screen, onScreen =
+    -- Screen position
+    local screenPosition,
+        onScreen =
         camera:WorldToViewportPoint(
             part.Position
         )
@@ -1390,6 +1594,7 @@ local function getPlayerTargetScore(
         return nil
     end
 
+    -- Visibility
     if not isVisible(
         camera,
         part,
@@ -1399,48 +1604,66 @@ local function getPlayerTargetScore(
         return nil
     end
 
+    -- FOV
     local center =
         camera.ViewportSize / 2
 
-    local fovDistance =
+    local screenDistance =
         (
             Vector2.new(
-                screen.X,
-                screen.Y
+                screenPosition.X,
+                screenPosition.Y
             )
             - center
         ).Magnitude
 
     if aimbotFOVEnabled
-        and fovDistance > aimbotFOV then
+        and screenDistance > aimbotFOV then
 
         return nil
     end
 
+    -- Priority
     if aimbotPriority == "Closest" then
+
         return worldDistance
 
     elseif aimbotPriority == "Lowest Health" then
+
         return humanoid.Health
 
     else
-        return fovDistance
+
+        return screenDistance
+
     end
 end
+
+
+--//======================================================
+--// ENTITY TARGET SCORE
+--//======================================================
 
 local function getEntityTargetScore(
     entity,
     camera
 )
-    if not HRP
-        or not entity
+
+    if not HRP then
+        return nil
+    end
+
+    if not entity
         or not entity.Parent then
 
         return nil
     end
 
-    -- Safety: an entity must not actually be a Player character.
-    if Players:GetPlayerFromCharacter(entity) then
+    -- Entity MUST NOT be a Player.
+    if Players:GetPlayerFromCharacter(
+        entity
+    ) then
+
         return nil
     end
 
@@ -1455,8 +1678,11 @@ local function getEntityTargetScore(
         )
 
     local part =
-        getTargetPart(entity)
+        getTargetPart(
+            entity
+        )
 
+    -- Required entity structure.
     if not humanoid
         or humanoid.Health <= 0
         or not root
@@ -1466,6 +1692,7 @@ local function getEntityTargetScore(
         return nil
     end
 
+    -- Distance
     local worldDistance =
         (
             HRP.Position
@@ -1478,7 +1705,9 @@ local function getEntityTargetScore(
         return nil
     end
 
-    local screen, onScreen =
+    -- Screen position
+    local screenPosition,
+        onScreen =
         camera:WorldToViewportPoint(
             part.Position
         )
@@ -1487,6 +1716,7 @@ local function getEntityTargetScore(
         return nil
     end
 
+    -- Visibility
     if not isVisible(
         camera,
         part,
@@ -1496,41 +1726,60 @@ local function getEntityTargetScore(
         return nil
     end
 
+    -- FOV
     local center =
         camera.ViewportSize / 2
 
-    local fovDistance =
+    local screenDistance =
         (
             Vector2.new(
-                screen.X,
-                screen.Y
+                screenPosition.X,
+                screenPosition.Y
             )
             - center
         ).Magnitude
 
     if aimbotFOVEnabled
-        and fovDistance > aimbotFOV then
+        and screenDistance > aimbotFOV then
 
         return nil
     end
 
+    -- Priority
     if aimbotPriority == "Closest" then
+
         return worldDistance
 
     elseif aimbotPriority == "Lowest Health" then
+
         return humanoid.Health
 
     else
-        return fovDistance
+
+        return screenDistance
+
     end
 end
 
-local function getBestTarget(camera)
+
+--//======================================================
+--// FIND BEST TARGET
+--//======================================================
+
+local function getBestTarget(
+    camera
+)
+
     local bestTarget = nil
     local bestScore = math.huge
 
+
+    --====================================================
     -- ONLY PLAYERS
+    --====================================================
+
     if aimbotOnlyPlayers then
+
         for _, player in ipairs(
             Players:GetPlayers()
         ) do
@@ -1544,18 +1793,26 @@ local function getBestTarget(camera)
             if score
                 and score < bestScore then
 
-                bestScore = score
+                bestScore =
+                    score
+
                 bestTarget = {
                     Type = "Player",
                     Object = player,
-                    Character = player.Character
+                    Character =
+                        player.Character
                 }
             end
         end
     end
 
+
+    --====================================================
     -- ONLY ENTITIES
+    --====================================================
+
     if aimbotOnlyEntities then
+
         for _, entity in ipairs(
             getEntityModels()
         ) do
@@ -1569,7 +1826,9 @@ local function getBestTarget(camera)
             if score
                 and score < bestScore then
 
-                bestScore = score
+                bestScore =
+                    score
+
                 bestTarget = {
                     Type = "Entity",
                     Object = entity,
@@ -1582,14 +1841,35 @@ local function getBestTarget(camera)
     return bestTarget
 end
 
+
+--//======================================================
+--// STOP AIMBOT
+--//======================================================
+
 local function stopAimbot()
+
     if aimbotConnection then
+
         aimbotConnection:Disconnect()
-        aimbotConnection = nil
+
+        aimbotConnection =
+            nil
     end
+
+    currentAimbotTarget =
+        nil
+
+    nextTargetSearch =
+        0
 end
 
+
+--//======================================================
+--// START AIMBOT
+--//======================================================
+
 local function startAimbot()
+
     stopAimbot()
 
     aimbotConnection =
@@ -1600,13 +1880,20 @@ local function startAimbot()
                     return
                 end
 
-                -- If neither target mode is enabled,
-                -- the aimbot intentionally has no targets.
+
+                --================================================
+                -- NO TARGET MODE
+                --================================================
+
                 if not aimbotOnlyPlayers
                     and not aimbotOnlyEntities then
 
+                    currentAimbotTarget =
+                        nil
+
                     return
                 end
+
 
                 local camera =
                     workspace.CurrentCamera
@@ -1617,14 +1904,53 @@ local function startAimbot()
                     return
                 end
 
+
+                --================================================
+                -- TARGET SEARCH THROTTLE
+                --================================================
+                --
+                -- The expensive search only happens every
+                -- 0.10 seconds instead of every frame.
+                --
+                -- Camera movement still happens every frame.
+                --
+
+                local now =
+                    os.clock()
+
+                if now >= nextTargetSearch then
+
+                    currentAimbotTarget =
+                        getBestTarget(
+                            camera
+                        )
+
+                    nextTargetSearch =
+                        now
+                        + AIMBOT_TARGET_REFRESH
+                end
+
+
+                --================================================
+                -- CURRENT TARGET
+                --================================================
+
                 local target =
-                    getBestTarget(camera)
+                    currentAimbotTarget
 
                 if not target
                     or not target.Character then
 
+                    currentAimbotTarget =
+                        nil
+
                     return
                 end
+
+
+                --================================================
+                -- TARGET PART
+                --================================================
 
                 local part =
                     getTargetPart(
@@ -1632,8 +1958,17 @@ local function startAimbot()
                     )
 
                 if not part then
+
+                    currentAimbotTarget =
+                        nil
+
                     return
                 end
+
+
+                --================================================
+                -- CAMERA SMOOTHING
+                --================================================
 
                 local targetCFrame =
                     CFrame.lookAt(
@@ -1650,9 +1985,16 @@ local function startAimbot()
         )
 end
 
+
+--//======================================================
+--// AIMBOT MAIN TOGGLE
+--//======================================================
+
 GameTab:CreateToggle({
     Name = "Aimbot",
+
     CurrentValue = false,
+
     Flag = "Aimbot",
 
     Callback = function(enabled)
@@ -1661,6 +2003,7 @@ GameTab:CreateToggle({
             enabled
 
         if enabled then
+
             startAimbot()
 
             Rayfield:Notify({
@@ -1672,18 +2015,23 @@ GameTab:CreateToggle({
             })
 
         else
+
             stopAimbot()
+
         end
     end
 })
 
---========================================================
--- AIMBOT TARGET MODES
---========================================================
+
+--//======================================================
+--// ONLY PLAYERS
+--//======================================================
 
 GameTab:CreateToggle({
     Name = "Only Players",
+
     CurrentValue = true,
+
     Flag = "AimbotOnlyPlayers",
 
     Callback = function(enabled)
@@ -1691,23 +2039,39 @@ GameTab:CreateToggle({
         aimbotOnlyPlayers =
             enabled
 
-        -- The two modes are exclusive:
-        -- enabling one disables the other.
+        currentAimbotTarget =
+            nil
+
+        nextTargetSearch =
+            0
+
+        -- Only one mode can be active.
         if enabled then
-            aimbotOnlyEntities = false
+
+            aimbotOnlyEntities =
+                false
 
             pcall(function()
+
                 Rayfield.Flags[
                     "AimbotOnlyEntities"
                 ]:Set(false)
+
             end)
         end
     end
 })
 
+
+--//======================================================
+--// ONLY ENTITIES
+--//======================================================
+
 GameTab:CreateToggle({
     Name = "Only Entities",
+
     CurrentValue = false,
+
     Flag = "AimbotOnlyEntities",
 
     Callback = function(enabled)
@@ -1715,43 +2079,68 @@ GameTab:CreateToggle({
         aimbotOnlyEntities =
             enabled
 
-        if enabled then
-            entityCacheDirty = true
-        end
+        currentAimbotTarget =
+            nil
 
-        -- The two modes are exclusive:
-        -- enabling one disables the other.
+        nextTargetSearch =
+            0
+
         if enabled then
-            aimbotOnlyPlayers = false
+
+            -- Only initialize the entity cache
+            -- when the user actually needs it.
+            initializeEntityCache()
+
+            aimbotOnlyPlayers =
+                false
 
             pcall(function()
+
                 Rayfield.Flags[
                     "AimbotOnlyPlayers"
                 ]:Set(false)
+
             end)
         end
     end
 })
 
+
+--//======================================================
+--// TARGET MODE INFO
+--//======================================================
+
 GameTab:CreateParagraph({
+
     Title = "TARGET MODES",
 
     Content =
         "ONLY PLAYERS  →  Roblox Players\n" ..
         "ONLY ENTITIES  →  NPCs / entities with Humanoid + HumanoidRootPart\n\n" ..
-        "Entity mode ignores anything that is a Player character.\n" ..
-        "Entity scanning is cached to avoid frame-rate drops."
+        "Entities are cached instead of scanning the entire Workspace every frame."
 })
 
+
+--//======================================================
+--// TARGET PART
+--//======================================================
+
 GameTab:CreateDropdown({
+
     Name = "Target Part",
+
     Options = {
         "Head",
         "Torso",
         "Root"
     },
-    CurrentOption = {"Head"},
+
+    CurrentOption = {
+        "Head"
+    },
+
     MultipleOptions = false,
+
     Flag = "AimbotPart",
 
     Callback = function(option)
@@ -1760,18 +2149,33 @@ GameTab:CreateDropdown({
             typeof(option) == "table"
             and option[1]
             or option
+
+        currentAimbotTarget =
+            nil
     end
 })
 
+
+--//======================================================
+--// TARGET PRIORITY
+--//======================================================
+
 GameTab:CreateDropdown({
+
     Name = "Target Priority",
+
     Options = {
         "FOV",
         "Closest",
         "Lowest Health"
     },
-    CurrentOption = {"FOV"},
+
+    CurrentOption = {
+        "FOV"
+    },
+
     MultipleOptions = false,
+
     Flag = "AimbotPriority",
 
     Callback = function(option)
@@ -1780,94 +2184,196 @@ GameTab:CreateDropdown({
             typeof(option) == "table"
             and option[1]
             or option
+
+        currentAimbotTarget =
+            nil
     end
 })
 
+
+--//======================================================
+--// FOV LIMITER
+--//======================================================
+
 GameTab:CreateToggle({
+
     Name = "FOV Limiter",
+
     CurrentValue = true,
+
     Flag = "AimbotFOVEnabled",
 
     Callback = function(enabled)
+
         aimbotFOVEnabled =
             enabled
+
+        currentAimbotTarget =
+            nil
+
+        nextTargetSearch =
+            0
     end
 })
 
+
+--//======================================================
+--// FOV
+--//======================================================
+
 GameTab:CreateSlider({
+
     Name = "Aimbot FOV",
+
     Range = {
         50,
         1000
     },
+
     Increment = 10,
+
     Suffix = " PX",
+
     CurrentValue = 250,
+
     Flag = "AimbotFOV",
 
     Callback = function(value)
+
         aimbotFOV =
             value
+
+        currentAimbotTarget =
+            nil
+
+        nextTargetSearch =
+            0
     end
 })
 
+
+--//======================================================
+--// MAX DISTANCE
+--//======================================================
+
 GameTab:CreateSlider({
+
     Name = "Maximum Distance",
+
     Range = {
         50,
         5000
     },
+
     Increment = 50,
+
     Suffix = " studs",
+
     CurrentValue = 500,
+
     Flag = "AimbotMaxDistance",
 
     Callback = function(value)
+
         aimbotMaxDistance =
             value
+
+        currentAimbotTarget =
+            nil
+
+        nextTargetSearch =
+            0
     end
 })
 
+
+--//======================================================
+--// SMOOTHNESS
+--//======================================================
+
 GameTab:CreateSlider({
+
     Name = "Smoothness",
+
     Range = {
         0.05,
         1
     },
+
     Increment = 0.05,
+
     Suffix = "",
+
     CurrentValue = 0.18,
+
     Flag = "AimbotSmoothness",
 
     Callback = function(value)
+
         aimbotSmoothness =
             value
     end
 })
 
+
+--//======================================================
+--// TEAM CHECK
+--//======================================================
+
 GameTab:CreateToggle({
+
     Name = "Team Check",
+
     CurrentValue = false,
+
     Flag = "TeamCheck",
 
     Callback = function(enabled)
+
         teamCheck =
             enabled
+
+        currentAimbotTarget =
+            nil
+
+        nextTargetSearch =
+            0
     end
 })
 
+
+--//======================================================
+--// VISIBLE CHECK
+--//======================================================
+
 GameTab:CreateToggle({
+
     Name = "Visible Check",
+
     CurrentValue = false,
+
     Flag = "AimbotVisibleCheck",
 
     Callback = function(enabled)
+
         aimbotVisibleCheck =
             enabled
+
+        currentAimbotTarget =
+            nil
+
+        nextTargetSearch =
+            0
     end
 })
 
+
+--//======================================================
+--// TARGET STATUS
+--//======================================================
+
 GameTab:CreateParagraph({
+
     Title = "TARGET STATUS",
 
     Content =
@@ -1883,10 +2389,14 @@ GameTab:CreateParagraph({
         )
         .. "\n"
         .. "Part  →  "
-        .. aimbotPart
+        .. tostring(
+            aimbotPart
+        )
         .. "\n"
         .. "Priority  →  "
-        .. aimbotPriority
+        .. tostring(
+            aimbotPriority
+        )
         .. "\n"
         .. "Range  →  "
         .. tostring(
