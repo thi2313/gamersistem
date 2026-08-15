@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// PREMIUM ORBITAL INTERFACE
---// VERSION 3.3.2
+--// VERSION 3.3.3
 --//======================================================
 
 --//======================================================
@@ -1303,7 +1303,12 @@ GameTab:CreateButton({
 
 --//======================================================
 --// TOOL TELEPORT
---//======================================================
+--// Automatic toggle: when enabled, it searches for the nearest
+--// dropped Tool and teleports the player to it.
+
+local toolTeleportEnabled = false
+local toolTeleportRunning = false
+local TOOL_TELEPORT_INTERVAL = 0.15
 
 local function getNearestDroppedTool()
     if not HRP then
@@ -1317,8 +1322,11 @@ local function getNearestDroppedTool()
     for _, descendant in ipairs(workspace:GetDescendants()) do
         if descendant:IsA("Tool") and isDroppedTool(descendant) then
             local part = getToolPart(descendant)
+
             if part then
-                local distance = (HRP.Position - part.Position).Magnitude
+                local distance =
+                    (HRP.Position - part.Position).Magnitude
+
                 if distance < nearestDistance then
                     nearestDistance = distance
                     nearestTool = descendant
@@ -1331,40 +1339,73 @@ local function getNearestDroppedTool()
     return nearestTool, nearestPart, nearestDistance
 end
 
-GameTab:CreateButton({
-    Name = "Teleport To Nearest Tool",
-    Callback = function()
-        if not HRP then
-            Rayfield:Notify({
-                Title = "TOOL TELEPORT",
-                Content = "Character is not ready.",
-                Duration = 3,
-                Image = "circle-alert"
-            })
-            return
+local function startToolTeleport()
+    if toolTeleportRunning then
+        return
+    end
+
+    toolTeleportRunning = true
+
+    task.spawn(function()
+        while toolTeleportEnabled do
+            if HRP then
+                local tool, part, distance =
+                    getNearestDroppedTool()
+
+                if tool and part then
+                    previousPosition = HRP.CFrame
+
+                    HRP.CFrame =
+                        part.CFrame * CFrame.new(0, 3, 0)
+
+                    Rayfield:Notify({
+                        Title = "TOOL TELEPORT",
+                        Content =
+                            "Teleported to "
+                            .. tool.Name
+                            .. " • "
+                            .. math.floor(distance)
+                            .. " studs",
+                        Duration = 2,
+                        Image = "map-pin"
+                    })
+                end
+            end
+
+            task.wait(TOOL_TELEPORT_INTERVAL)
         end
 
-        local tool, part, distance = getNearestDroppedTool()
+        toolTeleportRunning = false
+    end)
+end
 
-        if not tool or not part then
+GameTab:CreateToggle({
+    Name = "Tool Teleport  •  Nearest Dropped",
+    CurrentValue = false,
+    Flag = "ToolTeleport",
+
+    Callback = function(enabled)
+        toolTeleportEnabled = enabled
+
+        if enabled then
+            startToolTeleport()
+
             Rayfield:Notify({
                 Title = "TOOL TELEPORT",
-                Content = "No dropped tools found in Workspace.",
+                Content =
+                    "Automatic tool teleport enabled.",
                 Duration = 3,
-                Image = "circle-alert"
+                Image = "map-pin"
             })
-            return
+        else
+            Rayfield:Notify({
+                Title = "TOOL TELEPORT",
+                Content =
+                    "Automatic tool teleport disabled.",
+                Duration = 3,
+                Image = "map-pin-off"
+            })
         end
-
-        previousPosition = HRP.CFrame
-        HRP.CFrame = part.CFrame * CFrame.new(0, 3, 0)
-
-        Rayfield:Notify({
-            Title = "TOOL TELEPORT",
-            Content = "Teleported to " .. tool.Name .. " • " .. math.floor(distance) .. " studs",
-            Duration = 3,
-            Image = "map-pin"
-        })
     end
 })
 
