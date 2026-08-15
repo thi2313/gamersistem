@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// PREMIUM ORBITAL INTERFACE
---// VERSION 3.2.2
+--// VERSION 3.3.2
 --//======================================================
 
 --//======================================================
@@ -34,7 +34,7 @@ local fullbright = false
 
 local espEnabled = false
 local toolEspEnabled = false
-local toolEspMaxDistance = 1000
+local toolEspMaxDistance = 10000
 local toolEspObjects = {}
 
 local aimbotEnabled = false
@@ -1297,6 +1297,73 @@ GameTab:CreateButton({
             Content = "Workspace tools rescanned.",
             Duration = 2,
             Image = "refresh-cw"
+        })
+    end
+})
+
+--//======================================================
+--// TOOL TELEPORT
+--//======================================================
+
+local function getNearestDroppedTool()
+    if not HRP then
+        return nil, nil, math.huge
+    end
+
+    local nearestTool = nil
+    local nearestPart = nil
+    local nearestDistance = math.huge
+
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Tool") and isDroppedTool(descendant) then
+            local part = getToolPart(descendant)
+            if part then
+                local distance = (HRP.Position - part.Position).Magnitude
+                if distance < nearestDistance then
+                    nearestDistance = distance
+                    nearestTool = descendant
+                    nearestPart = part
+                end
+            end
+        end
+    end
+
+    return nearestTool, nearestPart, nearestDistance
+end
+
+GameTab:CreateButton({
+    Name = "Teleport To Nearest Tool",
+    Callback = function()
+        if not HRP then
+            Rayfield:Notify({
+                Title = "TOOL TELEPORT",
+                Content = "Character is not ready.",
+                Duration = 3,
+                Image = "circle-alert"
+            })
+            return
+        end
+
+        local tool, part, distance = getNearestDroppedTool()
+
+        if not tool or not part then
+            Rayfield:Notify({
+                Title = "TOOL TELEPORT",
+                Content = "No dropped tools found in Workspace.",
+                Duration = 3,
+                Image = "circle-alert"
+            })
+            return
+        end
+
+        previousPosition = HRP.CFrame
+        HRP.CFrame = part.CFrame * CFrame.new(0, 3, 0)
+
+        Rayfield:Notify({
+            Title = "TOOL TELEPORT",
+            Content = "Teleported to " .. tool.Name .. " • " .. math.floor(distance) .. " studs",
+            Duration = 3,
+            Image = "map-pin"
         })
     end
 })
