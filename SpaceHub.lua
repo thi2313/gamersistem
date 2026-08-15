@@ -1277,7 +1277,7 @@ GameTab:CreateToggle({
 
 GameTab:CreateSlider({
     Name = "Tool ESP Maximum Distance",
-    Range = {100, 5000},
+    Range = {100, 10000},
     Increment = 50,
     Suffix = " studs",
     CurrentValue = 1000,
