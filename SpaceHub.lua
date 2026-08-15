@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// PREMIUM ORBITAL INTERFACE
---// VERSION 3.3.4
+--// VERSION 3.3.3
 --//======================================================
 
 --//======================================================
@@ -12,7 +12,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
-local Stats = game:GetService("Stats")
 local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
@@ -37,11 +36,6 @@ local espEnabled = false
 local toolEspEnabled = false
 local toolEspMaxDistance = 10000
 local toolEspObjects = {}
-local workspaceTools = {}
-local characterParts = {}
-
-local TOOL_SCAN_INTERVAL = 0.75
-local TOOL_ESP_UPDATE_INTERVAL = 0.20
 
 local aimbotEnabled = false
 local aimbotFOVEnabled = true
@@ -74,13 +68,14 @@ local waypoints = {}
 local previousPosition = nil
 
 local dashboardLabels = {}
-local playerCount = #Players:GetPlayers()
 
 local flyConnection
 local aimbotConnection
 local noclipConnection
 local jumpConnection
 local fullbrightConnection
+
+local espObjects = {}
 
 local originalLighting = {
     Brightness = Lighting.Brightness,
@@ -93,27 +88,19 @@ local originalLighting = {
 --// CHARACTER SYSTEM
 --//======================================================
 
-local function rebuildCharacterPartCache()
-    table.clear(characterParts)
-
-    if not Character then
-        return
-    end
-
-    for _, descendant in ipairs(Character:GetDescendants()) do
-        if descendant:IsA("BasePart") then
-            characterParts[#characterParts + 1] = descendant
-        end
-    end
-end
-
 local function updateCharacter(character)
+
     Character = character
 
-    Humanoid = character:WaitForChild("Humanoid", 10)
-    HRP = character:WaitForChild("HumanoidRootPart", 10)
+    Humanoid = character:WaitForChild(
+        "Humanoid",
+        10
+    )
 
-    rebuildCharacterPartCache()
+    HRP = character:WaitForChild(
+        "HumanoidRootPart",
+        10
+    )
 
     if Humanoid then
         Humanoid.WalkSpeed = walkSpeed
@@ -121,6 +108,7 @@ local function updateCharacter(character)
         Humanoid.JumpPower = jumpPower
         Humanoid.HipHeight = hipHeight
     end
+
 end
 
 if LocalPlayer.Character then
@@ -345,7 +333,7 @@ DashboardTab:CreateButton({
     end
 })
 
-do
+task.spawn(function()
     local frames = 0
     local last = os.clock()
 
@@ -369,7 +357,7 @@ do
 
             local ping = "--"
             pcall(function()
-                local stats = Stats
+                local stats = game:GetService("Stats")
                 local network = stats:FindFirstChild("Network")
                 local serverStats = network and network:FindFirstChild("ServerStatsItem")
                 local dataPing = serverStats and serverStats:FindFirstChild("Data Ping")
@@ -380,7 +368,7 @@ do
 
             FPSLabel:Set("FPS  •  " .. tostring(fps), "gauge")
             PingLabel:Set("Ping  •  " .. tostring(ping) .. " ms", "wifi")
-            PlayersLabel:Set("Players  •  " .. tostring(playerCount), "users")
+            PlayersLabel:Set("Players  •  " .. tostring(#Players:GetPlayers()), "users")
 
             if HRP then
                 local p = HRP.Position
@@ -433,6 +421,7 @@ do
             )
         end
     end)
+end)
 
 --//======================================================
 --// UNIVERSAL HEADER
@@ -887,10 +876,14 @@ UniversalTab:CreateToggle({
         if not enabled
             and Character then
 
-            for _, part in ipairs(characterParts) do
-                if part.Parent then
+            for _, part in ipairs(
+                Character:GetDescendants()
+            ) do
+
+                if part:IsA("BasePart") then
                     part.CanCollide = true
                 end
+
             end
 
             return
@@ -908,10 +901,14 @@ UniversalTab:CreateToggle({
 
                     end
 
-                    for _, part in ipairs(characterParts) do
-                        if part.Parent then
+                    for _, part in ipairs(
+                        Character:GetDescendants()
+                    ) do
+
+                        if part:IsA("BasePart") then
                             part.CanCollide = false
                         end
+
                     end
 
                 end
@@ -947,10 +944,19 @@ UniversalTab:CreateToggle({
         end
 
         if enabled then
-            Lighting.Brightness = 2
-            Lighting.ClockTime = 14
-            Lighting.FogEnd = 100000
-            Lighting.GlobalShadows = false
+
+            fullbrightConnection =
+                RunService.RenderStepped:Connect(
+                    function()
+
+                        Lighting.Brightness = 2
+                        Lighting.ClockTime = 14
+                        Lighting.FogEnd = 100000
+                        Lighting.GlobalShadows = false
+
+                    end
+                )
+
         else
 
             Lighting.Brightness =
@@ -1234,16 +1240,6 @@ local function createToolESP(tool)
     }
 end
 
-local function refreshWorkspaceToolCache()
-    table.clear(workspaceTools)
-
-    for _, descendant in ipairs(workspace:GetDescendants()) do
-        if descendant:IsA("Tool") and isDroppedTool(descendant) then
-            workspaceTools[descendant] = true
-        end
-    end
-end
-
 local function refreshToolESP()
     for tool in pairs(toolEspObjects) do
         if not tool.Parent or not isDroppedTool(tool) or not toolEspEnabled then
@@ -1255,11 +1251,9 @@ local function refreshToolESP()
         return
     end
 
-    refreshWorkspaceToolCache()
-
-    for tool in pairs(workspaceTools) do
-        if not toolEspObjects[tool] then
-            createToolESP(tool)
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Tool") then
+            createToolESP(descendant)
         end
     end
 end
@@ -1309,30 +1303,33 @@ GameTab:CreateButton({
 
 --//======================================================
 --// TOOL TELEPORT
---//======================================================
+--// Automatic toggle: when enabled, it searches for the nearest
+--// dropped Tool and teleports the player to it.
 
 local toolTeleportEnabled = false
 local toolTeleportRunning = false
-local TOOL_TELEPORT_INTERVAL = 0.20
+local TOOL_TELEPORT_INTERVAL = 0.15
 
 local function getNearestDroppedTool()
     if not HRP then
         return nil, nil, math.huge
     end
 
-    local nearestTool, nearestPart
+    local nearestTool = nil
+    local nearestPart = nil
     local nearestDistance = math.huge
 
-    for tool in pairs(workspaceTools) do
-        if not tool.Parent or not isDroppedTool(tool) then
-            workspaceTools[tool] = nil
-        else
-            local part = getToolPart(tool)
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Tool") and isDroppedTool(descendant) then
+            local part = getToolPart(descendant)
+
             if part then
-                local distance = (HRP.Position - part.Position).Magnitude
+                local distance =
+                    (HRP.Position - part.Position).Magnitude
+
                 if distance < nearestDistance then
                     nearestDistance = distance
-                    nearestTool = tool
+                    nearestTool = descendant
                     nearestPart = part
                 end
             end
@@ -1348,28 +1345,31 @@ local function startToolTeleport()
     end
 
     toolTeleportRunning = true
+
     task.spawn(function()
-        local lastTool
-
         while toolTeleportEnabled do
-            local tool, part, distance = getNearestDroppedTool()
+            if HRP then
+                local tool, part, distance =
+                    getNearestDroppedTool()
 
-            if tool and part and tool ~= lastTool then
-                previousPosition = HRP and HRP.CFrame or previousPosition
+                if tool and part then
+                    previousPosition = HRP.CFrame
 
-                if HRP then
-                    HRP.CFrame = part.CFrame * CFrame.new(0, 3, 0)
-                    lastTool = tool
+                    HRP.CFrame =
+                        part.CFrame * CFrame.new(0, 3, 0)
 
                     Rayfield:Notify({
                         Title = "TOOL TELEPORT",
-                        Content = "Teleported to " .. tool.Name .. " • " .. math.floor(distance) .. " studs",
+                        Content =
+                            "Teleported to "
+                            .. tool.Name
+                            .. " • "
+                            .. math.floor(distance)
+                            .. " studs",
                         Duration = 2,
                         Image = "map-pin"
                     })
                 end
-            elseif not tool then
-                lastTool = nil
             end
 
             task.wait(TOOL_TELEPORT_INTERVAL)
@@ -1383,24 +1383,78 @@ GameTab:CreateToggle({
     Name = "Tool Teleport  •  Nearest Dropped",
     CurrentValue = false,
     Flag = "ToolTeleport",
+
     Callback = function(enabled)
         toolTeleportEnabled = enabled
+
         if enabled then
-            refreshWorkspaceToolCache()
             startToolTeleport()
+
+            Rayfield:Notify({
+                Title = "TOOL TELEPORT",
+                Content =
+                    "Automatic tool teleport enabled.",
+                Duration = 3,
+                Image = "map-pin"
+            })
+        else
+            Rayfield:Notify({
+                Title = "TOOL TELEPORT",
+                Content =
+                    "Automatic tool teleport disabled.",
+                Duration = 3,
+                Image = "map-pin-off"
+            })
         end
     end
 })
 
--- Maintain the tool cache from events, with a low-frequency reconciliation pass.
+task.spawn(function()
+    while task.wait(0.15) do
+        if toolEspEnabled then
+            for tool, data in pairs(toolEspObjects) do
+                if not tool.Parent or not isDroppedTool(tool) then
+                    removeToolESP(tool)
+                else
+                    local part = getToolPart(tool)
+
+                    if not part then
+                        removeToolESP(tool)
+                    else
+                        local distance =
+                            HRP and (HRP.Position - part.Position).Magnitude
+                            or math.huge
+
+                        local visible = distance <= toolEspMaxDistance
+
+                        if data.Billboard then
+                            data.Billboard.Enabled = visible
+                        end
+
+                        if data.Highlight then
+                            data.Highlight.Enabled = visible
+                        end
+
+                        if data.Label then
+                            data.Label.Text =
+                                "TOOL  •  "
+                                .. tool.Name
+                                .. "\n"
+                                .. math.floor(distance)
+                                .. " studs"
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
 workspace.DescendantAdded:Connect(function(instance)
     if instance:IsA("Tool") then
         task.defer(function()
-            if isDroppedTool(instance) then
-                workspaceTools[instance] = true
-                if toolEspEnabled then
-                    createToolESP(instance)
-                end
+            if toolEspEnabled then
+                createToolESP(instance)
             end
         end)
     end
@@ -1408,21 +1462,22 @@ end)
 
 workspace.DescendantRemoving:Connect(function(instance)
     if instance:IsA("Tool") then
-        workspaceTools[instance] = nil
         removeToolESP(instance)
     end
 end)
 
 task.spawn(function()
-    while task.wait(TOOL_SCAN_INTERVAL) do
-        if toolEspEnabled or toolTeleportEnabled then
-            refreshWorkspaceToolCache()
+    while task.wait(1) do
+        if toolEspEnabled then
+            -- A tool can move from Backpack/Character into Workspace without
+            -- firing a useful state change for our visual system, so keep a
+            -- lightweight synchronization pass.
+            for _, descendant in ipairs(workspace:GetDescendants()) do
+                if descendant:IsA("Tool")
+                    and isDroppedTool(descendant)
+                    and not toolEspObjects[descendant] then
 
-            if toolEspEnabled then
-                for tool in pairs(workspaceTools) do
-                    if not toolEspObjects[tool] then
-                        createToolESP(tool)
-                    end
+                    createToolESP(descendant)
                 end
             end
         end
@@ -1430,29 +1485,48 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    while task.wait(TOOL_ESP_UPDATE_INTERVAL) do
-        if toolEspEnabled and HRP then
-            for tool, data in pairs(toolEspObjects) do
-                if not tool.Parent or not isDroppedTool(tool) then
-                    removeToolESP(tool)
-                else
-                    local part = getToolPart(tool)
-                    if not part then
-                        removeToolESP(tool)
-                    else
-                        local distance = (HRP.Position - part.Position).Magnitude
-                        local visible = distance <= toolEspMaxDistance
+    while task.wait(0.15) do
+        if espEnabled then
+            for player, data in pairs(espObjects) do
+                local character = player.Character
+                local root = character and character:FindFirstChild("HumanoidRootPart")
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
-                        if data.Billboard then data.Billboard.Enabled = visible end
-                        if data.Highlight then data.Highlight.Enabled = visible end
-                        if data.Label and visible then
-                            data.Label.Text = "TOOL  •  " .. tool.Name .. "\n" .. math.floor(distance) .. " studs"
-                        end
+                if not player.Parent or not character or not root or not humanoid then
+                    removeESP(player)
+                elseif data.Label and data.Highlight then
+                    local distance = HRP and (HRP.Position - root.Position).Magnitude or math.huge
+                    local visible = distance <= espMaxDistance
+                    data.Billboard.Enabled = visible
+                    data.Highlight.Enabled = visible
+                    data.Label.TextColor3 = getTeamColor(player)
+
+                    local lines = {}
+                    if espShowName then
+                        table.insert(lines, player.DisplayName .. "  @" .. player.Name)
                     end
+                    if espShowHealth then
+                        table.insert(lines, "♥ " .. math.floor(humanoid.Health + 0.5) .. " / " .. math.floor(humanoid.MaxHealth + 0.5))
+                    end
+                    if espShowDistance then
+                        table.insert(lines, math.floor(distance) .. " studs")
+                    end
+                    data.Label.Text = table.concat(lines, "\n")
                 end
             end
         end
     end
+end)
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        if espEnabled then createESP(player) end
+    end)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    removeESP(player)
 end)
 
 --//======================================================
@@ -1474,7 +1548,7 @@ local aimbotConnection = nil
 -- Target search is intentionally throttled.
 -- Camera smoothing still runs every frame.
 local nextTargetSearch = 0
-local AIMBOT_TARGET_REFRESH = 0.12
+local AIMBOT_TARGET_REFRESH = 0.10
 
 -- Entity cache
 local entityCache = {}
