@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// PREMIUM ORBITAL INTERFACE
---// VERSION 3.3.3
+--// VERSION 3.4.3
 --//======================================================
 
 --//======================================================
@@ -9,6 +9,7 @@
 --//======================================================
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
@@ -36,6 +37,14 @@ local espEnabled = false
 local toolEspEnabled = false
 local toolEspMaxDistance = 10000
 local toolEspObjects = {}
+local playerEspObjects = {}
+local workspaceTools = {}
+local workspaceToolConnections = {}
+
+-- Throttle values: these reduce repeated full Workspace/Player scans.
+local TOOL_SCAN_INTERVAL = 0.75
+local PLAYER_SCAN_INTERVAL = 0.5
+local TOOL_DISTANCE_UPDATE_INTERVAL = 0.15
 
 local aimbotEnabled = false
 local aimbotFOVEnabled = true
@@ -1318,18 +1327,22 @@ local function getNearestDroppedTool()
     local nearestTool = nil
     local nearestPart = nil
     local nearestDistance = math.huge
+    local character = LocalPlayer.Character
 
-    for _, descendant in ipairs(workspace:GetDescendants()) do
-        if descendant:IsA("Tool") and isDroppedTool(descendant) then
-            local part = getToolPart(descendant)
+    for tool in pairs(workspaceTools) do
+        if not tool.Parent or not tool:IsDescendantOf(workspace) then
+            workspaceTools[tool] = nil
+        elseif character and tool:IsDescendantOf(character) then
+            workspaceTools[tool] = nil
+        elseif tool:IsA("Tool") then
+            local part = getToolPart(tool)
 
             if part then
-                local distance =
-                    (HRP.Position - part.Position).Magnitude
+                local distance = (HRP.Position - part.Position).Magnitude
 
                 if distance < nearestDistance then
                     nearestDistance = distance
-                    nearestTool = descendant
+                    nearestTool = tool
                     nearestPart = part
                 end
             end
@@ -1337,6 +1350,16 @@ local function getNearestDroppedTool()
     end
 
     return nearestTool, nearestPart, nearestDistance
+end
+
+local function scanWorkspaceTools()
+    table.clear(workspaceTools)
+
+    for _, descendant in ipairs(workspace:GetDescendants()) do
+        if descendant:IsA("Tool") and isDroppedTool(descendant) then
+            workspaceTools[descendant] = true
+        end
+    end
 end
 
 local function startToolTeleport()
@@ -1347,16 +1370,16 @@ local function startToolTeleport()
     toolTeleportRunning = true
 
     task.spawn(function()
+        local lastTool = nil
+
         while toolTeleportEnabled do
             if HRP then
-                local tool, part, distance =
-                    getNearestDroppedTool()
+                local tool, part, distance = getNearestDroppedTool()
 
-                if tool and part then
+                if tool and part and tool ~= lastTool then
                     previousPosition = HRP.CFrame
-
-                    HRP.CFrame =
-                        part.CFrame * CFrame.new(0, 3, 0)
+                    HRP.CFrame = part.CFrame * CFrame.new(0, 3, 0)
+                    lastTool = tool
 
                     Rayfield:Notify({
                         Title = "TOOL TELEPORT",
@@ -1369,6 +1392,8 @@ local function startToolTeleport()
                         Duration = 2,
                         Image = "map-pin"
                     })
+                elseif not tool then
+                    lastTool = nil
                 end
             end
 
@@ -1410,38 +1435,43 @@ GameTab:CreateToggle({
 })
 
 task.spawn(function()
-    while task.wait(0.15) do
-        if toolEspEnabled then
-            for tool, data in pairs(toolEspObjects) do
-                if not tool.Parent or not isDroppedTool(tool) then
-                    removeToolESP(tool)
-                else
-                    local part = getToolPart(tool)
+    local accumulator = 0
 
-                    if not part then
+    while task.wait(TOOL_DISTANCE_UPDATE_INTERVAL) do
+        if toolEspEnabled and HRP then
+            accumulator += TOOL_DISTANCE_UPDATE_INTERVAL
+
+            if accumulator >= TOOL_DISTANCE_UPDATE_INTERVAL then
+                accumulator = 0
+
+                for tool, data in pairs(toolEspObjects) do
+                    if not tool.Parent or not isDroppedTool(tool) then
                         removeToolESP(tool)
                     else
-                        local distance =
-                            HRP and (HRP.Position - part.Position).Magnitude
-                            or math.huge
+                        local part = getToolPart(tool)
 
-                        local visible = distance <= toolEspMaxDistance
+                        if not part then
+                            removeToolESP(tool)
+                        else
+                            local distance = (HRP.Position - part.Position).Magnitude
+                            local visible = distance <= toolEspMaxDistance
 
-                        if data.Billboard then
-                            data.Billboard.Enabled = visible
-                        end
+                            if data.Billboard then
+                                data.Billboard.Enabled = visible
+                            end
 
-                        if data.Highlight then
-                            data.Highlight.Enabled = visible
-                        end
+                            if data.Highlight then
+                                data.Highlight.Enabled = visible
+                            end
 
-                        if data.Label then
-                            data.Label.Text =
-                                "TOOL  •  "
-                                .. tool.Name
-                                .. "\n"
-                                .. math.floor(distance)
-                                .. " studs"
+                            if data.Label and visible then
+                                data.Label.Text =
+                                    "TOOL  •  "
+                                    .. tool.Name
+                                    .. "\n"
+                                    .. math.floor(distance)
+                                    .. " studs"
+                            end
                         end
                     end
                 end
@@ -1453,8 +1483,12 @@ end)
 workspace.DescendantAdded:Connect(function(instance)
     if instance:IsA("Tool") then
         task.defer(function()
-            if toolEspEnabled then
-                createToolESP(instance)
+            if isDroppedTool(instance) then
+                workspaceTools[instance] = true
+
+                if toolEspEnabled then
+                    createToolESP(instance)
+                end
             end
         end)
     end
@@ -1462,22 +1496,21 @@ end)
 
 workspace.DescendantRemoving:Connect(function(instance)
     if instance:IsA("Tool") then
+        workspaceTools[instance] = nil
         removeToolESP(instance)
     end
 end)
 
 task.spawn(function()
-    while task.wait(1) do
-        if toolEspEnabled then
-            -- A tool can move from Backpack/Character into Workspace without
-            -- firing a useful state change for our visual system, so keep a
-            -- lightweight synchronization pass.
-            for _, descendant in ipairs(workspace:GetDescendants()) do
-                if descendant:IsA("Tool")
-                    and isDroppedTool(descendant)
-                    and not toolEspObjects[descendant] then
+    while task.wait(TOOL_SCAN_INTERVAL) do
+        if toolEspEnabled or toolTeleportEnabled then
+            scanWorkspaceTools()
 
-                    createToolESP(descendant)
+            if toolEspEnabled then
+                for tool in pairs(workspaceTools) do
+                    if not toolEspObjects[tool] then
+                        createToolESP(tool)
+                    end
                 end
             end
         end
