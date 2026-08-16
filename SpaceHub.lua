@@ -214,7 +214,7 @@ local Window = Rayfield:CreateWindow({
 
         FileName = "SpaceHubKey",
 
-        SaveKey = false,
+        SaveKey = true,
 
         GrabKeyFromSite = false,
 
