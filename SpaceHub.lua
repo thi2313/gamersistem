@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
---// PREMIUM ORBITAL INTERFACE
---// VERSION 3.4.0
+--// SPACE HUB ERROR 404
+--// VERSION 4.0.4
 --//======================================================
 
 --//======================================================
@@ -1571,7 +1571,16 @@ end)
 Players.PlayerAdded:Connect(function(player)
     player.CharacterAdded:Connect(function()
         task.wait(0.5)
-        if espEnabled then createESP(player) end
+        if espEnabled then
+            createESP(player)
+        end
+
+        if currentAimbotTarget
+            and currentAimbotTarget.Type == "Player"
+            and currentAimbotTarget.Object == player then
+            currentAimbotTarget = nil
+            nextTargetSearch = 0
+        end
     end)
 end)
 
@@ -1993,6 +2002,8 @@ local function getPlayerTargetScore(
     end
 
     if teamCheck
+        and player.Team ~= nil
+        and LocalPlayer.Team ~= nil
         and player.Team == LocalPlayer.Team then
         return nil
     end
@@ -2244,6 +2255,8 @@ local function isAimbotTargetValid(target)
         end
 
         if teamCheck
+            and player.Team ~= nil
+            and LocalPlayer.Team ~= nil
             and player.Team == LocalPlayer.Team then
             return false
         end
@@ -2363,11 +2376,12 @@ local function toggleAimbotLock()
     })
 end
 
+local AIMBOT_BIND_NAME = "SpaceHub_Aimbot"
+
 local function stopAimbot()
-    if aimbotConnection then
-        aimbotConnection:Disconnect()
-        aimbotConnection = nil
-    end
+    pcall(function()
+        RunService:UnbindFromRenderStep(AIMBOT_BIND_NAME)
+    end)
 
     clearAimbotLock()
     nextTargetSearch = 0
@@ -2376,111 +2390,69 @@ end
 local function startAimbot()
     stopAimbot()
 
-    aimbotConnection =
-        RunService.RenderStepped:Connect(
-            function()
-                if not aimbotEnabled then
-                    return
-                end
+    RunService:BindToRenderStep(
+        AIMBOT_BIND_NAME,
+        Enum.RenderPriority.Camera.Value + 1,
+        function()
+            if not aimbotEnabled then
+                return
+            end
 
-                if not aimbotOnlyPlayers
-                    and not aimbotOnlyEntities then
+            if not aimbotOnlyPlayers
+                and not aimbotOnlyEntities then
+                currentAimbotTarget = nil
+                return
+            end
+
+            local camera = workspace.CurrentCamera
+            if not camera or not HRP or not HRP.Parent then
+                return
+            end
+
+            if aimbotLocked then
+                if not isAimbotTargetValid(aimbotLockedTarget) then
                     clearAimbotLock()
                     return
                 end
-
-                local camera =
-                    workspace.CurrentCamera
-
-                if not camera
-                    or not HRP
-                    or not HRP.Parent then
-                    return
+                currentAimbotTarget = aimbotLockedTarget
+            else
+                local now = os.clock()
+                if now >= nextTargetSearch then
+                    currentAimbotTarget = getBestTarget(camera, false)
+                    nextTargetSearch = now + AIMBOT_TARGET_REFRESH
                 end
-
-                -- Locked targets bypass acquisition/FOV and continue
-                -- following the target even when it moves behind the player.
-                if aimbotLocked then
-                    if not isAimbotTargetValid(
-                        aimbotLockedTarget
-                    ) then
-                        clearAimbotLock()
-                        return
-                    end
-
-                    currentAimbotTarget =
-                        aimbotLockedTarget
-
-                else
-                    local now =
-                        os.clock()
-
-                    if now >= nextTargetSearch then
-                        currentAimbotTarget =
-                            getBestTarget(
-                                camera,
-                                false
-                            )
-
-                        nextTargetSearch =
-                            now
-                            + AIMBOT_TARGET_REFRESH
-                    end
-                end
-
-                local target =
-                    currentAimbotTarget
-
-                if not target
-                    or not isAimbotTargetValid(
-                        target
-                    ) then
-                    if aimbotLocked then
-                        clearAimbotLock()
-                    else
-                        currentAimbotTarget = nil
-                    end
-
-                    return
-                end
-
-                local part =
-                    getTargetPart(
-                        target.Character
-                    )
-
-                if not part then
-                    if aimbotLocked then
-                        clearAimbotLock()
-                    else
-                        currentAimbotTarget = nil
-                    end
-
-                    return
-                end
-
-                local targetCFrame =
-                    CFrame.lookAt(
-                        camera.CFrame.Position,
-                        part.Position
-                    )
-
-                camera.CFrame =
-                    camera.CFrame:Lerp(
-                        targetCFrame,
-                        math.clamp(
-                            aimbotSmoothness,
-                            0.01,
-                            1
-                        )
-                    )
             end
-        )
-end
 
---//======================================================
---// STOP AIMBOT
---//======================================================
+            local target = currentAimbotTarget
+            if not target or not isAimbotTargetValid(target) then
+                currentAimbotTarget = nil
+                return
+            end
+
+            local part = getTargetPart(target.Character)
+            if not part then
+                currentAimbotTarget = nil
+                return
+            end
+
+            local targetPosition = part.Position
+            local cameraPosition = camera.CFrame.Position
+            if (targetPosition - cameraPosition).Magnitude < 0.01 then
+                return
+            end
+
+            local targetCFrame = CFrame.lookAt(
+                cameraPosition,
+                targetPosition
+            )
+
+            camera.CFrame = camera.CFrame:Lerp(
+                targetCFrame,
+                math.clamp(aimbotSmoothness, 0.01, 1)
+            )
+        end
+    )
+end
 
 --// AIMBOT MAIN TOGGLE
 --//======================================================
