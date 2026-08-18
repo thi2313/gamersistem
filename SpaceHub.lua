@@ -120,9 +120,23 @@ end
 --// RAYFIELD
 --//======================================================
 
-local Rayfield = loadstring(game:HttpGet(
-    "https://sirius.menu/rayfield"
-))()
+local Rayfield
+
+do
+    local ok, result = pcall(function()
+        local source = game:HttpGet("https://sirius.menu/rayfield")
+        assert(type(source) == "string" and #source > 0, "Rayfield source was empty")
+        return loadstring(source)()
+    end)
+
+    if not ok or not result then
+        warn("[SpaceHub] Failed to load Rayfield:", result)
+        return
+    end
+
+    Rayfield = result
+end
+
 
 --//======================================================
 --// WINDOW
