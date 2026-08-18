@@ -900,76 +900,51 @@ UniversalTab:CreateSlider({
 })
 
 --//======================================================
+--//======================================================
 --// NOCLIP
 --//======================================================
 
+local function setNoclipCollision(character, state)
+    if not character then return end
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = state
+        end
+    end
+end
+
 UniversalTab:CreateToggle({
-
     Name = "Noclip",
-
     CurrentValue = false,
-
     Flag = "Noclip",
-
     Callback = function(enabled)
-
-        noclip =
-            enabled
+        noclip = enabled
 
         if noclipConnection then
-
             noclipConnection:Disconnect()
-
             noclipConnection = nil
-
         end
 
-        if not enabled
-            and Character then
-
-            for _, part in ipairs(
-                Character:GetDescendants()
-            ) do
-
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-
-            end
-
+        if not enabled then
+            setNoclipCollision(Character, true)
             return
-
         end
 
-        noclipConnection =
-            RunService.Stepped:Connect(
-                function()
+        -- Disable collisions immediately instead of waiting for Stepped.
+        setNoclipCollision(Character, false)
 
-                    if not noclip
-                        or not Character then
+        noclipConnection = RunService.Stepped:Connect(function()
+            if not noclip then return end
 
-                        return
+            local character = Character
+            if not character or not character.Parent then return end
 
-                    end
-
-                    for _, part in ipairs(
-                        Character:GetDescendants()
-                    ) do
-
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
-
-                    end
-
-                end
-            )
-
+            setNoclipCollision(character, false)
+        end)
     end
-
 })
 
---//======================================================
 --// FULLBRIGHT
 --//======================================================
 
@@ -3681,6 +3656,10 @@ LocalPlayer.CharacterAdded:Connect(
         updateCharacter(
             character
         )
+
+        if noclip then
+            setNoclipCollision(character, false)
+        end
 
         if Humanoid then
             Humanoid.WalkSpeed = walkSpeed
