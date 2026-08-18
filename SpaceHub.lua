@@ -72,6 +72,7 @@ local dashboardLabels = {}
 
 local flyConnection
 local aimbotConnection
+local currentAimbotTarget = nil
 local noclipConnection
 local jumpConnection
 local fullbrightConnection
@@ -1598,8 +1599,6 @@ GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
 --// AIMBOT STATE
 --//======================================================
 
-local currentAimbotTarget = nil
-
 -- Target search is intentionally throttled.
 -- Camera smoothing still runs every frame.
 local nextTargetSearch = 0
@@ -1992,12 +1991,36 @@ local function getScreenDistance(camera, part)
     ).Magnitude, true
 end
 
+local function getPlayerDistancePart(character)
+    if not character then
+        return nil
+    end
+
+    -- Player rigs are not always guaranteed to expose a HumanoidRootPart.
+    -- Use the normal root first, then fall back to a body part so player
+    -- targeting still works with custom/R6/R15 character rigs.
+    local root =
+        character:FindFirstChild("HumanoidRootPart")
+        or character:FindFirstChild("UpperTorso")
+        or character:FindFirstChild("Torso")
+        or character:FindFirstChild("LowerTorso")
+        or character:FindFirstChild("Head")
+
+    return root and root:IsA("BasePart") and root or nil
+end
+
 local function getPlayerTargetScore(
     player,
     camera,
     forLock
 )
-    if not HRP or player == LocalPlayer then
+    if not HRP
+        or not HRP.Parent
+        or player == LocalPlayer then
+        return nil
+    end
+
+    if player.Parent ~= Players then
         return nil
     end
 
@@ -2008,41 +2031,28 @@ local function getPlayerTargetScore(
         return nil
     end
 
-    local character =
-        player.Character
-
-    if not character then
+    local character = player.Character
+    if not character or not character.Parent then
         return nil
     end
 
     local humanoid =
-        character:FindFirstChildOfClass(
-            "Humanoid"
-        )
+        character:FindFirstChildOfClass("Humanoid")
 
-    local root =
-        character:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
-    local part =
-        getTargetPart(character)
+    local part = getTargetPart(character)
+    local distancePart = getPlayerDistancePart(character)
 
     if not humanoid
         or humanoid.Health <= 0
-        or not root
-        or not part then
+        or not part
+        or not distancePart then
         return nil
     end
 
     local worldDistance =
-        (
-            HRP.Position
-            - root.Position
-        ).Magnitude
+        (HRP.Position - distancePart.Position).Magnitude
 
-    if worldDistance >
-        aimbotMaxDistance then
+    if worldDistance > aimbotMaxDistance then
         return nil
     end
 
@@ -2051,8 +2061,7 @@ local function getPlayerTargetScore(
         local screenDistance, onScreen =
             getScreenDistance(camera, part)
 
-        if not onScreen
-            or screenDistance > 140 then
+        if not onScreen or screenDistance > 140 then
             return nil
         end
     end
@@ -2066,11 +2075,8 @@ local function getPlayerTargetScore(
         return nil
     end
 
-    local angle =
-        getAimAngle(camera, part)
+    local angle = getAimAngle(camera, part)
 
-    -- Normal targeting is 360 degrees. The optional FOV limiter
-    -- is now angular, so it also behaves correctly around the screen edge.
     if not forLock
         and aimbotFOVEnabled
         and angle > aimbotFOV then
@@ -2079,10 +2085,8 @@ local function getPlayerTargetScore(
 
     if aimbotPriority == "Closest" then
         return worldDistance
-
     elseif aimbotPriority == "Lowest Health" then
         return humanoid.Health
-
     else
         return angle
     end
@@ -2273,26 +2277,27 @@ local function isAimbotTargetValid(target)
             "Humanoid"
         )
 
-    local root =
-        target.Character:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
     local part =
         getTargetPart(
             target.Character
         )
 
+    local distancePart =
+        target.Type == "Player"
+        and getPlayerDistancePart(target.Character)
+        or target.Character:FindFirstChild("HumanoidRootPart")
+
     if not humanoid
         or humanoid.Health <= 0
-        or not root
-        or not part then
+        or not part
+        or not distancePart
+        or not distancePart:IsA("BasePart") then
         return false
     end
 
     if (
         HRP.Position
-        - root.Position
+        - distancePart.Position
     ).Magnitude > aimbotMaxDistance then
         return false
     end
