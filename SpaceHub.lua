@@ -29,7 +29,6 @@ local flightSpeed = 50
 
 local flying = false
 local flightEnabled = false
-local flightAutoRebind = false
 local infiniteJump = false
 local noclip = false
 local fullbright = false
@@ -40,8 +39,8 @@ local toolEspMaxDistance = 10000
 local toolEspObjects = {}
 
 local aimbotEnabled = false
-local aimbotFOVEnabled = true
-local aimbotFOV = 250
+local aimbotFOVEnabled = false
+local aimbotFOV = 90
 local aimbotSmoothness = 0.18
 local teamCheck = false
 local aimbotMaxDistance = 500
@@ -488,47 +487,33 @@ UniversalTab:CreateSection(
     "MOVEMENT  /  FLIGHT"
 )
 
-local flightVelocity = nil
-local flightAttachment = nil
-local flightCharacter = nil
-local flightPreviousAutoRotate = true
-local flightPreviousPlatformStand = false
+local function removeFlightObjects(character)
+    local targetHRP = character or HRP
 
-local function destroyFlightObjects(character)
-    character = character or flightCharacter or Character
-
-    if character then
-        local root = character:FindFirstChild("HumanoidRootPart")
-
-        if root then
-            local velocity = root:FindFirstChild("SpaceHub_FlightVelocity")
-            if velocity then
-                velocity:Destroy()
-            end
-
-            local attachment = root:FindFirstChild("SpaceHub_FlightAttachment")
-            if attachment then
-                attachment:Destroy()
-            end
-        end
+    if not targetHRP then
+        return
     end
 
-    if flightVelocity then
-        pcall(function() flightVelocity:Destroy() end)
-        flightVelocity = nil
+    local velocity =
+        targetHRP:FindFirstChild(
+            "SpaceHub_FlightVelocity"
+        )
+
+    if velocity then
+        velocity:Destroy()
     end
 
-    if flightAttachment then
-        pcall(function() flightAttachment:Destroy() end)
-        flightAttachment = nil
+    local attachment =
+        targetHRP:FindFirstChild(
+            "SpaceHub_FlightAttachment"
+        )
+
+    if attachment then
+        attachment:Destroy()
     end
 end
 
-local function stopFlying(preserveIntent)
-    if not preserveIntent then
-        flightEnabled = false
-    end
-
+local function stopFlying()
     flying = false
 
     if flyConnection then
@@ -536,167 +521,246 @@ local function stopFlying(preserveIntent)
         flyConnection = nil
     end
 
-    local oldHumanoid = Humanoid
-    if oldHumanoid and oldHumanoid.Parent then
-        oldHumanoid.PlatformStand = flightPreviousPlatformStand
-        oldHumanoid.AutoRotate = flightPreviousAutoRotate
-    end
+    removeFlightObjects()
 
-    destroyFlightObjects(flightCharacter)
-    flightCharacter = nil
+    if Humanoid and Humanoid.Parent then
+        Humanoid.PlatformStand = false
+    end
 end
 
 local function startFlying()
-    flightEnabled = true
-
-    if not Character
-        or not Character.Parent
-        or not Humanoid
-        or not Humanoid.Parent
-        or not HRP
-        or not HRP.Parent then
-        flightAutoRebind = true
-        return false
+    if not flightEnabled then
+        return
     end
 
-    -- Rebuild cleanly if this is a respawn or a manual restart.
-    stopFlying(true)
+    if not HRP or not HRP.Parent
+        or not Humanoid or not Humanoid.Parent then
+        return
+    end
 
-    local currentCharacter = Character
-    local currentHumanoid = Humanoid
-    local currentHRP = HRP
+    -- Remove stale flight objects/connections without disabling
+    -- the user's persistent flight preference.
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
 
-    flightCharacter = currentCharacter
-    flightAutoRebind = false
+    removeFlightObjects()
+
     flying = true
 
-    flightPreviousAutoRotate = currentHumanoid.AutoRotate
-    flightPreviousPlatformStand = currentHumanoid.PlatformStand
+    local flightCharacter = Character
+    local flightHRP = HRP
+    local flightHumanoid = Humanoid
 
-    flightAttachment = Instance.new("Attachment")
-    flightAttachment.Name = "SpaceHub_FlightAttachment"
-    flightAttachment.Parent = currentHRP
+    local attachment =
+        Instance.new("Attachment")
 
-    flightVelocity = Instance.new("LinearVelocity")
-    flightVelocity.Name = "SpaceHub_FlightVelocity"
-    flightVelocity.Attachment0 = flightAttachment
-    flightVelocity.MaxForce = math.huge
-    flightVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
-    flightVelocity.VectorVelocity = Vector3.zero
-    flightVelocity.Parent = currentHRP
+    attachment.Name =
+        "SpaceHub_FlightAttachment"
 
-    currentHumanoid.AutoRotate = false
-    currentHumanoid.PlatformStand = true
+    attachment.Parent =
+        flightHRP
 
-    flyConnection = RunService.RenderStepped:Connect(function()
-        if not flightEnabled or not flying then
-            return
-        end
+    local velocity =
+        Instance.new("LinearVelocity")
 
-        if Character ~= currentCharacter
-            or HRP ~= currentHRP
-            or not currentCharacter.Parent
-            or not currentHRP.Parent
-            or not currentHumanoid.Parent then
-            stopFlying(true)
-            flightAutoRebind = true
-            return
-        end
+    velocity.Name =
+        "SpaceHub_FlightVelocity"
 
-        local camera = workspace.CurrentCamera
-        if not camera or not flightVelocity or not flightVelocity.Parent then
-            return
-        end
+    velocity.Attachment0 =
+        attachment
 
-        -- Horizontal camera vectors keep W/S horizontal even when looking up/down.
-        local look = camera.CFrame.LookVector
-        local right = camera.CFrame.RightVector
+    velocity.MaxForce =
+        math.huge
 
-        local flatLook = Vector3.new(look.X, 0, look.Z)
-        local flatRight = Vector3.new(right.X, 0, right.Z)
+    velocity.RelativeTo =
+        Enum.ActuatorRelativeTo.World
 
-        if flatLook.Magnitude > 0.001 then
-            flatLook = flatLook.Unit
-        end
+    velocity.VectorVelocity =
+        Vector3.zero
 
-        if flatRight.Magnitude > 0.001 then
-            flatRight = flatRight.Unit
-        end
+    velocity.Parent =
+        flightHRP
 
-        local direction = Vector3.zero
+    flightHumanoid.PlatformStand = true
 
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            direction += flatLook
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            direction -= flatLook
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            direction -= flatRight
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            direction += flatRight
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            direction += Vector3.yAxis
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            direction -= Vector3.yAxis
-        end
+    flyConnection =
+        RunService.RenderStepped:Connect(
+            function()
+                if not flightEnabled
+                    or not flying
+                    or Character ~= flightCharacter
+                    or HRP ~= flightHRP
+                    or not flightHRP.Parent
+                    or not flightHumanoid.Parent then
 
-        if direction.Magnitude > 0 then
-            direction = direction.Unit * flightSpeed
-        else
-            direction = Vector3.zero
-        end
+                    if flyConnection then
+                        flyConnection:Disconnect()
+                        flyConnection = nil
+                    end
 
-        flightVelocity.VectorVelocity = direction
-    end)
+                    if flightHRP and flightHRP.Parent then
+                        removeFlightObjects(flightHRP)
+                    end
 
-    return true
+                    if flightHumanoid and flightHumanoid.Parent
+                        and not flightEnabled then
+                        flightHumanoid.PlatformStand = false
+                    end
+
+                    flying = false
+                    return
+                end
+
+                local camera =
+                    workspace.CurrentCamera
+
+                if not camera then
+                    velocity.VectorVelocity =
+                        Vector3.zero
+                    return
+                end
+
+                -- Horizontal camera-relative movement.
+                -- Looking up/down no longer makes W/S move vertically.
+                local look =
+                    camera.CFrame.LookVector
+
+                local right =
+                    camera.CFrame.RightVector
+
+                local forward =
+                    Vector3.new(
+                        look.X,
+                        0,
+                        look.Z
+                    )
+
+                local strafe =
+                    Vector3.new(
+                        right.X,
+                        0,
+                        right.Z
+                    )
+
+                if forward.Magnitude > 0 then
+                    forward = forward.Unit
+                end
+
+                if strafe.Magnitude > 0 then
+                    strafe = strafe.Unit
+                end
+
+                local direction =
+                    Vector3.zero
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.W
+                ) then
+                    direction += forward
+                end
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.S
+                ) then
+                    direction -= forward
+                end
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.A
+                ) then
+                    direction -= strafe
+                end
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.D
+                ) then
+                    direction += strafe
+                end
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.Space
+                ) then
+                    direction += Vector3.yAxis
+                end
+
+                if UserInputService:IsKeyDown(
+                    Enum.KeyCode.LeftControl
+                ) then
+                    direction -= Vector3.yAxis
+                end
+
+                if direction.Magnitude > 0 then
+                    direction =
+                        direction.Unit
+                        * flightSpeed
+                else
+                    direction =
+                        Vector3.zero
+                end
+
+                velocity.VectorVelocity =
+                    direction
+            end
+        )
 end
 
 UniversalTab:CreateSlider({
+
     Name = "Flight Speed",
-    Range = {10, 3000},
+
+    Range = {
+        10,
+        3000
+    },
+
     Increment = 10,
+
     Suffix = " SPD",
-    CurrentValue = 50,
+
+    CurrentValue = 10,
+
     Flag = "FlightSpeed",
+
     Callback = function(value)
-        flightSpeed = value
+
+        flightSpeed =
+            value
+
     end
+
 })
 
 UniversalTab:CreateToggle({
+
     Name = "Flight",
+
     CurrentValue = false,
+
     Flag = "Flight",
+
     Callback = function(enabled)
-        flightEnabled = enabled
 
         if enabled then
-            if not startFlying() then
-                Rayfield:Notify({
-                    Title = "FLIGHT",
-                    Content = "Waiting for the character to be ready.",
-                    Duration = 2,
-                    Image = "move"
-                })
-            end
+            startFlying()
         else
-            stopFlying(false)
+            stopFlying()
         end
+
     end
+
 })
 
 UniversalTab:CreateParagraph({
+
     Title = "FLIGHT CONTROLS",
+
     Content =
-        "W A S D  →  Horizontal navigation\n" ..
+        "W A S D  →  Navigation\n" ..
         "SPACE  →  Ascend\n" ..
-        "LEFT CTRL  →  Descend\n\n" ..
-        "Flight automatically rebinds to the new character after respawn."
+        "LEFT CTRL  →  Descend"
+
 })
 
 --//======================================================
@@ -1502,230 +1566,642 @@ end)
 
 GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
 
+--//======================================================
+--// AIMBOT STATE
+--//======================================================
+
 local aimbotOnlyPlayers = true
 local aimbotOnlyEntities = false
-local currentAimbotTarget = nil
-local lockedAimbotTarget = nil
-local aimbotConnection = nil
-local aimbotLockKey = Enum.KeyCode.T
-local aimbotLockEnabled = false
-local nextTargetSearch = 0
-local AIMBOT_TARGET_REFRESH = 0.08
 
+local currentAimbotTarget = nil
+local aimbotConnection = nil
+
+-- Target search is intentionally throttled.
+-- Camera smoothing still runs every frame.
+local nextTargetSearch = 0
+local AIMBOT_TARGET_REFRESH = 0.10
+
+-- Entity cache
 local entityCache = {}
 local entityCacheInitialized = false
 
-local function clearAimbotLock()
-    lockedAimbotTarget = nil
-    aimbotLockEnabled = false
-end
+-- Persistent aim-lock state.
+local aimbotLocked = false
+local aimbotLockedTarget = nil
+local aimbotLockKey = Enum.KeyCode.T
+local aimbotLockInputConnection
 
-local function getTargetCharacter(target)
-    if not target then return nil end
-    if target.Type == "Player" then
-        return target.Object and target.Object.Character
-    end
-    return target.Object
-end
+
+
+--//======================================================
+--// TARGET PART
+--//======================================================
 
 local function getTargetPart(character)
-    if not character then return nil end
 
-    local preferredPart
-    if aimbotPart == "Head" then
-        preferredPart = character:FindFirstChild("Head")
-    elseif aimbotPart == "Torso" then
-        preferredPart = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
-    elseif aimbotPart == "Root" then
-        preferredPart = character:FindFirstChild("HumanoidRootPart")
+    if not character then
+        return nil
     end
 
-    if preferredPart and preferredPart:IsA("BasePart") then
+    local preferredPart
+
+    if aimbotPart == "Head" then
+
+        preferredPart =
+            character:FindFirstChild("Head")
+
+    elseif aimbotPart == "Torso" then
+
+        preferredPart =
+            character:FindFirstChild("UpperTorso")
+            or character:FindFirstChild("Torso")
+
+    elseif aimbotPart == "Root" then
+
+        preferredPart =
+            character:FindFirstChild(
+                "HumanoidRootPart"
+            )
+    end
+
+    if preferredPart
+        and preferredPart:IsA("BasePart") then
+
         return preferredPart
     end
 
+    -- Universal fallback.
     return character:FindFirstChild("Head")
         or character:FindFirstChild("UpperTorso")
         or character:FindFirstChild("Torso")
         or character:FindFirstChild("HumanoidRootPart")
 end
 
-local function isValidTarget(target, ignoreDistance)
-    local character = getTargetCharacter(target)
-    if not character or not character.Parent then return false end
 
-    if target.Type == "Player" then
-        local player = target.Object
-        if not player or player == LocalPlayer then return false end
-        if teamCheck and player.Team == LocalPlayer.Team then return false end
-    else
-        if Players:GetPlayerFromCharacter(character) then return false end
+--//======================================================
+--// VISIBILITY CHECK
+--//======================================================
+
+local function isVisible(
+    camera,
+    targetPart,
+    character
+)
+
+    if not aimbotVisibleCheck then
+        return true
     end
 
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    local root = character:FindFirstChild("HumanoidRootPart")
-    local part = getTargetPart(character)
+    if not camera
+        or not targetPart
+        or not character then
 
-    if not humanoid or humanoid.Health <= 0 or not root or not part then
         return false
     end
 
-    if not ignoreDistance and HRP then
-        local maxDistance = aimbotMaxDistance or math.huge
-        if (HRP.Position - root.Position).Magnitude > maxDistance then
-            return false
-        end
+    local origin =
+        camera.CFrame.Position
+
+    local direction =
+        targetPart.Position - origin
+
+    local params =
+        RaycastParams.new()
+
+    params.FilterType =
+        Enum.RaycastFilterType.Exclude
+
+    params.FilterDescendantsInstances = {
+        Character,
+        camera
+    }
+
+    local result =
+        workspace:Raycast(
+            origin,
+            direction,
+            params
+        )
+
+    if not result then
+        return true
     end
 
-    return true
+    return result.Instance:IsDescendantOf(
+        character
+    )
 end
 
-local function isVisible(camera, targetPart, character)
-    if not aimbotVisibleCheck then return true end
-    if not camera or not targetPart or not character then return false end
 
-    local origin = camera.CFrame.Position
-    local direction = targetPart.Position - origin
-
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = {Character, camera}
-
-    local result = workspace:Raycast(origin, direction, params)
-    return not result or result.Instance:IsDescendantOf(character)
-end
+--//======================================================
+--// ENTITY CACHE
+--//======================================================
 
 local function registerEntity(model)
-    if not model or not model:IsA("Model") or not model.Parent then return end
-    if Players:GetPlayerFromCharacter(model) then
-        entityCache[model] = nil
+
+    if not model
+        or not model:IsA("Model")
+        or not model.Parent then
+
         return
     end
 
-    local humanoid = model:FindFirstChildOfClass("Humanoid")
-    local root = model:FindFirstChild("HumanoidRootPart")
+    -- Never register Player characters.
+    if Players:GetPlayerFromCharacter(model) then
 
-    if humanoid and root and root:IsA("BasePart") and humanoid.Health > 0 then
-        entityCache[model] = true
-    else
         entityCache[model] = nil
+
+        return
+    end
+
+    local humanoid =
+        model:FindFirstChildOfClass(
+            "Humanoid"
+        )
+
+    local root =
+        model:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+    if humanoid
+        and root
+        and root:IsA("BasePart")
+        and humanoid.Health > 0 then
+
+        entityCache[model] = true
+
+    else
+
+        entityCache[model] = nil
+
     end
 end
 
+
+local function unregisterEntity(model)
+
+    entityCache[model] = nil
+
+end
+
+
+--//======================================================
+--// INITIAL ENTITY SCAN
+--//======================================================
+
 local function initializeEntityCache()
-    if entityCacheInitialized then return end
+
+    if entityCacheInitialized then
+        return
+    end
+
     entityCacheInitialized = true
 
-    for _, descendant in ipairs(workspace:GetDescendants()) do
+    -- This full scan happens ONLY ONCE,
+    -- when entity mode is first activated.
+
+    for _, descendant in ipairs(
+        workspace:GetDescendants()
+    ) do
+
         if descendant:IsA("Model") then
-            registerEntity(descendant)
+
+            registerEntity(
+                descendant
+            )
+
         end
     end
 end
 
-workspace.DescendantAdded:Connect(function(instance)
-    if instance:IsA("Model") then
-        task.defer(registerEntity, instance)
-    elseif instance.Name == "Humanoid" or instance.Name == "HumanoidRootPart" then
-        local model = instance:FindFirstAncestorOfClass("Model")
-        if model then task.defer(registerEntity, model) end
-    end
-end)
 
-workspace.DescendantRemoving:Connect(function(instance)
-    if instance:IsA("Model") then
-        entityCache[instance] = nil
-    elseif instance.Name == "Humanoid" or instance.Name == "HumanoidRootPart" then
-        local model = instance:FindFirstAncestorOfClass("Model")
-        if model then entityCache[model] = nil end
+--//======================================================
+--// DETECT NEW / REMOVED ENTITIES
+--//======================================================
+
+workspace.DescendantAdded:Connect(
+    function(instance)
+
+        if instance:IsA("Model") then
+
+            task.defer(function()
+
+                registerEntity(
+                    instance
+                )
+
+            end)
+
+            return
+        end
+
+        if instance.Name == "Humanoid"
+            or instance.Name == "HumanoidRootPart" then
+
+            local model =
+                instance:FindFirstAncestorOfClass(
+                    "Model"
+                )
+
+            if model then
+
+                task.defer(function()
+
+                    registerEntity(
+                        model
+                    )
+
+                end)
+
+            end
+        end
     end
-end)
+)
+
+
+workspace.DescendantRemoving:Connect(
+    function(instance)
+
+        if instance:IsA("Model") then
+
+            unregisterEntity(
+                instance
+            )
+
+            return
+        end
+
+        if instance.Name == "Humanoid"
+            or instance.Name == "HumanoidRootPart" then
+
+            local model =
+                instance:FindFirstAncestorOfClass(
+                    "Model"
+                )
+
+            if model then
+
+                unregisterEntity(
+                    model
+                )
+
+            end
+        end
+    end
+)
+
+
+--//======================================================
+--// GET ENTITY LIST
+--//======================================================
 
 local function getEntityModels()
+
     initializeEntityCache()
+
     local entities = {}
 
     for model in pairs(entityCache) do
-        if model and model.Parent then
-            local humanoid = model:FindFirstChildOfClass("Humanoid")
-            local root = model:FindFirstChild("HumanoidRootPart")
-            if humanoid and root and root:IsA("BasePart") and humanoid.Health > 0
-                and not Players:GetPlayerFromCharacter(model) then
-                entities[#entities + 1] = model
+
+        if model
+            and model.Parent then
+
+            local humanoid =
+                model:FindFirstChildOfClass(
+                    "Humanoid"
+                )
+
+            local root =
+                model:FindFirstChild(
+                    "HumanoidRootPart"
+                )
+
+            -- Make sure it is still a valid entity.
+            if humanoid
+                and root
+                and root:IsA("BasePart")
+                and humanoid.Health > 0
+                and not Players:GetPlayerFromCharacter(
+                    model
+                ) then
+
+                entities[#entities + 1] =
+                    model
+
             else
-                entityCache[model] = nil
+
+                entityCache[model] =
+                    nil
+
             end
+
         else
-            entityCache[model] = nil
+
+            entityCache[model] =
+                nil
+
         end
     end
 
     return entities
 end
 
-local function scoreTarget(target, camera)
-    if not isValidTarget(target, false) then return nil end
 
-    local character = getTargetCharacter(target)
-    local part = getTargetPart(character)
-    if not part then return nil end
+--//======================================================
+--// PLAYER TARGET SCORE
+--//======================================================
 
-    local worldDistance = HRP and (HRP.Position - part.Position).Magnitude or math.huge
-    if worldDistance > aimbotMaxDistance then return nil end
-
-    if not isVisible(camera, part, character) then return nil end
-
-    -- 360° acquisition: use the angle between the camera direction
-    -- and target direction instead of requiring the target to be on-screen.
-    local toTarget = part.Position - camera.CFrame.Position
-    local magnitude = toTarget.Magnitude
-    if magnitude <= 0.001 then return nil end
-    toTarget = toTarget / magnitude
-
-    local dot = math.clamp(camera.CFrame.LookVector:Dot(toTarget), -1, 1)
-    local angle = math.deg(math.acos(dot))
-
-    if aimbotFOVEnabled then
-        -- Preserve the old FOV slider as a screen-like acquisition cone.
-        -- 250 px corresponds to roughly a broad 90° cone on common displays.
-        local viewport = camera.ViewportSize
-        local reference = math.max(1, math.min(viewport.X, viewport.Y))
-        local maxAngle = math.clamp((aimbotFOV / reference) * 90, 1, 180)
-        if angle > maxAngle then return nil end
+local function getAimAngle(camera, part)
+    if not camera or not part then
+        return math.huge
     end
 
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local offset =
+        part.Position
+        - camera.CFrame.Position
+
+    local magnitude =
+        offset.Magnitude
+
+    if magnitude <= 0 then
+        return 0
+    end
+
+    local direction =
+        offset / magnitude
+
+    local dot =
+        math.clamp(
+            camera.CFrame.LookVector:Dot(direction),
+            -1,
+            1
+        )
+
+    return math.deg(
+        math.acos(dot)
+    )
+end
+
+local function getScreenDistance(camera, part)
+    if not camera or not part then
+        return math.huge, false
+    end
+
+    local position, onScreen =
+        camera:WorldToViewportPoint(
+            part.Position
+        )
+
+    if not onScreen or position.Z <= 0 then
+        return math.huge, false
+    end
+
+    local center =
+        camera.ViewportSize / 2
+
+    return (
+        Vector2.new(
+            position.X,
+            position.Y
+        ) - center
+    ).Magnitude, true
+end
+
+local function getPlayerTargetScore(
+    player,
+    camera,
+    forLock
+)
+    if not HRP or player == LocalPlayer then
+        return nil
+    end
+
+    if teamCheck
+        and player.Team == LocalPlayer.Team then
+        return nil
+    end
+
+    local character =
+        player.Character
+
+    if not character then
+        return nil
+    end
+
+    local humanoid =
+        character:FindFirstChildOfClass(
+            "Humanoid"
+        )
+
+    local root =
+        character:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+    local part =
+        getTargetPart(character)
+
+    if not humanoid
+        or humanoid.Health <= 0
+        or not root
+        or not part then
+        return nil
+    end
+
+    local worldDistance =
+        (
+            HRP.Position
+            - root.Position
+        ).Magnitude
+
+    if worldDistance >
+        aimbotMaxDistance then
+        return nil
+    end
+
+    -- Lock acquisition must be something the user is actually looking at.
+    if forLock then
+        local screenDistance, onScreen =
+            getScreenDistance(camera, part)
+
+        if not onScreen
+            or screenDistance > 140 then
+            return nil
+        end
+    end
+
+    if aimbotVisibleCheck
+        and not isVisible(
+            camera,
+            part,
+            character
+        ) then
+        return nil
+    end
+
+    local angle =
+        getAimAngle(camera, part)
+
+    -- Normal targeting is 360 degrees. The optional FOV limiter
+    -- is now angular, so it also behaves correctly around the screen edge.
+    if not forLock
+        and aimbotFOVEnabled
+        and angle > aimbotFOV then
+        return nil
+    end
 
     if aimbotPriority == "Closest" then
         return worldDistance
+
     elseif aimbotPriority == "Lowest Health" then
-        return humanoid and humanoid.Health or math.huge
+        return humanoid.Health
+
     else
         return angle
     end
 end
 
-local function getBestTarget(camera)
-    local bestTarget, bestScore = nil, math.huge
+local function getEntityTargetScore(
+    entity,
+    camera,
+    forLock
+)
+    if not HRP
+        or not entity
+        or not entity.Parent then
+        return nil
+    end
+
+    if Players:GetPlayerFromCharacter(
+        entity
+    ) then
+        return nil
+    end
+
+    local humanoid =
+        entity:FindFirstChildOfClass(
+            "Humanoid"
+        )
+
+    local root =
+        entity:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+    local part =
+        getTargetPart(entity)
+
+    if not humanoid
+        or humanoid.Health <= 0
+        or not root
+        or not root:IsA("BasePart")
+        or not part then
+        return nil
+    end
+
+    local worldDistance =
+        (
+            HRP.Position
+            - root.Position
+        ).Magnitude
+
+    if worldDistance >
+        aimbotMaxDistance then
+        return nil
+    end
+
+    if forLock then
+        local screenDistance, onScreen =
+            getScreenDistance(camera, part)
+
+        if not onScreen
+            or screenDistance > 140 then
+            return nil
+        end
+    end
+
+    if aimbotVisibleCheck
+        and not isVisible(
+            camera,
+            part,
+            entity
+        ) then
+        return nil
+    end
+
+    local angle =
+        getAimAngle(camera, part)
+
+    if not forLock
+        and aimbotFOVEnabled
+        and angle > aimbotFOV then
+        return nil
+    end
+
+    if aimbotPriority == "Closest" then
+        return worldDistance
+
+    elseif aimbotPriority == "Lowest Health" then
+        return humanoid.Health
+
+    else
+        return angle
+    end
+end
+
+local function getBestTarget(
+    camera,
+    forLock
+)
+    local bestTarget = nil
+    local bestScore = math.huge
 
     if aimbotOnlyPlayers then
-        for _, player in ipairs(Players:GetPlayers()) do
-            local target = {Type = "Player", Object = player}
-            local score = scoreTarget(target, camera)
-            if score and score < bestScore then
+        for _, player in ipairs(
+            Players:GetPlayers()
+        ) do
+            local score =
+                getPlayerTargetScore(
+                    player,
+                    camera,
+                    forLock
+                )
+
+            if score
+                and score < bestScore then
                 bestScore = score
-                bestTarget = target
+
+                bestTarget = {
+                    Type = "Player",
+                    Object = player,
+                    Character =
+                        player.Character
+                }
             end
         end
     end
 
     if aimbotOnlyEntities then
-        for _, entity in ipairs(getEntityModels()) do
-            local target = {Type = "Entity", Object = entity}
-            local score = scoreTarget(target, camera)
-            if score and score < bestScore then
+        for _, entity in ipairs(
+            getEntityModels()
+        ) do
+            local score =
+                getEntityTargetScore(
+                    entity,
+                    camera,
+                    forLock
+                )
+
+            if score
+                and score < bestScore then
                 bestScore = score
-                bestTarget = target
+
+                bestTarget = {
+                    Type = "Entity",
+                    Object = entity,
+                    Character = entity
+                }
             end
         end
     end
@@ -1733,58 +2209,140 @@ local function getBestTarget(camera)
     return bestTarget
 end
 
-local function getCurrentAimTarget()
-    if lockedAimbotTarget and isValidTarget(lockedAimbotTarget, false) then
-        return lockedAimbotTarget
+local function isAimbotTargetValid(target)
+    if not target
+        or not target.Object
+        or not target.Character
+        or not target.Character.Parent
+        or not HRP
+        or not HRP.Parent then
+        return false
     end
 
-    if lockedAimbotTarget then
-        clearAimbotLock()
+    if target.Type == "Player" then
+        local player = target.Object
+
+        if player == LocalPlayer
+            or player.Parent ~= Players
+            or player.Character ~= target.Character then
+            return false
+        end
+
+        if teamCheck
+            and player.Team == LocalPlayer.Team then
+            return false
+        end
+    else
+        if Players:GetPlayerFromCharacter(
+            target.Character
+        ) then
+            return false
+        end
     end
 
-    return currentAimbotTarget
+    local humanoid =
+        target.Character:FindFirstChildOfClass(
+            "Humanoid"
+        )
+
+    local root =
+        target.Character:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+    local part =
+        getTargetPart(
+            target.Character
+        )
+
+    if not humanoid
+        or humanoid.Health <= 0
+        or not root
+        or not part then
+        return false
+    end
+
+    if (
+        HRP.Position
+        - root.Position
+    ).Magnitude > aimbotMaxDistance then
+        return false
+    end
+
+    if aimbotVisibleCheck
+        and not isVisible(
+            workspace.CurrentCamera,
+            part,
+            target.Character
+        ) then
+        return false
+    end
+
+    return true
+end
+
+local function clearAimbotLock()
+    aimbotLockedTarget = nil
+    aimbotLocked = false
+    currentAimbotTarget = nil
 end
 
 local function toggleAimbotLock()
-    if not aimbotEnabled then return end
+    if not aimbotEnabled then
+        return
+    end
 
-    if lockedAimbotTarget then
+    if aimbotLocked then
         clearAimbotLock()
+
         Rayfield:Notify({
             Title = "AIM LOCK",
-            Content = "Target lock released.",
+            Content = "Target released.",
             Duration = 2,
             Image = "unlock"
         })
+
         return
     end
 
-    local camera = workspace.CurrentCamera
-    if not camera then return end
+    local camera =
+        workspace.CurrentCamera
 
-    local target = getBestTarget(camera)
+    if not camera then
+        return
+    end
+
+    -- Lock acquisition intentionally uses the target under/near
+    -- the crosshair, even though normal targeting is 360 degrees.
+    local target =
+        getBestTarget(
+            camera,
+            true
+        )
+
     if not target then
         Rayfield:Notify({
             Title = "AIM LOCK",
-            Content = "No valid target in range.",
+            Content = "No valid target under the crosshair.",
             Duration = 2,
             Image = "circle-alert"
         })
+
         return
     end
 
-    lockedAimbotTarget = target
-    aimbotLockEnabled = true
+    aimbotLockedTarget = target
+    aimbotLocked = true
+    currentAimbotTarget = target
 
-    local character = getTargetCharacter(target)
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-    local name = target.Type == "Player"
-        and (target.Object.DisplayName or target.Object.Name)
-        or target.Object.Name
+    local name =
+        target.Type == "Player"
+        and target.Object.Name
+        or target.Character.Name
 
     Rayfield:Notify({
         Title = "AIM LOCK",
-        Content = name .. " locked.",
+        Content = "Locked onto  •  " .. name,
         Duration = 2,
         Image = "lock"
     })
@@ -1796,7 +2354,6 @@ local function stopAimbot()
         aimbotConnection = nil
     end
 
-    currentAimbotTarget = nil
     clearAimbotLock()
     nextTargetSearch = 0
 end
@@ -1804,225 +2361,765 @@ end
 local function startAimbot()
     stopAimbot()
 
-    aimbotConnection = RunService.RenderStepped:Connect(function()
-        if not aimbotEnabled then return end
+    aimbotConnection =
+        RunService.RenderStepped:Connect(
+            function()
+                if not aimbotEnabled then
+                    return
+                end
 
-        local camera = workspace.CurrentCamera
-        if not camera or not HRP or not HRP.Parent then return end
+                if not aimbotOnlyPlayers
+                    and not aimbotOnlyEntities then
+                    clearAimbotLock()
+                    return
+                end
 
-        local now = os.clock()
-        if now >= nextTargetSearch then
-            if not lockedAimbotTarget then
-                currentAimbotTarget = getBestTarget(camera)
-            elseif not isValidTarget(lockedAimbotTarget, false) then
-                clearAimbotLock()
-                currentAimbotTarget = getBestTarget(camera)
+                local camera =
+                    workspace.CurrentCamera
+
+                if not camera
+                    or not HRP
+                    or not HRP.Parent then
+                    return
+                end
+
+                -- Locked targets bypass acquisition/FOV and continue
+                -- following the target even when it moves behind the player.
+                if aimbotLocked then
+                    if not isAimbotTargetValid(
+                        aimbotLockedTarget
+                    ) then
+                        clearAimbotLock()
+                        return
+                    end
+
+                    currentAimbotTarget =
+                        aimbotLockedTarget
+
+                else
+                    local now =
+                        os.clock()
+
+                    if now >= nextTargetSearch then
+                        currentAimbotTarget =
+                            getBestTarget(
+                                camera,
+                                false
+                            )
+
+                        nextTargetSearch =
+                            now
+                            + AIMBOT_TARGET_REFRESH
+                    end
+                end
+
+                local target =
+                    currentAimbotTarget
+
+                if not target
+                    or not isAimbotTargetValid(
+                        target
+                    ) then
+                    if aimbotLocked then
+                        clearAimbotLock()
+                    else
+                        currentAimbotTarget = nil
+                    end
+
+                    return
+                end
+
+                local part =
+                    getTargetPart(
+                        target.Character
+                    )
+
+                if not part then
+                    if aimbotLocked then
+                        clearAimbotLock()
+                    else
+                        currentAimbotTarget = nil
+                    end
+
+                    return
+                end
+
+                local targetCFrame =
+                    CFrame.lookAt(
+                        camera.CFrame.Position,
+                        part.Position
+                    )
+
+                camera.CFrame =
+                    camera.CFrame:Lerp(
+                        targetCFrame,
+                        math.clamp(
+                            aimbotSmoothness,
+                            0.01,
+                            1
+                        )
+                    )
             end
-            nextTargetSearch = now + AIMBOT_TARGET_REFRESH
-        end
-
-        local target = getCurrentAimTarget()
-        if not target then return end
-
-        local character = getTargetCharacter(target)
-        local part = getTargetPart(character)
-        if not part then
-            if lockedAimbotTarget then clearAimbotLock() end
-            return
-        end
-
-        local targetCFrame = CFrame.lookAt(camera.CFrame.Position, part.Position)
-        camera.CFrame = camera.CFrame:Lerp(targetCFrame, math.clamp(aimbotSmoothness, 0.01, 1))
-    end)
+        )
 end
+
+--//======================================================
+--// STOP AIMBOT
+--//======================================================
+
+local function stopAimbot()
+
+    if aimbotConnection then
+
+        aimbotConnection:Disconnect()
+
+        aimbotConnection =
+            nil
+    end
+
+    currentAimbotTarget =
+        nil
+
+    nextTargetSearch =
+        0
+end
+
+
+--//======================================================
+--// START AIMBOT
+--//======================================================
+
+local function startAimbot()
+
+    stopAimbot()
+
+    aimbotConnection =
+        RunService.RenderStepped:Connect(
+            function()
+
+                if not aimbotEnabled then
+                    return
+                end
+
+
+                --================================================
+                -- NO TARGET MODE
+                --================================================
+
+                if not aimbotOnlyPlayers
+                    and not aimbotOnlyEntities then
+
+                    currentAimbotTarget =
+                        nil
+
+                    return
+                end
+
+
+                local camera =
+                    workspace.CurrentCamera
+
+                if not camera
+                    or not HRP then
+
+                    return
+                end
+
+
+                --================================================
+                -- TARGET SEARCH THROTTLE
+                --================================================
+                --
+                -- The expensive search only happens every
+                -- 0.10 seconds instead of every frame.
+                --
+                -- Camera movement still happens every frame.
+                --
+
+                local now =
+                    os.clock()
+
+                if now >= nextTargetSearch then
+
+                    currentAimbotTarget =
+                        getBestTarget(
+                            camera
+                        )
+
+                    nextTargetSearch =
+                        now
+                        + AIMBOT_TARGET_REFRESH
+                end
+
+
+                --================================================
+                -- CURRENT TARGET
+                --================================================
+
+                local target =
+                    currentAimbotTarget
+
+                if not target
+                    or not target.Character then
+
+                    currentAimbotTarget =
+                        nil
+
+                    return
+                end
+
+
+                --================================================
+                -- TARGET PART
+                --================================================
+
+                local part =
+                    getTargetPart(
+                        target.Character
+                    )
+
+                if not part then
+
+                    currentAimbotTarget =
+                        nil
+
+                    return
+                end
+
+
+                --================================================
+                -- CAMERA SMOOTHING
+                --================================================
+
+                local targetCFrame =
+                    CFrame.lookAt(
+                        camera.CFrame.Position,
+                        part.Position
+                    )
+
+                camera.CFrame =
+                    camera.CFrame:Lerp(
+                        targetCFrame,
+                        aimbotSmoothness
+                    )
+            end
+        )
+end
+
+
+--//======================================================
+--// AIMBOT MAIN TOGGLE
+--//======================================================
 
 GameTab:CreateToggle({
     Name = "Aimbot",
+
     CurrentValue = false,
+
     Flag = "Aimbot",
+
     Callback = function(enabled)
-        aimbotEnabled = enabled
+
+        aimbotEnabled =
+            enabled
+
         if enabled then
+
             startAimbot()
+
             Rayfield:Notify({
                 Title = "TARGETING",
-                Content = "360° advanced targeting online.",
+                Content =
+                    "Advanced targeting system online.",
                 Duration = 3,
                 Image = "crosshair"
             })
+
         else
+
             stopAimbot()
+
         end
     end
 })
 
-GameTab:CreateKeybind({
-    Name = "Lock Target Key",
-    CurrentKeybind = "T",
-    HoldToInteract = false,
-    Flag = "AimbotLockKey",
-    Callback = function()
-        toggleAimbotLock()
-    end
-})
+
+--//======================================================
+--// ONLY PLAYERS
+--//======================================================
 
 GameTab:CreateToggle({
     Name = "Only Players",
+
     CurrentValue = true,
+
     Flag = "AimbotOnlyPlayers",
+
     Callback = function(enabled)
-        aimbotOnlyPlayers = enabled
-        currentAimbotTarget = nil
-        clearAimbotLock()
-        nextTargetSearch = 0
+
+        aimbotOnlyPlayers =
+            enabled
+
+        if not aimbotLocked then
+            currentAimbotTarget = nil
+        end
+
+        nextTargetSearch =
+            0
+
+        -- Only one mode can be active.
         if enabled then
-            aimbotOnlyEntities = false
+
+            clearAimbotLock()
+
+            aimbotOnlyEntities =
+                false
+
             pcall(function()
-                Rayfield.Flags["AimbotOnlyEntities"]:Set(false)
+
+                Rayfield.Flags[
+                    "AimbotOnlyEntities"
+                ]:Set(false)
+
             end)
         end
     end
 })
+
+
+--//======================================================
+--// ONLY ENTITIES
+--//======================================================
 
 GameTab:CreateToggle({
     Name = "Only Entities",
+
     CurrentValue = false,
+
     Flag = "AimbotOnlyEntities",
+
     Callback = function(enabled)
-        aimbotOnlyEntities = enabled
-        currentAimbotTarget = nil
-        clearAimbotLock()
-        nextTargetSearch = 0
+
+        aimbotOnlyEntities =
+            enabled
+
+        if not aimbotLocked then
+            currentAimbotTarget = nil
+        end
+
+        nextTargetSearch =
+            0
+
         if enabled then
+
+            clearAimbotLock()
+
+            -- Only initialize the entity cache
+            -- when the user actually needs it.
             initializeEntityCache()
-            aimbotOnlyPlayers = false
+
+            aimbotOnlyPlayers =
+                false
+
             pcall(function()
-                Rayfield.Flags["AimbotOnlyPlayers"]:Set(false)
+
+                Rayfield.Flags[
+                    "AimbotOnlyPlayers"
+                ]:Set(false)
+
             end)
         end
     end
 })
 
+
+--//======================================================
+--// TARGET MODE INFO
+--//======================================================
+
+GameTab:CreateParagraph({
+
+    Title = "TARGET MODES",
+
+    Content =
+        "ONLY PLAYERS  →  Roblox Players\n" ..
+        "ONLY ENTITIES  →  NPCs / entities with Humanoid + HumanoidRootPart\n\n" ..
+        "Entities are cached instead of scanning the entire Workspace every frame."
+})
+
+
+--//======================================================
+--// TARGET PART
+--//======================================================
+
 GameTab:CreateDropdown({
+
     Name = "Target Part",
-    Options = {"Head", "Torso", "Root"},
-    CurrentOption = {"Head"},
+
+    Options = {
+        "Head",
+        "Torso",
+        "Root"
+    },
+
+    CurrentOption = {
+        "Head"
+    },
+
     MultipleOptions = false,
+
     Flag = "AimbotPart",
+
     Callback = function(option)
-        aimbotPart = typeof(option) == "table" and option[1] or option
-        currentAimbotTarget = nil
+
+        aimbotPart =
+            typeof(option) == "table"
+            and option[1]
+            or option
+
+        if not aimbotLocked then
+            currentAimbotTarget = nil
+        end
     end
+})
+
+
+--//======================================================
+--// TARGET PRIORITY
+--//======================================================
+
+GameTab:CreateDropdown({
+
+    Name = "Target Priority",
+
+    Options = {
+        "FOV",
+        "Closest",
+        "Lowest Health"
+    },
+
+    CurrentOption = {
+        "FOV"
+    },
+
+    MultipleOptions = false,
+
+    Flag = "AimbotPriority",
+
+    Callback = function(option)
+
+        aimbotPriority =
+            typeof(option) == "table"
+            and option[1]
+            or option
+
+        if not aimbotLocked then
+            currentAimbotTarget = nil
+        end
+    end
+})
+
+
+--//======================================================
+--// FOV LIMITER
+--//======================================================
+
+GameTab:CreateToggle({
+
+    Name = "FOV Limiter",
+
+    CurrentValue = false,
+
+    Flag = "AimbotFOVEnabled",
+
+    Callback = function(enabled)
+
+        aimbotFOVEnabled =
+            enabled
+
+        if not aimbotLocked then
+            currentAimbotTarget = nil
+        end
+
+        nextTargetSearch =
+            0
+    end
+})
+
+
+--//======================================================
+--// FOV
+--//======================================================
+
+GameTab:CreateSlider({
+
+    Name = "Aimbot FOV  •  Angular",
+
+    Range = {
+        5,
+        180
+    },
+
+    Increment = 5,
+
+    Suffix = "°",
+
+    CurrentValue = 90,
+
+    Flag = "AimbotFOV",
+
+    Callback = function(value)
+
+        aimbotFOV =
+            math.clamp(
+                value,
+                5,
+                180
+            )
+
+        if not aimbotLocked then
+            currentAimbotTarget = nil
+        end
+
+        nextTargetSearch = 0
+    end
+})
+
+
+--//======================================================
+--// MAX DISTANCE
+--//======================================================
+
+GameTab:CreateSlider({
+
+    Name = "Maximum Distance",
+
+    Range = {
+        50,
+        5000
+    },
+
+    Increment = 50,
+
+    Suffix = " studs",
+
+    CurrentValue = 500,
+
+    Flag = "AimbotMaxDistance",
+
+    Callback = function(value)
+
+        aimbotMaxDistance =
+            value
+
+        if not aimbotLocked then
+            currentAimbotTarget = nil
+        end
+
+        nextTargetSearch =
+            0
+    end
+})
+
+
+--//======================================================
+--// SMOOTHNESS
+--//======================================================
+
+GameTab:CreateSlider({
+
+    Name = "Smoothness",
+
+    Range = {
+        0.05,
+        1
+    },
+
+    Increment = 0.05,
+
+    Suffix = "",
+
+    CurrentValue = 0.18,
+
+    Flag = "AimbotSmoothness",
+
+    Callback = function(value)
+
+        aimbotSmoothness =
+            value
+    end
+})
+
+
+--//======================================================
+--// TEAM CHECK
+--//======================================================
+
+GameTab:CreateToggle({
+
+    Name = "Team Check",
+
+    CurrentValue = false,
+
+    Flag = "TeamCheck",
+
+    Callback = function(enabled)
+
+        teamCheck =
+            enabled
+
+        if not aimbotLocked then
+            currentAimbotTarget = nil
+        end
+
+        nextTargetSearch =
+            0
+    end
+})
+
+
+--//======================================================
+--// VISIBLE CHECK
+--//======================================================
+
+GameTab:CreateToggle({
+
+    Name = "Visible Check",
+
+    CurrentValue = false,
+
+    Flag = "AimbotVisibleCheck",
+
+    Callback = function(enabled)
+
+        aimbotVisibleCheck =
+            enabled
+
+        if not aimbotLocked then
+            currentAimbotTarget = nil
+        end
+
+        nextTargetSearch =
+            0
+    end
+})
+
+
+--//======================================================
+--// AIM LOCK
+--//======================================================
+
+GameTab:CreateParagraph({
+    Title = "AIM LOCK  /  360° TRACKING",
+    Content =
+        "Press the selected key while looking at a valid target to lock it.\n" ..
+        "A locked target remains tracked even when it leaves the screen or moves behind you.\n" ..
+        "Press the key again to release the lock."
 })
 
 GameTab:CreateDropdown({
-    Name = "Target Priority",
-    Options = {"FOV", "Closest", "Lowest Health"},
-    CurrentOption = {"FOV"},
+    Name = "Aimbot Lock Key",
+    Options = {
+        "T",
+        "Q",
+        "E",
+        "R",
+        "F",
+        "G",
+        "X",
+        "C",
+        "V",
+        "Z"
+    },
+    CurrentOption = {"T"},
     MultipleOptions = false,
-    Flag = "AimbotPriority",
+    Flag = "AimbotLockKey",
+
     Callback = function(option)
-        aimbotPriority = typeof(option) == "table" and option[1] or option
-        currentAimbotTarget = nil
-    end
-})
+        local keyName =
+            typeof(option) == "table"
+            and option[1]
+            or option
 
-GameTab:CreateToggle({
-    Name = "FOV Limiter",
-    CurrentValue = true,
-    Flag = "AimbotFOVEnabled",
-    Callback = function(enabled)
-        aimbotFOVEnabled = enabled
-        currentAimbotTarget = nil
-        nextTargetSearch = 0
-    end
-})
+        local key =
+            Enum.KeyCode[
+                tostring(keyName)
+            ]
 
-GameTab:CreateSlider({
-    Name = "Aimbot FOV",
-    Range = {50, 1000},
-    Increment = 10,
-    Suffix = " PX",
-    CurrentValue = 250,
-    Flag = "AimbotFOV",
-    Callback = function(value)
-        aimbotFOV = value
-        currentAimbotTarget = nil
-        nextTargetSearch = 0
-    end
-})
-
-GameTab:CreateSlider({
-    Name = "Maximum Distance",
-    Range = {50, 5000},
-    Increment = 50,
-    Suffix = " studs",
-    CurrentValue = 500,
-    Flag = "AimbotMaxDistance",
-    Callback = function(value)
-        aimbotMaxDistance = value
-        if lockedAimbotTarget and not isValidTarget(lockedAimbotTarget, false) then
-            clearAimbotLock()
+        if key then
+            aimbotLockKey = key
         end
-        currentAimbotTarget = nil
-        nextTargetSearch = 0
     end
 })
 
-GameTab:CreateSlider({
-    Name = "Smoothness",
-    Range = {0.05, 1},
-    Increment = 0.05,
-    Suffix = "",
-    CurrentValue = 0.18,
-    Flag = "AimbotSmoothness",
-    Callback = function(value)
-        aimbotSmoothness = value
-    end
-})
+-- One InputBegan connection for the lock system.
+aimbotLockInputConnection =
+    UserInputService.InputBegan:Connect(
+        function(input, gameProcessed)
+            if gameProcessed then
+                return
+            end
 
-GameTab:CreateToggle({
-    Name = "Team Check",
-    CurrentValue = false,
-    Flag = "TeamCheck",
-    Callback = function(enabled)
-        teamCheck = enabled
-        currentAimbotTarget = nil
-        clearAimbotLock()
-        nextTargetSearch = 0
-    end
-})
+            if input.UserInputType
+                ~= Enum.UserInputType.Keyboard then
+                return
+            end
 
-GameTab:CreateToggle({
-    Name = "Visible Check",
-    CurrentValue = false,
-    Flag = "AimbotVisibleCheck",
-    Callback = function(enabled)
-        aimbotVisibleCheck = enabled
-        currentAimbotTarget = nil
-        clearAimbotLock()
-        nextTargetSearch = 0
-    end
-})
+            if input.KeyCode
+                == aimbotLockKey then
+                toggleAimbotLock()
+            end
+        end
+    )
+
+--//======================================================
+--// TARGET STATUS
+--//======================================================
 
 GameTab:CreateParagraph({
-    Title = "AIM LOCK / 360°",
-    Content =
-        "Press the selected Lock Target Key while Aimbot is enabled to lock the target you are currently looking toward.\n\n" ..
-        "Once locked, the target can move outside your screen and the aimbot continues tracking it in 360°.\n\n" ..
-        "Press the same key again to release the lock."
-})
 
-GameTab:CreateParagraph({
     Title = "TARGET STATUS",
-    Content =
-        "Mode  →  " .. (aimbotOnlyPlayers and "ONLY PLAYERS" or (aimbotOnlyEntities and "ONLY ENTITIES" or "NONE")) .. "\n" ..
-        "Part  →  " .. tostring(aimbotPart) .. "\n" ..
-        "Priority  →  " .. tostring(aimbotPriority) .. "\n" ..
-        "Range  →  " .. tostring(aimbotMaxDistance) .. " studs\n" ..
-        "Tracking  →  360° lock capable"
-})
 
+    Content =
+        "Mode  →  "
+        .. (
+            aimbotOnlyPlayers
+            and "ONLY PLAYERS"
+            or (
+                aimbotOnlyEntities
+                and "ONLY ENTITIES"
+                or "NONE"
+            )
+        )
+        .. "\n"
+        .. "Part  →  "
+        .. tostring(
+            aimbotPart
+        )
+        .. "\n"
+        .. "Priority  →  "
+        .. tostring(
+            aimbotPriority
+        )
+        .. "\n"
+        .. "Range  →  "
+        .. tostring(
+            aimbotMaxDistance
+        )
+        .. " studs\n"
+        .. "FOV  →  "
+        .. tostring(
+            aimbotFOV
+        )
+        .. "°
+"
+        .. "Lock  →  "
+        .. (
+            aimbotLocked
+            and "ACTIVE"
+            or "READY"
+        )
+})
 
 --//======================================================
 --// TELEPORT
@@ -2705,7 +3802,7 @@ ConfigurationTab:CreateDropdown({
 
 ConfigurationTab:CreateParagraph({
 
-    Title = "SPACE HUB  •  3.0.0  /  ORBITAL EDITION",
+    Title = "SPACE HUB  •  3.4.0  /  ORBITAL EDITION",
 
     Content =
         "Premium Orbital Interface\n\n" ..
@@ -2751,11 +3848,17 @@ LocalPlayer.CharacterAdded:Connect(
         end
 
         if flightEnabled then
-            task.defer(function()
-                if flightEnabled and Character == character then
-                    startFlying()
-                end
-            end)
+
+            task.wait(0.2)
+
+            startFlying()
+
+        end
+
+        -- Rebind the aimbot to the new character automatically.
+        if aimbotEnabled then
+            task.wait(0.1)
+            startAimbot()
         end
 
     end
