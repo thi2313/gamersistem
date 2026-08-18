@@ -74,6 +74,7 @@ local flyConnection
 local aimbotConnection
 local currentAimbotTarget = nil
 local noclipConnection
+local noclipOriginalCollision = {}
 local jumpConnection
 local fullbrightConnection
 
@@ -904,14 +905,53 @@ UniversalTab:CreateSlider({
 --// NOCLIP
 --//======================================================
 
-local function setNoclipCollision(character, state)
-    if not character then return end
+local function captureNoclipCollision(character)
+    noclipOriginalCollision = {}
+
+    if not character then
+        return
+    end
 
     for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
-            part.CanCollide = state
+            noclipOriginalCollision[part] = part.CanCollide
         end
     end
+end
+
+local function setNoclipCollision(character, state)
+    if not character then
+        return
+    end
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if state then
+                local original = noclipOriginalCollision[part]
+                part.CanCollide = original == nil and part.CanCollide or original
+            else
+                part.CanCollide = false
+            end
+        end
+    end
+end
+
+local function restoreNoclipCollision(character)
+    if not character then
+        noclipOriginalCollision = {}
+        return
+    end
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local original = noclipOriginalCollision[part]
+            if original ~= nil then
+                part.CanCollide = original
+            end
+        end
+    end
+
+    noclipOriginalCollision = {}
 end
 
 UniversalTab:CreateToggle({
@@ -927,9 +967,18 @@ UniversalTab:CreateToggle({
         end
 
         if not enabled then
-            setNoclipCollision(Character, true)
+            restoreNoclipCollision(Character)
+
+            -- Restore a normal humanoid physics state after noclip.
+            if Humanoid and Humanoid.Parent then
+                Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
+
             return
         end
+
+        -- Save the character's real collision state before changing it.
+        captureNoclipCollision(Character)
 
         -- Disable collisions immediately instead of waiting for Stepped.
         setNoclipCollision(Character, false)
@@ -3658,6 +3707,7 @@ LocalPlayer.CharacterAdded:Connect(
         )
 
         if noclip then
+            captureNoclipCollision(character)
             setNoclipCollision(character, false)
         end
 
