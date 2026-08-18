@@ -756,6 +756,8 @@ UniversalTab:CreateToggle({
 
     Callback = function(enabled)
 
+        flightEnabled = enabled
+
         if enabled then
             startFlying()
         else
@@ -1584,11 +1586,7 @@ GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
 --// AIMBOT STATE
 --//======================================================
 
-local aimbotOnlyPlayers = true
-local aimbotOnlyEntities = false
-
 local currentAimbotTarget = nil
-local aimbotConnection = nil
 
 -- Target search is intentionally throttled.
 -- Camera smoothing still runs every frame.
@@ -3125,8 +3123,7 @@ GameTab:CreateParagraph({
         .. tostring(
             aimbotFOV
         )
-        .. "°
-"
+        .. "°\n"
         .. "Lock  →  "
         .. (
             aimbotLocked
@@ -3837,6 +3834,10 @@ LocalPlayer.CharacterAdded:Connect(
     function(character)
 
         task.wait(0.5)
+
+        if flying then
+            stopFlying()
+        end
 
         updateCharacter(
             character
