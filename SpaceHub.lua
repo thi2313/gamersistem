@@ -24,6 +24,12 @@ local Character
 local Humanoid
 local HRP
 
+-- Noclip stores the real collision state of every character part.
+-- This prevents disabling noclip from forcing every part to CanCollide=true,
+-- which breaks the normal Roblox character collision setup.
+local noclipOriginalCollision = {}
+local noclipCharacter = nil
+
 local walkSpeed = 16
 local flightSpeed = 50
 
@@ -72,9 +78,7 @@ local dashboardLabels = {}
 
 local flyConnection
 local aimbotConnection
-local currentAimbotTarget = nil
 local noclipConnection
-local noclipOriginalCollision = {}
 local jumpConnection
 local fullbrightConnection
 
@@ -86,6 +90,62 @@ local originalLighting = {
     FogEnd = Lighting.FogEnd,
     GlobalShadows = Lighting.GlobalShadows
 }
+
+--//======================================================
+--// NOCLIP HELPERS
+--//======================================================
+
+local function clearNoclipState()
+    table.clear(noclipOriginalCollision)
+    noclipCharacter = nil
+end
+
+local function restoreCharacterCollision(character)
+    if not character then
+        clearNoclipState()
+        return
+    end
+
+    for part, originalValue in pairs(noclipOriginalCollision) do
+        if part and part.Parent and part:IsA("BasePart") then
+            part.CanCollide = originalValue
+        end
+    end
+
+    clearNoclipState()
+end
+
+local function applyNoclipToCharacter(character)
+    if not character then
+        return
+    end
+
+    -- If this is a new character, discard stale references from the old one.
+    if noclipCharacter ~= character then
+        clearNoclipState()
+        noclipCharacter = character
+    end
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if noclipOriginalCollision[part] == nil then
+                noclipOriginalCollision[part] = part.CanCollide
+            end
+            part.CanCollide = false
+        end
+    end
+end
+
+local function disableNoclip()
+    noclip = false
+
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
+    restoreCharacterCollision(Character)
+end
 
 --//======================================================
 --// CHARACTER SYSTEM
@@ -117,6 +177,39 @@ end
 if LocalPlayer.Character then
     updateCharacter(LocalPlayer.Character)
 end
+
+LocalPlayer.CharacterAdded:Connect(function(character)
+    -- Make sure stale references from the previous character are gone.
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
+    restoreCharacterCollision(Character)
+    updateCharacter(character)
+
+    -- Re-apply noclip only if the user actually has it enabled.
+    if noclip then
+        task.defer(function()
+            if Character == character and character.Parent then
+                applyNoclipToCharacter(character)
+
+                if not noclipConnection then
+                    noclipConnection =
+                        RunService.Stepped:Connect(function()
+                            if not noclip
+                                or Character ~= character
+                                or not character.Parent then
+                                return
+                            end
+
+                            applyNoclipToCharacter(character)
+                        end)
+                end
+            end
+        end)
+    end
+end)
 
 --//======================================================
 --// RAYFIELD
@@ -901,64 +994,19 @@ UniversalTab:CreateSlider({
 })
 
 --//======================================================
---//======================================================
 --// NOCLIP
 --//======================================================
 
-local function captureNoclipCollision(character)
-    noclipOriginalCollision = {}
-
-    if not character then
-        return
-    end
-
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            noclipOriginalCollision[part] = part.CanCollide
-        end
-    end
-end
-
-local function setNoclipCollision(character, state)
-    if not character then
-        return
-    end
-
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if state then
-                local original = noclipOriginalCollision[part]
-                part.CanCollide = original == nil and part.CanCollide or original
-            else
-                part.CanCollide = false
-            end
-        end
-    end
-end
-
-local function restoreNoclipCollision(character)
-    if not character then
-        noclipOriginalCollision = {}
-        return
-    end
-
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            local original = noclipOriginalCollision[part]
-            if original ~= nil then
-                part.CanCollide = original
-            end
-        end
-    end
-
-    noclipOriginalCollision = {}
-end
-
 UniversalTab:CreateToggle({
+
     Name = "Noclip",
+
     CurrentValue = false,
+
     Flag = "Noclip",
+
     Callback = function(enabled)
+
         noclip = enabled
 
         if noclipConnection then
@@ -967,33 +1015,35 @@ UniversalTab:CreateToggle({
         end
 
         if not enabled then
-            restoreNoclipCollision(Character)
-
-            -- Restore a normal humanoid physics state after noclip.
-            if Humanoid and Humanoid.Parent then
-                Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-            end
-
+            -- Restore ONLY the collision values that existed before
+            -- noclip was enabled. Never force every body part to true.
+            restoreCharacterCollision(Character)
             return
         end
 
-        -- Save the character's real collision state before changing it.
-        captureNoclipCollision(Character)
+        if not Character or not Character.Parent then
+            return
+        end
 
-        -- Disable collisions immediately instead of waiting for Stepped.
-        setNoclipCollision(Character, false)
+        applyNoclipToCharacter(Character)
 
-        noclipConnection = RunService.Stepped:Connect(function()
-            if not noclip then return end
+        noclipConnection =
+            RunService.Stepped:Connect(
+                function()
 
-            local character = Character
-            if not character or not character.Parent then return end
+                    if not noclip
+                        or not Character
+                        or not Character.Parent then
+                        return
+                    end
 
-            setNoclipCollision(character, false)
-        end)
+                    applyNoclipToCharacter(Character)
+                end
+            )
     end
-})
 
+})
+--//======================================================
 --// FULLBRIGHT
 --//======================================================
 
@@ -1623,6 +1673,8 @@ GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
 --// AIMBOT STATE
 --//======================================================
 
+local currentAimbotTarget = nil
+
 -- Target search is intentionally throttled.
 -- Camera smoothing still runs every frame.
 local nextTargetSearch = 0
@@ -2015,36 +2067,12 @@ local function getScreenDistance(camera, part)
     ).Magnitude, true
 end
 
-local function getPlayerDistancePart(character)
-    if not character then
-        return nil
-    end
-
-    -- Player rigs are not always guaranteed to expose a HumanoidRootPart.
-    -- Use the normal root first, then fall back to a body part so player
-    -- targeting still works with custom/R6/R15 character rigs.
-    local root =
-        character:FindFirstChild("HumanoidRootPart")
-        or character:FindFirstChild("UpperTorso")
-        or character:FindFirstChild("Torso")
-        or character:FindFirstChild("LowerTorso")
-        or character:FindFirstChild("Head")
-
-    return root and root:IsA("BasePart") and root or nil
-end
-
 local function getPlayerTargetScore(
     player,
     camera,
     forLock
 )
-    if not HRP
-        or not HRP.Parent
-        or player == LocalPlayer then
-        return nil
-    end
-
-    if player.Parent ~= Players then
+    if not camera or not HRP or player == LocalPlayer then
         return nil
     end
 
@@ -2060,91 +2088,9 @@ local function getPlayerTargetScore(
         return nil
     end
 
-    local humanoid =
-        character:FindFirstChildOfClass("Humanoid")
-
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart")
     local part = getTargetPart(character)
-    local distancePart = getPlayerDistancePart(character)
-
-    if not humanoid
-        or humanoid.Health <= 0
-        or not part
-        or not distancePart then
-        return nil
-    end
-
-    local worldDistance =
-        (HRP.Position - distancePart.Position).Magnitude
-
-    if worldDistance > aimbotMaxDistance then
-        return nil
-    end
-
-    -- Lock acquisition must be something the user is actually looking at.
-    if forLock then
-        local screenDistance, onScreen =
-            getScreenDistance(camera, part)
-
-        if not onScreen or screenDistance > 140 then
-            return nil
-        end
-    end
-
-    if aimbotVisibleCheck
-        and not isVisible(
-            camera,
-            part,
-            character
-        ) then
-        return nil
-    end
-
-    local angle = getAimAngle(camera, part)
-
-    if not forLock
-        and aimbotFOVEnabled
-        and angle > aimbotFOV then
-        return nil
-    end
-
-    if aimbotPriority == "Closest" then
-        return worldDistance
-    elseif aimbotPriority == "Lowest Health" then
-        return humanoid.Health
-    else
-        return angle
-    end
-end
-
-local function getEntityTargetScore(
-    entity,
-    camera,
-    forLock
-)
-    if not HRP
-        or not entity
-        or not entity.Parent then
-        return nil
-    end
-
-    if Players:GetPlayerFromCharacter(
-        entity
-    ) then
-        return nil
-    end
-
-    local humanoid =
-        entity:FindFirstChildOfClass(
-            "Humanoid"
-        )
-
-    local root =
-        entity:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
-    local part =
-        getTargetPart(entity)
 
     if not humanoid
         or humanoid.Health <= 0
@@ -2154,56 +2100,107 @@ local function getEntityTargetScore(
         return nil
     end
 
-    local worldDistance =
-        (
-            HRP.Position
-            - root.Position
-        ).Magnitude
-
-    if worldDistance >
-        aimbotMaxDistance then
+    local worldDistance = (HRP.Position - root.Position).Magnitude
+    if worldDistance > aimbotMaxDistance then
         return nil
     end
 
-    if forLock then
-        local screenDistance, onScreen =
-            getScreenDistance(camera, part)
-
-        if not onScreen
-            or screenDistance > 140 then
-            return nil
-        end
+    -- Normal aimbot acquisition must use targets that are actually
+    -- in front of the camera. This prevents locking onto players behind
+    -- the camera and making the view spin around unexpectedly.
+    local screenDistance, onScreen = getScreenDistance(camera, part)
+    if not onScreen then
+        return nil
     end
 
     if aimbotVisibleCheck
-        and not isVisible(
-            camera,
-            part,
-            entity
-        ) then
+        and not isVisible(camera, part, character) then
         return nil
     end
 
-    local angle =
-        getAimAngle(camera, part)
+    local angle = getAimAngle(camera, part)
 
-    if not forLock
-        and aimbotFOVEnabled
-        and angle > aimbotFOV then
+    if aimbotFOVEnabled and angle > aimbotFOV then
+        return nil
+    end
+
+    -- Lock acquisition is deliberately stricter: the target must be
+    -- close to the crosshair.
+    if forLock and screenDistance > 140 then
         return nil
     end
 
     if aimbotPriority == "Closest" then
         return worldDistance
-
     elseif aimbotPriority == "Lowest Health" then
         return humanoid.Health
-
     else
-        return angle
+        -- FOV priority uses the target's distance from the screen center,
+        -- which matches what the player actually sees.
+        return screenDistance
     end
 end
+local function getEntityTargetScore(
+    entity,
+    camera,
+    forLock
+)
+    if not camera
+        or not HRP
+        or not entity
+        or not entity.Parent then
+        return nil
+    end
 
+    if Players:GetPlayerFromCharacter(entity) then
+        return nil
+    end
+
+    local humanoid = entity:FindFirstChildOfClass("Humanoid")
+    local root = entity:FindFirstChild("HumanoidRootPart")
+    local part = getTargetPart(entity)
+
+    if not humanoid
+        or humanoid.Health <= 0
+        or not root
+        or not root:IsA("BasePart")
+        or not part then
+        return nil
+    end
+
+    local worldDistance = (HRP.Position - root.Position).Magnitude
+    if worldDistance > aimbotMaxDistance then
+        return nil
+    end
+
+    local screenDistance, onScreen = getScreenDistance(camera, part)
+    if not onScreen then
+        return nil
+    end
+
+    if aimbotVisibleCheck
+        and not isVisible(camera, part, entity) then
+        return nil
+    end
+
+    local angle = getAimAngle(camera, part)
+
+    if aimbotFOVEnabled and angle > aimbotFOV then
+        return nil
+    end
+
+    if forLock and screenDistance > 140 then
+        return nil
+    end
+
+    if aimbotPriority == "Closest" then
+        return worldDistance
+    elseif aimbotPriority == "Lowest Health" then
+        return humanoid.Health
+    else
+        return screenDistance
+    end
+end
 local function getBestTarget(
     camera,
     forLock
@@ -2301,27 +2298,26 @@ local function isAimbotTargetValid(target)
             "Humanoid"
         )
 
+    local root =
+        target.Character:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
     local part =
         getTargetPart(
             target.Character
         )
 
-    local distancePart =
-        target.Type == "Player"
-        and getPlayerDistancePart(target.Character)
-        or target.Character:FindFirstChild("HumanoidRootPart")
-
     if not humanoid
         or humanoid.Health <= 0
-        or not part
-        or not distancePart
-        or not distancePart:IsA("BasePart") then
+        or not root
+        or not part then
         return false
     end
 
     if (
         HRP.Position
-        - distancePart.Position
+        - root.Position
     ).Magnitude > aimbotMaxDistance then
         return false
     end
@@ -2422,7 +2418,7 @@ local function startAimbot()
     RunService:BindToRenderStep(
         AIMBOT_BIND_NAME,
         Enum.RenderPriority.Camera.Value + 1,
-        function()
+        function(dt)
             if not aimbotEnabled then
                 return
             end
@@ -2475,9 +2471,22 @@ local function startAimbot()
                 targetPosition
             )
 
+            local baseAlpha = math.clamp(
+                aimbotSmoothness,
+                0.01,
+                1
+            )
+
+            local frameDelta = tonumber(dt) or (1 / 60)
+
+            local alpha = 1 - math.pow(
+                1 - baseAlpha,
+                math.clamp(frameDelta * 60, 0, 3)
+            )
+
             camera.CFrame = camera.CFrame:Lerp(
                 targetCFrame,
-                math.clamp(aimbotSmoothness, 0.01, 1)
+                alpha
             )
         end
     )
@@ -3705,11 +3714,6 @@ LocalPlayer.CharacterAdded:Connect(
         updateCharacter(
             character
         )
-
-        if noclip then
-            captureNoclipCollision(character)
-            setNoclipCollision(character, false)
-        end
 
         if Humanoid then
             Humanoid.WalkSpeed = walkSpeed
