@@ -1,4 +1,4 @@
---//======================================================
+
 --// SPACE HUB
 --// SPACE HUB ERROR 404
 --// VERSION 4.0.4
@@ -23,12 +23,6 @@ local LocalPlayer = Players.LocalPlayer
 local Character
 local Humanoid
 local HRP
-
--- Noclip stores the real collision state of every character part.
--- This prevents disabling noclip from forcing every part to CanCollide=true,
--- which breaks the normal Roblox character collision setup.
-local noclipOriginalCollision = {}
-local noclipCharacter = nil
 
 local walkSpeed = 16
 local flightSpeed = 50
@@ -92,62 +86,6 @@ local originalLighting = {
 }
 
 --//======================================================
---// NOCLIP HELPERS
---//======================================================
-
-local function clearNoclipState()
-    table.clear(noclipOriginalCollision)
-    noclipCharacter = nil
-end
-
-local function restoreCharacterCollision(character)
-    if not character then
-        clearNoclipState()
-        return
-    end
-
-    for part, originalValue in pairs(noclipOriginalCollision) do
-        if part and part.Parent and part:IsA("BasePart") then
-            part.CanCollide = originalValue
-        end
-    end
-
-    clearNoclipState()
-end
-
-local function applyNoclipToCharacter(character)
-    if not character then
-        return
-    end
-
-    -- If this is a new character, discard stale references from the old one.
-    if noclipCharacter ~= character then
-        clearNoclipState()
-        noclipCharacter = character
-    end
-
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if noclipOriginalCollision[part] == nil then
-                noclipOriginalCollision[part] = part.CanCollide
-            end
-            part.CanCollide = false
-        end
-    end
-end
-
-local function disableNoclip()
-    noclip = false
-
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
-
-    restoreCharacterCollision(Character)
-end
-
---//======================================================
 --// CHARACTER SYSTEM
 --//======================================================
 
@@ -177,39 +115,6 @@ end
 if LocalPlayer.Character then
     updateCharacter(LocalPlayer.Character)
 end
-
-LocalPlayer.CharacterAdded:Connect(function(character)
-    -- Make sure stale references from the previous character are gone.
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
-
-    restoreCharacterCollision(Character)
-    updateCharacter(character)
-
-    -- Re-apply noclip only if the user actually has it enabled.
-    if noclip then
-        task.defer(function()
-            if Character == character and character.Parent then
-                applyNoclipToCharacter(character)
-
-                if not noclipConnection then
-                    noclipConnection =
-                        RunService.Stepped:Connect(function()
-                            if not noclip
-                                or Character ~= character
-                                or not character.Parent then
-                                return
-                            end
-
-                            applyNoclipToCharacter(character)
-                        end)
-                end
-            end
-        end)
-    end
-end)
 
 --//======================================================
 --// RAYFIELD
@@ -606,22 +511,24 @@ local function removeFlightObjects(character)
         return
     end
 
-    local velocity =
-        targetHRP:FindFirstChild(
-            "SpaceHub_FlightVelocity"
-        )
-
+    local velocity = targetHRP:FindFirstChild("SpaceHub_FlightVelocity")
     if velocity then
         velocity:Destroy()
     end
 
-    local attachment =
-        targetHRP:FindFirstChild(
-            "SpaceHub_FlightAttachment"
-        )
-
+    local attachment = targetHRP:FindFirstChild("SpaceHub_FlightAttachment")
     if attachment then
         attachment:Destroy()
+    end
+
+    local orientation = targetHRP:FindFirstChild("SpaceHub_FlightRotation")
+    if orientation then
+        orientation:Destroy()
+    end
+
+    local orientationAttachment = targetHRP:FindFirstChild("SpaceHub_FlightOrientation")
+    if orientationAttachment then
+        orientationAttachment:Destroy()
     end
 end
 
@@ -637,6 +544,7 @@ local function stopFlying()
 
     if Humanoid and Humanoid.Parent then
         Humanoid.PlatformStand = false
+        Humanoid.AutoRotate = true
     end
 end
 
@@ -650,8 +558,6 @@ local function startFlying()
         return
     end
 
-    -- Remove stale flight objects/connections without disabling
-    -- the user's persistent flight preference.
     if flyConnection then
         flyConnection:Disconnect()
         flyConnection = nil
@@ -665,157 +571,114 @@ local function startFlying()
     local flightHRP = HRP
     local flightHumanoid = Humanoid
 
-    local attachment =
-        Instance.new("Attachment")
+    -- Keep the character facing exactly the direction it had when Fly started.
+    local lockedRotation = flightHRP.CFrame.Rotation
 
-    attachment.Name =
-        "SpaceHub_FlightAttachment"
-
-    attachment.Parent =
-        flightHRP
-
-    local velocity =
-        Instance.new("LinearVelocity")
-
-    velocity.Name =
-        "SpaceHub_FlightVelocity"
-
-    velocity.Attachment0 =
-        attachment
-
-    velocity.MaxForce =
-        math.huge
-
-    velocity.RelativeTo =
-        Enum.ActuatorRelativeTo.World
-
-    velocity.VectorVelocity =
-        Vector3.zero
-
-    velocity.Parent =
-        flightHRP
-
+    flightHumanoid.AutoRotate = false
     flightHumanoid.PlatformStand = true
 
-    flyConnection =
-        RunService.RenderStepped:Connect(
-            function()
-                if not flightEnabled
-                    or not flying
-                    or Character ~= flightCharacter
-                    or HRP ~= flightHRP
-                    or not flightHRP.Parent
-                    or not flightHumanoid.Parent then
+    local attachment = Instance.new("Attachment")
+    attachment.Name = "SpaceHub_FlightAttachment"
+    attachment.Parent = flightHRP
 
-                    if flyConnection then
-                        flyConnection:Disconnect()
-                        flyConnection = nil
-                    end
+    local velocity = Instance.new("LinearVelocity")
+    velocity.Name = "SpaceHub_FlightVelocity"
+    velocity.Attachment0 = attachment
+    velocity.MaxForce = math.huge
+    velocity.RelativeTo = Enum.ActuatorRelativeTo.World
+    velocity.VectorVelocity = Vector3.zero
+    velocity.Parent = flightHRP
 
-                    if flightHRP and flightHRP.Parent then
-                        removeFlightObjects(flightHRP)
-                    end
+    local orientationAttachment = Instance.new("Attachment")
+    orientationAttachment.Name = "SpaceHub_FlightOrientation"
+    orientationAttachment.Parent = flightHRP
 
-                    if flightHumanoid and flightHumanoid.Parent
-                        and not flightEnabled then
-                        flightHumanoid.PlatformStand = false
-                    end
+    local orientation = Instance.new("AlignOrientation")
+    orientation.Name = "SpaceHub_FlightRotation"
+    orientation.Attachment0 = orientationAttachment
+    orientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    orientation.CFrame = lockedRotation
+    orientation.RigidityEnabled = true
+    orientation.Responsiveness = 200
+    orientation.MaxTorque = math.huge
+    orientation.Parent = flightHRP
 
-                    flying = false
-                    return
-                end
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if not flightEnabled
+            or not flying
+            or Character ~= flightCharacter
+            or HRP ~= flightHRP
+            or not flightHRP.Parent
+            or not flightHumanoid.Parent then
 
-                local camera =
-                    workspace.CurrentCamera
-
-                if not camera then
-                    velocity.VectorVelocity =
-                        Vector3.zero
-                    return
-                end
-
-                -- Horizontal camera-relative movement.
-                -- Looking up/down no longer makes W/S move vertically.
-                local look =
-                    camera.CFrame.LookVector
-
-                local right =
-                    camera.CFrame.RightVector
-
-                local forward =
-                    Vector3.new(
-                        look.X,
-                        0,
-                        look.Z
-                    )
-
-                local strafe =
-                    Vector3.new(
-                        right.X,
-                        0,
-                        right.Z
-                    )
-
-                if forward.Magnitude > 0 then
-                    forward = forward.Unit
-                end
-
-                if strafe.Magnitude > 0 then
-                    strafe = strafe.Unit
-                end
-
-                local direction =
-                    Vector3.zero
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.W
-                ) then
-                    direction += forward
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.S
-                ) then
-                    direction -= forward
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.A
-                ) then
-                    direction -= strafe
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.D
-                ) then
-                    direction += strafe
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.Space
-                ) then
-                    direction += Vector3.yAxis
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.LeftControl
-                ) then
-                    direction -= Vector3.yAxis
-                end
-
-                if direction.Magnitude > 0 then
-                    direction =
-                        direction.Unit
-                        * flightSpeed
-                else
-                    direction =
-                        Vector3.zero
-                end
-
-                velocity.VectorVelocity =
-                    direction
+            if flyConnection then
+                flyConnection:Disconnect()
+                flyConnection = nil
             end
-        )
+
+            if flightHRP and flightHRP.Parent then
+                removeFlightObjects(flightHRP)
+            end
+
+            if flightHumanoid and flightHumanoid.Parent then
+                flightHumanoid.PlatformStand = false
+                flightHumanoid.AutoRotate = true
+            end
+
+            flying = false
+            return
+        end
+
+        -- Hard-lock the orientation without changing the camera.
+        orientation.CFrame = lockedRotation
+
+        local camera = workspace.CurrentCamera
+        if not camera then
+            velocity.VectorVelocity = Vector3.zero
+            return
+        end
+
+        local look = camera.CFrame.LookVector
+        local right = camera.CFrame.RightVector
+
+        local forward = Vector3.new(look.X, 0, look.Z)
+        local strafe = Vector3.new(right.X, 0, right.Z)
+
+        if forward.Magnitude > 0 then
+            forward = forward.Unit
+        end
+
+        if strafe.Magnitude > 0 then
+            strafe = strafe.Unit
+        end
+
+        local direction = Vector3.zero
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            direction += forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            direction -= forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            direction -= strafe
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            direction += strafe
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            direction += Vector3.yAxis
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            direction -= Vector3.yAxis
+        end
+
+        if direction.Magnitude > 0 then
+            velocity.VectorVelocity = direction.Unit * flightSpeed
+        else
+            velocity.VectorVelocity = Vector3.zero
+        end
+    end)
 end
 
 UniversalTab:CreateSlider({
@@ -1007,42 +870,62 @@ UniversalTab:CreateToggle({
 
     Callback = function(enabled)
 
-        noclip = enabled
+        noclip =
+            enabled
 
         if noclipConnection then
+
             noclipConnection:Disconnect()
+
             noclipConnection = nil
+
         end
 
-        if not enabled then
-            -- Restore ONLY the collision values that existed before
-            -- noclip was enabled. Never force every body part to true.
-            restoreCharacterCollision(Character)
+        if not enabled
+            and Character then
+
+            for _, part in ipairs(
+                Character:GetDescendants()
+            ) do
+
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+
+            end
+
             return
-        end
 
-        if not Character or not Character.Parent then
-            return
         end
-
-        applyNoclipToCharacter(Character)
 
         noclipConnection =
             RunService.Stepped:Connect(
                 function()
 
                     if not noclip
-                        or not Character
-                        or not Character.Parent then
+                        or not Character then
+
                         return
+
                     end
 
-                    applyNoclipToCharacter(Character)
+                    for _, part in ipairs(
+                        Character:GetDescendants()
+                    ) do
+
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+
+                    end
+
                 end
             )
+
     end
 
 })
+
 --//======================================================
 --// FULLBRIGHT
 --//======================================================
@@ -2076,6 +1959,10 @@ local function getPlayerTargetScore(
         return nil
     end
 
+    if player.Parent ~= Players then
+        return nil
+    end
+
     if teamCheck
         and player.Team ~= nil
         and LocalPlayer.Team ~= nil
@@ -2096,7 +1983,8 @@ local function getPlayerTargetScore(
         or humanoid.Health <= 0
         or not root
         or not root:IsA("BasePart")
-        or not part then
+        or not part
+        or not part:IsA("BasePart") then
         return nil
     end
 
@@ -2105,16 +1993,19 @@ local function getPlayerTargetScore(
         return nil
     end
 
-    -- Normal aimbot acquisition must use targets that are actually
-    -- in front of the camera. This prevents locking onto players behind
-    -- the camera and making the view spin around unexpectedly.
     local screenDistance, onScreen = getScreenDistance(camera, part)
-    if not onScreen then
+
+    -- Normal aimbot only chooses targets that can actually be aimed at.
+    -- Aim Lock has its own stricter crosshair acquisition below.
+    if not onScreen or screenDistance == math.huge then
         return nil
     end
 
-    if aimbotVisibleCheck
-        and not isVisible(camera, part, character) then
+    if forLock and screenDistance > 140 then
+        return nil
+    end
+
+    if aimbotVisibleCheck and not isVisible(camera, part, character) then
         return nil
     end
 
@@ -2124,41 +2015,47 @@ local function getPlayerTargetScore(
         return nil
     end
 
-    -- Lock acquisition is deliberately stricter: the target must be
-    -- close to the crosshair.
-    if forLock and screenDistance > 140 then
-        return nil
-    end
-
     if aimbotPriority == "Closest" then
         return worldDistance
     elseif aimbotPriority == "Lowest Health" then
         return humanoid.Health
     else
-        -- FOV priority uses the target's distance from the screen center,
-        -- which matches what the player actually sees.
+        -- FOV priority uses actual screen-space distance. This is more stable
+        -- than comparing 3D angles and prevents targets at the screen edge
+        -- from winning unexpectedly.
         return screenDistance
     end
 end
+
 local function getEntityTargetScore(
     entity,
     camera,
     forLock
 )
-    if not camera
-        or not HRP
+    if not HRP
         or not entity
         or not entity.Parent then
         return nil
     end
 
-    if Players:GetPlayerFromCharacter(entity) then
+    if Players:GetPlayerFromCharacter(
+        entity
+    ) then
         return nil
     end
 
-    local humanoid = entity:FindFirstChildOfClass("Humanoid")
-    local root = entity:FindFirstChild("HumanoidRootPart")
-    local part = getTargetPart(entity)
+    local humanoid =
+        entity:FindFirstChildOfClass(
+            "Humanoid"
+        )
+
+    local root =
+        entity:FindFirstChild(
+            "HumanoidRootPart"
+        )
+
+    local part =
+        getTargetPart(entity)
 
     if not humanoid
         or humanoid.Health <= 0
@@ -2168,39 +2065,56 @@ local function getEntityTargetScore(
         return nil
     end
 
-    local worldDistance = (HRP.Position - root.Position).Magnitude
-    if worldDistance > aimbotMaxDistance then
+    local worldDistance =
+        (
+            HRP.Position
+            - root.Position
+        ).Magnitude
+
+    if worldDistance >
+        aimbotMaxDistance then
         return nil
     end
 
-    local screenDistance, onScreen = getScreenDistance(camera, part)
-    if not onScreen then
-        return nil
+    if forLock then
+        local screenDistance, onScreen =
+            getScreenDistance(camera, part)
+
+        if not onScreen
+            or screenDistance > 140 then
+            return nil
+        end
     end
 
     if aimbotVisibleCheck
-        and not isVisible(camera, part, entity) then
+        and not isVisible(
+            camera,
+            part,
+            entity
+        ) then
         return nil
     end
 
-    local angle = getAimAngle(camera, part)
+    local angle =
+        getAimAngle(camera, part)
 
-    if aimbotFOVEnabled and angle > aimbotFOV then
-        return nil
-    end
-
-    if forLock and screenDistance > 140 then
+    if not forLock
+        and aimbotFOVEnabled
+        and angle > aimbotFOV then
         return nil
     end
 
     if aimbotPriority == "Closest" then
         return worldDistance
+
     elseif aimbotPriority == "Lowest Health" then
         return humanoid.Health
+
     else
-        return screenDistance
+        return angle
     end
 end
+
 local function getBestTarget(
     camera,
     forLock
@@ -2417,8 +2331,8 @@ local function startAimbot()
 
     RunService:BindToRenderStep(
         AIMBOT_BIND_NAME,
-        Enum.RenderPriority.Camera.Value + 1,
-        function(dt)
+        Enum.RenderPriority.Last.Value,
+        function()
             if not aimbotEnabled then
                 return
             end
@@ -2455,37 +2369,35 @@ local function startAimbot()
             end
 
             local part = getTargetPart(target.Character)
-            if not part then
+            if not part or not part:IsA("BasePart") then
                 currentAimbotTarget = nil
                 return
             end
 
             local targetPosition = part.Position
             local cameraPosition = camera.CFrame.Position
-            if (targetPosition - cameraPosition).Magnitude < 0.01 then
+            local offset = targetPosition - cameraPosition
+
+            if offset.Magnitude < 0.01 then
                 return
             end
 
-            local targetCFrame = CFrame.lookAt(
+            local targetRotation = CFrame.lookAt(
                 cameraPosition,
                 targetPosition
-            )
+            ).Rotation
 
-            local baseAlpha = math.clamp(
+            local alpha = math.clamp(
                 aimbotSmoothness,
                 0.01,
                 1
             )
 
-            local frameDelta = tonumber(dt) or (1 / 60)
-
-            local alpha = 1 - math.pow(
-                1 - baseAlpha,
-                math.clamp(frameDelta * 60, 0, 3)
-            )
-
+            -- Camera update happens at Last priority, after Roblox's normal
+            -- camera controller, so the aimbot cannot immediately be
+            -- overwritten by the default camera update.
             camera.CFrame = camera.CFrame:Lerp(
-                targetCFrame,
+                CFrame.new(cameraPosition) * targetRotation,
                 alpha
             )
         end
