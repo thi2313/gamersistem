@@ -858,74 +858,277 @@ UniversalTab:CreateSlider({
 
 --//======================================================
 --//======================================================
---// NOCLIP - SAFE / RESPAWN FIX
+--// NOCLIP - STABLE / PHYSICS SAFE / RESPAWN FIX
 --//======================================================
-local noclipEnabled=false
-local noclipConnection=nil
-local noclipCharacterConnection=nil
-local noclipOriginalState={}
+--// Fixes the permanent Freefall/Falling animation that can remain after
+--// NoClip is disabled. Original collision states are preserved exactly.
 
-local function noclipRestore()
-    for part,state in pairs(noclipOriginalState) do
-        if part and part.Parent then part.CanCollide=state end
-    end
+local noclipEnabled = false
+local noclipConnection = nil
+local noclipCharacterConnection = nil
+local noclipOriginalState = {}
+local noclipCharacter = nil
+
+local function clearNoclipState()
     table.clear(noclipOriginalState)
+    noclipCharacter = nil
 end
 
-local function noclipApply(character)
-    if not noclipEnabled or not character or not character.Parent then return end
-    for _,part in ipairs(character:GetDescendants()) do
+local function saveNoclipCollisionState(character)
+    if not character or not character.Parent then
+        return
+    end
+
+    for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
-            if noclipOriginalState[part]==nil then
-                noclipOriginalState[part]=part.CanCollide
+            if noclipOriginalState[part] == nil then
+                noclipOriginalState[part] = part.CanCollide
             end
-            part.CanCollide=false
         end
     end
 end
 
-local function noclipWatch(character)
-    if noclipCharacterConnection then noclipCharacterConnection:Disconnect() end
-    if not noclipEnabled then return end
-    noclipCharacterConnection=character.DescendantAdded:Connect(function(obj)
-        if noclipEnabled and obj:IsA("BasePart") then
-            if noclipOriginalState[obj]==nil then noclipOriginalState[obj]=obj.CanCollide end
-            obj.CanCollide=false
+local function applyNoclip(character)
+    if not noclipEnabled
+        or not character
+        or not character.Parent then
+        return
+    end
+
+    if noclipCharacter ~= character then
+        clearNoclipState()
+        noclipCharacter = character
+        saveNoclipCollisionState(character)
+    end
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if noclipOriginalState[part] == nil then
+                noclipOriginalState[part] = part.CanCollide
+            end
+
+            part.CanCollide = false
+        end
+    end
+end
+
+local function restoreNoclipCollision(character)
+    if not character then
+        clearNoclipState()
+        return
+    end
+
+    for part, originalCanCollide in pairs(noclipOriginalState) do
+        if part
+            and part.Parent
+            and part:IsA("BasePart")
+            and part:IsDescendantOf(character) then
+
+            part.CanCollide = originalCanCollide
+        end
+    end
+
+    clearNoclipState()
+end
+
+local function stabilizeCharacterAfterNoclip(character)
+    local targetCharacter = character or Character
+
+    if not targetCharacter
+        or not targetCharacter.Parent then
+        return
+    end
+
+    local humanoid =
+        targetCharacter:FindFirstChildOfClass("Humanoid")
+
+    local root =
+        targetCharacter:FindFirstChild("HumanoidRootPart")
+
+    if not humanoid or not humanoid.Parent then
+        return
+    end
+
+    -- Do not let residual vertical/angular physics keep the character
+    -- in a permanent falling state after collisions are restored.
+    if root and root:IsA("BasePart") and root.Parent then
+        local velocity = root.AssemblyLinearVelocity
+
+        root.AssemblyLinearVelocity = Vector3.new(
+            velocity.X,
+            0,
+            velocity.Z
+        )
+
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    humanoid.PlatformStand = false
+    humanoid.AutoRotate = true
+
+    -- Re-enter Roblox's normal locomotion state.
+    pcall(function()
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end)
+
+    -- One deferred pass lets Roblox recalculate floor contact after the
+    -- collision properties have been restored.
+    task.defer(function()
+        if humanoid
+            and humanoid.Parent
+            and humanoid.Health > 0
+            and not flying then
+
+            pcall(function()
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            end)
         end
     end)
+end
+
+local function watchNoclipCharacter(character)
+    if noclipCharacterConnection then
+        noclipCharacterConnection:Disconnect()
+        noclipCharacterConnection = nil
+    end
+
+    if not noclipEnabled
+        or not character
+        or not character.Parent then
+        return
+    end
+
+    noclipCharacter = character
+
+    noclipCharacterConnection =
+        character.DescendantAdded:Connect(function(object)
+            if not noclipEnabled
+                or not object:IsA("BasePart") then
+                return
+            end
+
+            if noclipOriginalState[object] == nil then
+                noclipOriginalState[object] = object.CanCollide
+            end
+
+            object.CanCollide = false
+        end)
+
     task.defer(function()
-        if noclipEnabled and LocalPlayer.Character==character then noclipApply(character) end
+        if noclipEnabled
+            and LocalPlayer.Character == character
+            and character.Parent then
+
+            applyNoclip(character)
+        end
     end)
 end
 
-local function noclipDisable()
-    noclipEnabled=false
-    if noclipConnection then noclipConnection:Disconnect(); noclipConnection=nil end
-    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
-    noclipRestore()
+local function disableNoclip()
+    local characterToRestore =
+        noclipCharacter or LocalPlayer.Character or Character
+
+    noclipEnabled = false
+
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
+    if noclipCharacterConnection then
+        noclipCharacterConnection:Disconnect()
+        noclipCharacterConnection = nil
+    end
+
+    restoreNoclipCollision(characterToRestore)
+
+    -- This is the important part of the fix: restoring CanCollide is not
+    -- enough when the Humanoid has already entered Freefall/FallingDown.
+    stabilizeCharacterAfterNoclip(characterToRestore)
 end
 
-local function noclipEnable()
-    if noclipEnabled then return end
-    noclipEnabled=true
-    if LocalPlayer.Character then noclipWatch(LocalPlayer.Character) end
-    noclipConnection=RunService.Stepped:Connect(function()
-        if noclipEnabled then noclipApply(LocalPlayer.Character) end
+local function enableNoclip()
+    if noclipEnabled then
+        return
+    end
+
+    local character = LocalPlayer.Character
+
+    if not character or not character.Parent then
+        return
+    end
+
+    noclipEnabled = true
+    noclipCharacter = character
+
+    -- Save the real collision configuration BEFORE changing it.
+    clearNoclipState()
+    noclipCharacter = character
+    saveNoclipCollisionState(character)
+
+    watchNoclipCharacter(character)
+
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not noclipEnabled then
+            return
+        end
+
+        local currentCharacter = LocalPlayer.Character
+
+        if not currentCharacter
+            or not currentCharacter.Parent then
+            return
+        end
+
+        applyNoclip(currentCharacter)
     end)
+
+    applyNoclip(character)
 end
 
+-- Keep NoClip compatible with respawning without allowing the old
+-- character's saved collision table to affect the new character.
 LocalPlayer.CharacterAdded:Connect(function(character)
-    noclipRestore()
-    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
-    if noclipEnabled then noclipWatch(character) end
+    if noclipCharacter
+        and noclipCharacter ~= character then
+        restoreNoclipCollision(noclipCharacter)
+    end
+
+    if noclipCharacterConnection then
+        noclipCharacterConnection:Disconnect()
+        noclipCharacterConnection = nil
+    end
+
+    if noclipEnabled then
+        task.defer(function()
+            if not character.Parent then
+                return
+            end
+
+            clearNoclipState()
+            noclipCharacter = character
+            saveNoclipCollisionState(character)
+            watchNoclipCharacter(character)
+            applyNoclip(character)
+        end)
+    else
+        -- Make sure a freshly spawned character starts in a normal state.
+        task.defer(function()
+            stabilizeCharacterAfterNoclip(character)
+        end)
+    end
 end)
 
 GameTab:CreateToggle({
-    Name="NoClip",
-    CurrentValue=false,
-    Flag="NoClip",
-    Callback=function(value)
-        if value then noclipEnable() else noclipDisable() end
+    Name = "NoClip",
+    CurrentValue = false,
+    Flag = "NoClip",
+    Callback = function(enabled)
+        if enabled then
+            enableNoclip()
+        else
+            disableNoclip()
+        end
     end
 })
 
