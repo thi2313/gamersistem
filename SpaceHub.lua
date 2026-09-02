@@ -857,73 +857,76 @@ UniversalTab:CreateSlider({
 })
 
 --//======================================================
---// NOCLIP
 --//======================================================
+--// NOCLIP - SAFE / RESPAWN FIX
+--//======================================================
+local noclipEnabled=false
+local noclipConnection=nil
+local noclipCharacterConnection=nil
+local noclipOriginalState={}
 
-UniversalTab:CreateToggle({
-
-    Name = "Noclip",
-
-    CurrentValue = false,
-
-    Flag = "Noclip",
-
-    Callback = function(enabled)
-
-        noclip =
-            enabled
-
-        if noclipConnection then
-
-            noclipConnection:Disconnect()
-
-            noclipConnection = nil
-
-        end
-
-        if not enabled
-            and Character then
-
-            for _, part in ipairs(
-                Character:GetDescendants()
-            ) do
-
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-
-            end
-
-            return
-
-        end
-
-        noclipConnection =
-            RunService.Stepped:Connect(
-                function()
-
-                    if not noclip
-                        or not Character then
-
-                        return
-
-                    end
-
-                    for _, part in ipairs(
-                        Character:GetDescendants()
-                    ) do
-
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
-
-                    end
-
-                end
-            )
-
+local function noclipRestore()
+    for part,state in pairs(noclipOriginalState) do
+        if part and part.Parent then part.CanCollide=state end
     end
+    table.clear(noclipOriginalState)
+end
 
+local function noclipApply(character)
+    if not noclipEnabled or not character or not character.Parent then return end
+    for _,part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if noclipOriginalState[part]==nil then
+                noclipOriginalState[part]=part.CanCollide
+            end
+            part.CanCollide=false
+        end
+    end
+end
+
+local function noclipWatch(character)
+    if noclipCharacterConnection then noclipCharacterConnection:Disconnect() end
+    if not noclipEnabled then return end
+    noclipCharacterConnection=character.DescendantAdded:Connect(function(obj)
+        if noclipEnabled and obj:IsA("BasePart") then
+            if noclipOriginalState[obj]==nil then noclipOriginalState[obj]=obj.CanCollide end
+            obj.CanCollide=false
+        end
+    end)
+    task.defer(function()
+        if noclipEnabled and LocalPlayer.Character==character then noclipApply(character) end
+    end)
+end
+
+local function noclipDisable()
+    noclipEnabled=false
+    if noclipConnection then noclipConnection:Disconnect(); noclipConnection=nil end
+    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
+    noclipRestore()
+end
+
+local function noclipEnable()
+    if noclipEnabled then return end
+    noclipEnabled=true
+    if LocalPlayer.Character then noclipWatch(LocalPlayer.Character) end
+    noclipConnection=RunService.Stepped:Connect(function()
+        if noclipEnabled then noclipApply(LocalPlayer.Character) end
+    end)
+end
+
+LocalPlayer.CharacterAdded:Connect(function(character)
+    noclipRestore()
+    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
+    if noclipEnabled then noclipWatch(character) end
+end)
+
+GameTab:CreateToggle({
+    Name="NoClip",
+    CurrentValue=false,
+    Flag="NoClip",
+    Callback=function(value)
+        if value then noclipEnable() else noclipDisable() end
+    end
 })
 
 --//======================================================
@@ -1547,10 +1550,160 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 --//======================================================
---// AIMBOT / ADVANCED TARGETING
 --//======================================================
+--// AIMBOT - 360° / LOCK / LOW-LAG
+--//======================================================
+local aimbotEnabled=false
+local aimbotOnlyPlayers=true
+local aimbotOnlyEntities=false
+local aimbotLocked=false
+local aimbotLockedTarget=nil
+local aimbotLockKey=Enum.KeyCode.T
+local aimbotPart="Head"
+local aimbotPriority="FOV"
+local aimbotFOVEnabled=false
+local aimbotFOV=90
+local aimbotSmoothness=0.18
+local aimbotMaxDistance=500
+local aimbotVisibleCheck=false
+local aimbotConnection=nil
+local aimbotSearchConnection=nil
+local aimbotCandidate=nil
+local aimbotEntities={}
 
-GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
+local function registerEntity(m)
+    if m:IsA("Model") and not Players:GetPlayerFromCharacter(m)
+        and m:FindFirstChildOfClass("Humanoid")
+        and m:FindFirstChild("HumanoidRootPart") then
+        aimbotEntities[m]=true
+    end
+end
+for _,m in ipairs(workspace:GetDescendants()) do if m:IsA("Model") then registerEntity(m) end end
+workspace.DescendantAdded:Connect(function(o)
+    if o:IsA("Model") then task.defer(registerEntity,o) end
+end)
+workspace.DescendantRemoving:Connect(function(o) aimbotEntities[o]=nil end)
+
+local function ah(c)
+    local h=c and c:FindFirstChildOfClass("Humanoid")
+    return h and h.Health>0 and h or nil
+end
+local function ar(c)
+    local r=c and c:FindFirstChild("HumanoidRootPart")
+    return r and r:IsA("BasePart") and r or nil
+end
+local function ap(c)
+    if not c then return nil end
+    local names=aimbotPart=="Head" and {"Head","UpperTorso","Torso","HumanoidRootPart"}
+        or aimbotPart=="Torso" and {"UpperTorso","Torso","HumanoidRootPart"}
+        or {"HumanoidRootPart"}
+    for _,n in ipairs(names) do
+        local p=c:FindFirstChild(n)
+        if p and p:IsA("BasePart") then return p end
+    end
+end
+local function distance(c)
+    if not HRP or not HRP.Parent then return math.huge end
+    local r=ar(c)
+    return r and (HRP.Position-r.Position).Magnitude or math.huge
+end
+local function angle(cam,pos)
+    local v=pos-cam.CFrame.Position
+    if v.Magnitude<.001 then return 0 end
+    return math.deg(math.acos(math.clamp(cam.CFrame.LookVector:Dot(v.Unit),-1,1)))
+end
+local function visible(cam,c,p)
+    if not aimbotVisibleCheck then return true end
+    local q=RaycastParams.new()
+    q.FilterType=Enum.RaycastFilterType.Exclude
+    q.FilterDescendantsInstances={Character,c}
+    local hit=workspace:Raycast(cam.CFrame.Position,p.Position-cam.CFrame.Position,q)
+    return not hit or hit.Instance:IsDescendantOf(c)
+end
+local function playerOK(plr)
+    local c=plr and plr.Character
+    if not plr or plr==LocalPlayer or not plr.Parent or not ah(c) or not ar(c) then return false end
+    return not (teamCheck and LocalPlayer.Team and plr.Team==LocalPlayer.Team)
+end
+local function entityOK(e)
+    return e and e.Parent and e:IsA("Model") and not Players:GetPlayerFromCharacter(e) and ah(e) and ar(e) and ap(e)
+end
+local function valid(t,useFov)
+    if not t or not t.Character then return false end
+    local c=t.Character; local h=ah(c); local r=ar(c); local p=ap(c); local cam=workspace.CurrentCamera
+    if not h or not r or not p or not cam or distance(c)>aimbotMaxDistance then return false end
+    if t.Kind=="Player" and not playerOK(t.Object) then return false end
+    if t.Kind=="Entity" and not entityOK(t.Object) then return false end
+    if useFov and aimbotFOVEnabled and angle(cam,p.Position)>aimbotFOV then return false end
+    return visible(cam,c,p)
+end
+local function findBest()
+    local cam=workspace.CurrentCamera
+    if not cam or not HRP or not HRP.Parent then return nil end
+    local bestT,bestS=nil,math.huge
+    local function consider(kind,obj,c)
+        local p=ap(c); local h=ah(c)
+        if not p or not h or distance(c)>aimbotMaxDistance then return end
+        local a=angle(cam,p.Position)
+        if aimbotFOVEnabled and a>aimbotFOV then return end
+        if not visible(cam,c,p) then return end
+        local s=aimbotPriority=="Closest" and distance(c) or aimbotPriority=="Lowest Health" and h.Health or a
+        if s<bestS then bestS=s; bestT={Kind=kind,Object=obj,Character=c} end
+    end
+    if aimbotOnlyPlayers then for _,p in ipairs(Players:GetPlayers()) do if playerOK(p) then consider("Player",p,p.Character) end end end
+    if aimbotOnlyEntities then for e in pairs(aimbotEntities) do if entityOK(e) then consider("Entity",e,e) else aimbotEntities[e]=nil end end end
+    return bestT
+end
+local function unlockAimbot()
+    aimbotLocked=false; aimbotLockedTarget=nil; aimbotCandidate=nil; currentAimbotTarget=nil
+end
+local function toggleLock()
+    if aimbotLocked then unlockAimbot(); return end
+    if aimbotEnabled then
+        local t=findBest()
+        if t then aimbotLocked=true; aimbotLockedTarget=t; aimbotCandidate=t end
+    end
+end
+UserInputService.InputBegan:Connect(function(input,processed)
+    if not processed and input.KeyCode==aimbotLockKey then toggleLock() end
+end)
+local function stopAimbot()
+    if aimbotConnection then aimbotConnection:Disconnect(); aimbotConnection=nil end
+    if aimbotSearchConnection then aimbotSearchConnection:Disconnect(); aimbotSearchConnection=nil end
+    unlockAimbot()
+end
+local function startAimbot()
+    stopAimbot()
+    aimbotSearchConnection=RunService.Heartbeat:Connect(function()
+        if aimbotEnabled and not aimbotLocked and os.clock()>=(aimbotNextSearch or 0) then
+            aimbotCandidate=findBest(); currentAimbotTarget=aimbotCandidate; aimbotNextSearch=os.clock()+.10
+        end
+    end)
+    aimbotConnection=RunService.RenderStepped:Connect(function()
+        if not aimbotEnabled then return end
+        local cam=workspace.CurrentCamera; local t=aimbotLocked and aimbotLockedTarget or aimbotCandidate
+        if not cam or not HRP or not HRP.Parent or not valid(t,not aimbotLocked) then
+            if aimbotLocked then unlockAimbot() end
+            return
+        end
+        local p=ap(t.Character)
+        if p then cam.CFrame=cam.CFrame:Lerp(CFrame.lookAt(cam.CFrame.Position,p.Position),math.clamp(aimbotSmoothness,.01,1)) end
+    end)
+end
+
+GameTab:CreateToggle({Name="Aimbot",CurrentValue=false,Flag="Aimbot",Callback=function(v) aimbotEnabled=v if v then startAimbot() else stopAimbot() end end})
+GameTab:CreateToggle({Name="Only Players",CurrentValue=true,Flag="AimbotOnlyPlayers",Callback=function(v) aimbotOnlyPlayers=v if v then aimbotOnlyEntities=false; pcall(function() Rayfield.Flags["AimbotOnlyEntities"]:Set(false) end) end; aimbotCandidate=nil end})
+GameTab:CreateToggle({Name="Only Entities",CurrentValue=false,Flag="AimbotOnlyEntities",Callback=function(v) aimbotOnlyEntities=v if v then aimbotOnlyPlayers=false; pcall(function() Rayfield.Flags["AimbotOnlyPlayers"]:Set(false) end) end; aimbotCandidate=nil end})
+GameTab:CreateDropdown({Name="Target Part",Options={"Head","Torso","Root"},CurrentOption={"Head"},MultipleOptions=false,Flag="AimbotPart",Callback=function(v) aimbotPart=typeof(v)=="table" and v[1] or v end})
+GameTab:CreateDropdown({Name="Target Priority",Options={"FOV","Closest","Lowest Health"},CurrentOption={"FOV"},MultipleOptions=false,Flag="AimbotPriority",Callback=function(v) aimbotPriority=typeof(v)=="table" and v[1] or v end})
+GameTab:CreateToggle({Name="FOV Limiter",CurrentValue=false,Flag="AimbotFOVEnabled",Callback=function(v) aimbotFOVEnabled=v aimbotCandidate=nil end})
+GameTab:CreateSlider({Name="FOV",Range={5,180},Increment=5,Suffix="°",CurrentValue=90,Flag="AimbotFOV",Callback=function(v) aimbotFOV=v end})
+GameTab:CreateSlider({Name="Maximum Distance",Range={50,5000},Increment=50,Suffix=" studs",CurrentValue=500,Flag="AimbotMaxDistance",Callback=function(v) aimbotMaxDistance=v end})
+GameTab:CreateSlider({Name="Smoothness",Range={0.05,1},Increment=0.05,CurrentValue=.18,Flag="AimbotSmoothness",Callback=function(v) aimbotSmoothness=v end})
+GameTab:CreateToggle({Name="Visible Check",CurrentValue=false,Flag="AimbotVisibleCheck",Callback=function(v) aimbotVisibleCheck=v aimbotCandidate=nil end})
+GameTab:CreateToggle({Name="Team Check",CurrentValue=teamCheck,Flag="AimbotTeamCheck",Callback=function(v) teamCheck=v aimbotCandidate=nil end})
+GameTab:CreateKeybind({Name="Aim Lock Key",CurrentKeybind="T",HoldToInteract=false,Flag="AimbotLockKey",Callback=function(k) if typeof(k)=="EnumItem" and k.EnumType==Enum.KeyCode then aimbotLockKey=k end end})
+GameTab:CreateButton({Name="Unlock Target",Callback=unlockAimbot})
 
 --//======================================================
 --// AIMBOT STATE
