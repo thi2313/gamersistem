@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// SPACE HUB ERROR 404
---// VERSION 4.0.7
+--// VERSION 4.0.4
 --//======================================================
 
 --//======================================================
@@ -110,133 +110,12 @@ local function updateCharacter(character)
         Humanoid.UseJumpPower = true
         Humanoid.JumpPower = jumpPower
         Humanoid.HipHeight = hipHeight
-
-        -- Never inherit a physics state from the previous character.
-        Humanoid.PlatformStand = false
-        Humanoid.Sit = false
-        Humanoid.AutoRotate = true
-
-        pcall(function()
-            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-        end)
-    end
-
-    if HRP then
-        HRP.AssemblyAngularVelocity = Vector3.zero
-        HRP.AssemblyLinearVelocity = Vector3.zero
     end
 
 end
 
 if LocalPlayer.Character then
     updateCharacter(LocalPlayer.Character)
-end
-
---//======================================================
---// PLAYER PHYSICS STABILIZER
---//======================================================
-
-local function stopPlayerPhysicsStabilizer()
-    if characterPhysicsConnection then
-        characterPhysicsConnection:Disconnect()
-        characterPhysicsConnection = nil
-    end
-    if characterStateConnection then
-        characterStateConnection:Disconnect()
-        characterStateConnection = nil
-    end
-end
-
-local function stabilizePlayer(character)
-    if not character or not character.Parent then
-        return
-    end
-
-    local hum = character:FindFirstChildOfClass("Humanoid")
-    local root = character:FindFirstChild("HumanoidRootPart")
-    if not hum or not root then
-        return
-    end
-
-    -- Do not fight the Flight controller.
-    if flying then
-        return
-    end
-
-    hum.PlatformStand = false
-    hum.Sit = false
-
-    local grounded = hum.FloorMaterial ~= Enum.Material.Air
-    local state = hum:GetState()
-
-    -- The reported bug is a character physically touching the floor while
-    -- Humanoid remains in a falling/physics state. Recover only in that case.
-    if grounded and (state == Enum.HumanoidStateType.Freefall
-        or state == Enum.HumanoidStateType.FallingDown
-        or state == Enum.HumanoidStateType.PlatformStanding
-        or state == Enum.HumanoidStateType.Physics) then
-
-        local v = root.AssemblyLinearVelocity
-        root.AssemblyLinearVelocity = Vector3.new(v.X, 0, v.Z)
-        root.AssemblyAngularVelocity = Vector3.zero
-
-        pcall(function()
-            hum:ChangeState(Enum.HumanoidStateType.Running)
-        end)
-    end
-end
-
-local function startPlayerPhysicsStabilizer(character)
-    stopPlayerPhysicsStabilizer()
-
-    if not character then
-        return
-    end
-
-    characterPhysicsConnection = RunService.Heartbeat:Connect(function()
-        if LocalPlayer.Character ~= character or not character.Parent then
-            stopPlayerPhysicsStabilizer()
-            return
-        end
-        stabilizePlayer(character)
-    end)
-
-    local hum = character:FindFirstChildOfClass("Humanoid")
-    if hum then
-        characterStateConnection = hum.StateChanged:Connect(function(_, state)
-            if LocalPlayer.Character ~= character or flying then
-                return
-            end
-
-            if hum.FloorMaterial ~= Enum.Material.Air
-                and (state == Enum.HumanoidStateType.Freefall
-                or state == Enum.HumanoidStateType.FallingDown
-                or state == Enum.HumanoidStateType.PlatformStanding
-                or state == Enum.HumanoidStateType.Physics) then
-
-                task.defer(function()
-                    if hum.Parent and LocalPlayer.Character == character and not flying
-                        and hum.FloorMaterial ~= Enum.Material.Air then
-                        local root = character:FindFirstChild("HumanoidRootPart")
-                        if root then
-                            local v = root.AssemblyLinearVelocity
-                            root.AssemblyLinearVelocity = Vector3.new(v.X, 0, v.Z)
-                            root.AssemblyAngularVelocity = Vector3.zero
-                        end
-                        pcall(function()
-                            hum:ChangeState(Enum.HumanoidStateType.Running)
-                        end)
-                    end
-                end)
-            end
-        end)
-    end
-end
-
-if LocalPlayer.Character then
-    task.defer(function()
-        startPlayerPhysicsStabilizer(LocalPlayer.Character)
-    end)
 end
 
 --//======================================================
@@ -996,75 +875,117 @@ UniversalTab:CreateSlider({
 })
 
 --//======================================================
+--// NOCLIP - ISOLATED / NON-DESTRUCTIVE
 --//======================================================
---// NOCLIP - SAFE / RESPAWN FIX
---//======================================================
-local noclipEnabled=false
-local noclipConnection=nil
-local noclipCharacterConnection=nil
-local noclipOriginalState={}
+local noclipEnabled = false
+local noclipConnection = nil
+local noclipCharacterConnection = nil
+local noclipOriginalState = {}
+local noclipCharacter = nil
 
-local function noclipRestore()
-    for part,state in pairs(noclipOriginalState) do
-        if part and part.Parent then part.CanCollide=state end
-    end
+local function noclipClearState()
     table.clear(noclipOriginalState)
+    noclipCharacter = nil
+end
+
+local function noclipRestore(character)
+    for part, state in pairs(noclipOriginalState) do
+        if part and part.Parent and part:IsA("BasePart") then
+            if not character or part:IsDescendantOf(character) then
+                part.CanCollide = state
+            end
+        end
+    end
+    noclipClearState()
 end
 
 local function noclipApply(character)
     if not noclipEnabled or not character or not character.Parent then return end
-    for _,part in ipairs(character:GetDescendants()) do
+
+    if noclipCharacter ~= character then
+        noclipRestore()
+        noclipCharacter = character
+    end
+
+    for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
-            if noclipOriginalState[part]==nil then
-                noclipOriginalState[part]=part.CanCollide
+            if noclipOriginalState[part] == nil then
+                noclipOriginalState[part] = part.CanCollide
             end
-            part.CanCollide=false
+            part.CanCollide = false
         end
     end
 end
 
 local function noclipWatch(character)
-    if noclipCharacterConnection then noclipCharacterConnection:Disconnect() end
-    if not noclipEnabled then return end
-    noclipCharacterConnection=character.DescendantAdded:Connect(function(obj)
-        if noclipEnabled and obj:IsA("BasePart") then
-            if noclipOriginalState[obj]==nil then noclipOriginalState[obj]=obj.CanCollide end
-            obj.CanCollide=false
+    if noclipCharacterConnection then
+        noclipCharacterConnection:Disconnect()
+        noclipCharacterConnection = nil
+    end
+
+    if not noclipEnabled or not character then return end
+    noclipCharacter = character
+
+    noclipCharacterConnection = character.DescendantAdded:Connect(function(obj)
+        if not noclipEnabled or not obj:IsA("BasePart") then return end
+        if noclipOriginalState[obj] == nil then
+            noclipOriginalState[obj] = obj.CanCollide
         end
+        obj.CanCollide = false
     end)
+
     task.defer(function()
-        if noclipEnabled and LocalPlayer.Character==character then noclipApply(character) end
+        if noclipEnabled and LocalPlayer.Character == character then
+            noclipApply(character)
+        end
     end)
 end
 
 local function noclipDisable()
-    noclipEnabled=false
-    if noclipConnection then noclipConnection:Disconnect(); noclipConnection=nil end
-    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
-    noclipRestore()
+    noclipEnabled = false
+
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
+    if noclipCharacterConnection then
+        noclipCharacterConnection:Disconnect()
+        noclipCharacterConnection = nil
+    end
+
+    noclipRestore(noclipCharacter or Character)
 end
 
 local function noclipEnable()
     if noclipEnabled then return end
-    noclipEnabled=true
-    if LocalPlayer.Character then noclipWatch(LocalPlayer.Character) end
-    noclipConnection=RunService.Stepped:Connect(function()
-        if noclipEnabled then noclipApply(LocalPlayer.Character) end
+
+    local character = LocalPlayer.Character
+    if not character or not character.Parent then return end
+
+    noclipEnabled = true
+    noclipCharacter = character
+    noclipWatch(character)
+
+    noclipConnection = RunService.Stepped:Connect(function()
+        if noclipEnabled then
+            noclipApply(LocalPlayer.Character)
+        end
     end)
+
+    noclipApply(character)
 end
 
-LocalPlayer.CharacterAdded:Connect(function(character)
-    noclipRestore()
-    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
-    if noclipEnabled then noclipWatch(character) end
-end)
-
 GameTab:CreateToggle({
-    Name="NoClip",
-    CurrentValue=false,
-    Flag="NoClip",
-    Callback=function(value)
-        if value then noclipEnable() else noclipDisable() end
+    Name = "NoClip",
+    CurrentValue = false,
+    Flag = "NoClip",
+    Callback = function(value)
+        if value then
+            noclipEnable()
+        else
+            noclipDisable()
+        end
     end
 })
 
@@ -3947,12 +3868,17 @@ LocalPlayer.CharacterAdded:Connect(
         end
 
         -- Reset controller state before the new character is used.
-        stopPlayerPhysicsStabilizer()
 
         task.wait(0.2)
 
         updateCharacter(character)
-        startPlayerPhysicsStabilizer(character)
+
+        if noclipEnabled then
+            noclipClearState()
+            noclipCharacter = character
+            noclipWatch(character)
+            noclipApply(character)
+        end
 
         if customGravityEnabled then
             workspace.Gravity = customGravity
