@@ -112,8 +112,45 @@ local function updateCharacter(character)
 
 end
 
+--//======================================================
+--// CHARACTER PHYSICS RECOVERY
+--//======================================================
+
+local function recoverCharacterPhysics(character)
+    local hum = character and character:FindFirstChildOfClass("Humanoid")
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not hum or hum.Health <= 0 then
+        return
+    end
+
+    -- Clear leftover velocities/controllers from a previous flight/teleport.
+    if root and root:IsA("BasePart") then
+        local v = root.AssemblyLinearVelocity
+        root.AssemblyLinearVelocity = Vector3.new(v.X, 0, v.Z)
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    hum.PlatformStand = false
+    hum.AutoRotate = true
+
+    -- Never leave the character in a permanent physics/flying state.
+    local state = hum:GetState()
+    if state == Enum.HumanoidStateType.Flying
+        or state == Enum.HumanoidStateType.PlatformStanding
+        or state == Enum.HumanoidStateType.Physics
+        or state == Enum.HumanoidStateType.FallingDown then
+        pcall(function()
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+    end
+end
+
 if LocalPlayer.Character then
     updateCharacter(LocalPlayer.Character)
+    task.defer(function()
+        recoverCharacterPhysics(LocalPlayer.Character)
+    end)
 end
 
 --//======================================================
@@ -543,8 +580,10 @@ local function stopFlying()
     removeFlightObjects()
 
     if Humanoid and Humanoid.Parent then
-        Humanoid.PlatformStand = false
         Humanoid.AutoRotate = true
+        pcall(function()
+            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end)
     end
 end
 
@@ -575,7 +614,13 @@ local function startFlying()
     local lockedRotation = flightHRP.CFrame.Rotation
 
     flightHumanoid.AutoRotate = false
-    flightHumanoid.PlatformStand = true
+
+    -- Do not use PlatformStand for flight. PlatformStand puts the Humanoid
+    -- into a free-falling/immobile state and can leave the falling animation
+    -- active when the flight controller is stopped or interrupted.
+    pcall(function()
+        flightHumanoid:ChangeState(Enum.HumanoidStateType.Flying)
+    end)
 
     local attachment = Instance.new("Attachment")
     attachment.Name = "SpaceHub_FlightAttachment"
@@ -621,8 +666,10 @@ local function startFlying()
             end
 
             if flightHumanoid and flightHumanoid.Parent then
-                flightHumanoid.PlatformStand = false
                 flightHumanoid.AutoRotate = true
+                pcall(function()
+                    flightHumanoid:ChangeState(Enum.HumanoidStateType.Running)
+                end)
             end
 
             flying = false
@@ -858,277 +905,74 @@ UniversalTab:CreateSlider({
 
 --//======================================================
 --//======================================================
---// NOCLIP - STABLE / PHYSICS SAFE / RESPAWN FIX
+--// NOCLIP - SAFE / RESPAWN FIX
 --//======================================================
---// Fixes the permanent Freefall/Falling animation that can remain after
---// NoClip is disabled. Original collision states are preserved exactly.
+local noclipEnabled=false
+local noclipConnection=nil
+local noclipCharacterConnection=nil
+local noclipOriginalState={}
 
-local noclipEnabled = false
-local noclipConnection = nil
-local noclipCharacterConnection = nil
-local noclipOriginalState = {}
-local noclipCharacter = nil
-
-local function clearNoclipState()
+local function noclipRestore()
+    for part,state in pairs(noclipOriginalState) do
+        if part and part.Parent then part.CanCollide=state end
+    end
     table.clear(noclipOriginalState)
-    noclipCharacter = nil
 end
 
-local function saveNoclipCollisionState(character)
-    if not character or not character.Parent then
-        return
-    end
-
-    for _, part in ipairs(character:GetDescendants()) do
+local function noclipApply(character)
+    if not noclipEnabled or not character or not character.Parent then return end
+    for _,part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
-            if noclipOriginalState[part] == nil then
-                noclipOriginalState[part] = part.CanCollide
+            if noclipOriginalState[part]==nil then
+                noclipOriginalState[part]=part.CanCollide
             end
+            part.CanCollide=false
         end
     end
 end
 
-local function applyNoclip(character)
-    if not noclipEnabled
-        or not character
-        or not character.Parent then
-        return
-    end
-
-    if noclipCharacter ~= character then
-        clearNoclipState()
-        noclipCharacter = character
-        saveNoclipCollisionState(character)
-    end
-
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if noclipOriginalState[part] == nil then
-                noclipOriginalState[part] = part.CanCollide
-            end
-
-            part.CanCollide = false
+local function noclipWatch(character)
+    if noclipCharacterConnection then noclipCharacterConnection:Disconnect() end
+    if not noclipEnabled then return end
+    noclipCharacterConnection=character.DescendantAdded:Connect(function(obj)
+        if noclipEnabled and obj:IsA("BasePart") then
+            if noclipOriginalState[obj]==nil then noclipOriginalState[obj]=obj.CanCollide end
+            obj.CanCollide=false
         end
-    end
-end
-
-local function restoreNoclipCollision(character)
-    if not character then
-        clearNoclipState()
-        return
-    end
-
-    for part, originalCanCollide in pairs(noclipOriginalState) do
-        if part
-            and part.Parent
-            and part:IsA("BasePart")
-            and part:IsDescendantOf(character) then
-
-            part.CanCollide = originalCanCollide
-        end
-    end
-
-    clearNoclipState()
-end
-
-local function stabilizeCharacterAfterNoclip(character)
-    local targetCharacter = character or Character
-
-    if not targetCharacter
-        or not targetCharacter.Parent then
-        return
-    end
-
-    local humanoid =
-        targetCharacter:FindFirstChildOfClass("Humanoid")
-
-    local root =
-        targetCharacter:FindFirstChild("HumanoidRootPart")
-
-    if not humanoid or not humanoid.Parent then
-        return
-    end
-
-    -- Do not let residual vertical/angular physics keep the character
-    -- in a permanent falling state after collisions are restored.
-    if root and root:IsA("BasePart") and root.Parent then
-        local velocity = root.AssemblyLinearVelocity
-
-        root.AssemblyLinearVelocity = Vector3.new(
-            velocity.X,
-            0,
-            velocity.Z
-        )
-
-        root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    humanoid.PlatformStand = false
-    humanoid.AutoRotate = true
-
-    -- Re-enter Roblox's normal locomotion state.
-    pcall(function()
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end)
-
-    -- One deferred pass lets Roblox recalculate floor contact after the
-    -- collision properties have been restored.
     task.defer(function()
-        if humanoid
-            and humanoid.Parent
-            and humanoid.Health > 0
-            and not flying then
-
-            pcall(function()
-                humanoid:ChangeState(Enum.HumanoidStateType.Running)
-            end)
-        end
+        if noclipEnabled and LocalPlayer.Character==character then noclipApply(character) end
     end)
 end
 
-local function watchNoclipCharacter(character)
-    if noclipCharacterConnection then
-        noclipCharacterConnection:Disconnect()
-        noclipCharacterConnection = nil
-    end
+local function noclipDisable()
+    noclipEnabled=false
+    if noclipConnection then noclipConnection:Disconnect(); noclipConnection=nil end
+    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
+    noclipRestore()
+end
 
-    if not noclipEnabled
-        or not character
-        or not character.Parent then
-        return
-    end
-
-    noclipCharacter = character
-
-    noclipCharacterConnection =
-        character.DescendantAdded:Connect(function(object)
-            if not noclipEnabled
-                or not object:IsA("BasePart") then
-                return
-            end
-
-            if noclipOriginalState[object] == nil then
-                noclipOriginalState[object] = object.CanCollide
-            end
-
-            object.CanCollide = false
-        end)
-
-    task.defer(function()
-        if noclipEnabled
-            and LocalPlayer.Character == character
-            and character.Parent then
-
-            applyNoclip(character)
-        end
+local function noclipEnable()
+    if noclipEnabled then return end
+    noclipEnabled=true
+    if LocalPlayer.Character then noclipWatch(LocalPlayer.Character) end
+    noclipConnection=RunService.Stepped:Connect(function()
+        if noclipEnabled then noclipApply(LocalPlayer.Character) end
     end)
 end
 
-local function disableNoclip()
-    local characterToRestore =
-        noclipCharacter or LocalPlayer.Character or Character
-
-    noclipEnabled = false
-
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
-
-    if noclipCharacterConnection then
-        noclipCharacterConnection:Disconnect()
-        noclipCharacterConnection = nil
-    end
-
-    restoreNoclipCollision(characterToRestore)
-
-    -- This is the important part of the fix: restoring CanCollide is not
-    -- enough when the Humanoid has already entered Freefall/FallingDown.
-    stabilizeCharacterAfterNoclip(characterToRestore)
-end
-
-local function enableNoclip()
-    if noclipEnabled then
-        return
-    end
-
-    local character = LocalPlayer.Character
-
-    if not character or not character.Parent then
-        return
-    end
-
-    noclipEnabled = true
-    noclipCharacter = character
-
-    -- Save the real collision configuration BEFORE changing it.
-    clearNoclipState()
-    noclipCharacter = character
-    saveNoclipCollisionState(character)
-
-    watchNoclipCharacter(character)
-
-    noclipConnection = RunService.Stepped:Connect(function()
-        if not noclipEnabled then
-            return
-        end
-
-        local currentCharacter = LocalPlayer.Character
-
-        if not currentCharacter
-            or not currentCharacter.Parent then
-            return
-        end
-
-        applyNoclip(currentCharacter)
-    end)
-
-    applyNoclip(character)
-end
-
--- Keep NoClip compatible with respawning without allowing the old
--- character's saved collision table to affect the new character.
 LocalPlayer.CharacterAdded:Connect(function(character)
-    if noclipCharacter
-        and noclipCharacter ~= character then
-        restoreNoclipCollision(noclipCharacter)
-    end
-
-    if noclipCharacterConnection then
-        noclipCharacterConnection:Disconnect()
-        noclipCharacterConnection = nil
-    end
-
-    if noclipEnabled then
-        task.defer(function()
-            if not character.Parent then
-                return
-            end
-
-            clearNoclipState()
-            noclipCharacter = character
-            saveNoclipCollisionState(character)
-            watchNoclipCharacter(character)
-            applyNoclip(character)
-        end)
-    else
-        -- Make sure a freshly spawned character starts in a normal state.
-        task.defer(function()
-            stabilizeCharacterAfterNoclip(character)
-        end)
-    end
+    noclipRestore()
+    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
+    if noclipEnabled then noclipWatch(character) end
 end)
 
 GameTab:CreateToggle({
-    Name = "NoClip",
-    CurrentValue = false,
-    Flag = "NoClip",
-    Callback = function(enabled)
-        if enabled then
-            enableNoclip()
-        else
-            disableNoclip()
-        end
+    Name="NoClip",
+    CurrentValue=false,
+    Flag="NoClip",
+    Callback=function(value)
+        if value then noclipEnable() else noclipDisable() end
     end
 })
 
@@ -1571,6 +1415,14 @@ local function startToolTeleport()
 
                     HRP.CFrame =
                         part.CFrame * CFrame.new(0, 3, 0)
+
+                    HRP.AssemblyLinearVelocity = Vector3.zero
+                    HRP.AssemblyAngularVelocity = Vector3.zero
+                    if Humanoid and not flying then
+                        pcall(function()
+                            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                        end)
+                    end
 
                     Rayfield:Notify({
                         Title = "TOOL TELEPORT",
@@ -3323,6 +3175,14 @@ local function teleportToPlayer(player)
             0
         )
 
+    HRP.AssemblyLinearVelocity = Vector3.zero
+    HRP.AssemblyAngularVelocity = Vector3.zero
+    if Humanoid and not flying then
+        pcall(function()
+            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+    end
+
     Rayfield:Notify({
 
         Title = "TELEPORT",
@@ -3415,6 +3275,14 @@ TeleportTab:CreateButton({
                     5,
                     0
                 )
+
+            HRP.AssemblyLinearVelocity = Vector3.zero
+            HRP.AssemblyAngularVelocity = Vector3.zero
+            if Humanoid and not flying then
+                pcall(function()
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                end)
+            end
 
         else
 
@@ -3553,6 +3421,14 @@ local function teleportToWaypoint(name)
         Vector3.new(data.x + data.lx, data.y + data.ly, data.z + data.lz)
     )
 
+    HRP.AssemblyLinearVelocity = Vector3.zero
+    HRP.AssemblyAngularVelocity = Vector3.zero
+    if Humanoid and not flying then
+        pcall(function()
+            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+    end
+
     Rayfield:Notify({
         Title = "WAYPOINT",
         Content = "Arrived at  •  " .. name,
@@ -3593,6 +3469,13 @@ WaypointsTab:CreateButton({
         if HRP and previousPosition then
             local current = HRP.CFrame
             HRP.CFrame = previousPosition
+            HRP.AssemblyLinearVelocity = Vector3.zero
+            HRP.AssemblyAngularVelocity = Vector3.zero
+            if Humanoid and not flying then
+                pcall(function()
+                    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                end)
+            end
             previousPosition = current
         else
             Rayfield:Notify({
@@ -3953,7 +3836,7 @@ ConfigurationTab:CreateDropdown({
 
 ConfigurationTab:CreateParagraph({
 
-    Title = "SPACE HUB  •  3.4.0  /  ORBITAL EDITION",
+    Title = "SPACE HUB  •  4.0.6  /  ORBITAL EDITION",
 
     Content =
         "Premium Orbital Interface\n\n" ..
@@ -3982,6 +3865,10 @@ LocalPlayer.CharacterAdded:Connect(
         updateCharacter(
             character
         )
+
+        -- Make sure a freshly spawned character cannot inherit a stale
+        -- PlatformStanding/Flying/Physics state from the old character.
+        recoverCharacterPhysics(character)
 
         if Humanoid then
             Humanoid.WalkSpeed = walkSpeed
