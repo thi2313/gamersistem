@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// SPACE HUB ERROR 404
---// VERSION 4.0.4
+--// VERSION 4.0.7
 --//======================================================
 
 --//======================================================
@@ -61,6 +61,8 @@ local hipHeight = 2
 local customGravityEnabled = false
 local customGravity = 196.2
 local originalGravity = workspace.Gravity
+local characterPhysicsConnection = nil
+local characterStateConnection = nil
 
 local selectedPlayer = nil
 local spectating = false
@@ -108,48 +110,132 @@ local function updateCharacter(character)
         Humanoid.UseJumpPower = true
         Humanoid.JumpPower = jumpPower
         Humanoid.HipHeight = hipHeight
+
+        -- Never inherit a physics state from the previous character.
+        Humanoid.PlatformStand = false
+        Humanoid.Sit = false
+        Humanoid.AutoRotate = true
+
+        pcall(function()
+            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end)
+    end
+
+    if HRP then
+        HRP.AssemblyAngularVelocity = Vector3.zero
+        HRP.AssemblyLinearVelocity = Vector3.zero
     end
 
 end
 
+if LocalPlayer.Character then
+    updateCharacter(LocalPlayer.Character)
+end
+
 --//======================================================
---// CHARACTER PHYSICS RECOVERY
+--// PLAYER PHYSICS STABILIZER
 --//======================================================
 
-local function recoverCharacterPhysics(character)
-    local hum = character and character:FindFirstChildOfClass("Humanoid")
-    local root = character and character:FindFirstChild("HumanoidRootPart")
+local function stopPlayerPhysicsStabilizer()
+    if characterPhysicsConnection then
+        characterPhysicsConnection:Disconnect()
+        characterPhysicsConnection = nil
+    end
+    if characterStateConnection then
+        characterStateConnection:Disconnect()
+        characterStateConnection = nil
+    end
+end
 
-    if not hum or hum.Health <= 0 then
+local function stabilizePlayer(character)
+    if not character or not character.Parent then
         return
     end
 
-    -- Clear leftover velocities/controllers from a previous flight/teleport.
-    if root and root:IsA("BasePart") then
-        local v = root.AssemblyLinearVelocity
-        root.AssemblyLinearVelocity = Vector3.new(v.X, 0, v.Z)
-        root.AssemblyAngularVelocity = Vector3.zero
+    local hum = character:FindFirstChildOfClass("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then
+        return
+    end
+
+    -- Do not fight the Flight controller.
+    if flying then
+        return
     end
 
     hum.PlatformStand = false
-    hum.AutoRotate = true
+    hum.Sit = false
 
-    -- Never leave the character in a permanent physics/flying state.
+    local grounded = hum.FloorMaterial ~= Enum.Material.Air
     local state = hum:GetState()
-    if state == Enum.HumanoidStateType.Flying
+
+    -- The reported bug is a character physically touching the floor while
+    -- Humanoid remains in a falling/physics state. Recover only in that case.
+    if grounded and (state == Enum.HumanoidStateType.Freefall
+        or state == Enum.HumanoidStateType.FallingDown
         or state == Enum.HumanoidStateType.PlatformStanding
-        or state == Enum.HumanoidStateType.Physics
-        or state == Enum.HumanoidStateType.FallingDown then
+        or state == Enum.HumanoidStateType.Physics) then
+
+        local v = root.AssemblyLinearVelocity
+        root.AssemblyLinearVelocity = Vector3.new(v.X, 0, v.Z)
+        root.AssemblyAngularVelocity = Vector3.zero
+
         pcall(function()
             hum:ChangeState(Enum.HumanoidStateType.Running)
         end)
     end
 end
 
+local function startPlayerPhysicsStabilizer(character)
+    stopPlayerPhysicsStabilizer()
+
+    if not character then
+        return
+    end
+
+    characterPhysicsConnection = RunService.Heartbeat:Connect(function()
+        if LocalPlayer.Character ~= character or not character.Parent then
+            stopPlayerPhysicsStabilizer()
+            return
+        end
+        stabilizePlayer(character)
+    end)
+
+    local hum = character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        characterStateConnection = hum.StateChanged:Connect(function(_, state)
+            if LocalPlayer.Character ~= character or flying then
+                return
+            end
+
+            if hum.FloorMaterial ~= Enum.Material.Air
+                and (state == Enum.HumanoidStateType.Freefall
+                or state == Enum.HumanoidStateType.FallingDown
+                or state == Enum.HumanoidStateType.PlatformStanding
+                or state == Enum.HumanoidStateType.Physics) then
+
+                task.defer(function()
+                    if hum.Parent and LocalPlayer.Character == character and not flying
+                        and hum.FloorMaterial ~= Enum.Material.Air then
+                        local root = character:FindFirstChild("HumanoidRootPart")
+                        if root then
+                            local v = root.AssemblyLinearVelocity
+                            root.AssemblyLinearVelocity = Vector3.new(v.X, 0, v.Z)
+                            root.AssemblyAngularVelocity = Vector3.zero
+                        end
+                        pcall(function()
+                            hum:ChangeState(Enum.HumanoidStateType.Running)
+                        end)
+                    end
+                end)
+            end
+        end)
+    end
+end
+
 if LocalPlayer.Character then
-    updateCharacter(LocalPlayer.Character)
     task.defer(function()
-        recoverCharacterPhysics(LocalPlayer.Character)
+        startPlayerPhysicsStabilizer(LocalPlayer.Character)
     end)
 end
 
@@ -580,7 +666,13 @@ local function stopFlying()
     removeFlightObjects()
 
     if Humanoid and Humanoid.Parent then
+        Humanoid.PlatformStand = false
         Humanoid.AutoRotate = true
+        Humanoid.Sit = false
+        if HRP and HRP.Parent then
+            HRP.AssemblyLinearVelocity = Vector3.zero
+            HRP.AssemblyAngularVelocity = Vector3.zero
+        end
         pcall(function()
             Humanoid:ChangeState(Enum.HumanoidStateType.Running)
         end)
@@ -614,13 +706,7 @@ local function startFlying()
     local lockedRotation = flightHRP.CFrame.Rotation
 
     flightHumanoid.AutoRotate = false
-
-    -- Do not use PlatformStand for flight. PlatformStand puts the Humanoid
-    -- into a free-falling/immobile state and can leave the falling animation
-    -- active when the flight controller is stopped or interrupted.
-    pcall(function()
-        flightHumanoid:ChangeState(Enum.HumanoidStateType.Flying)
-    end)
+    flightHumanoid.PlatformStand = false
 
     local attachment = Instance.new("Attachment")
     attachment.Name = "SpaceHub_FlightAttachment"
@@ -666,7 +752,13 @@ local function startFlying()
             end
 
             if flightHumanoid and flightHumanoid.Parent then
+                flightHumanoid.PlatformStand = false
                 flightHumanoid.AutoRotate = true
+                flightHumanoid.Sit = false
+                if flightHRP and flightHRP.Parent then
+                    flightHRP.AssemblyLinearVelocity = Vector3.zero
+                    flightHRP.AssemblyAngularVelocity = Vector3.zero
+                end
                 pcall(function()
                     flightHumanoid:ChangeState(Enum.HumanoidStateType.Running)
                 end)
@@ -1413,16 +1505,10 @@ local function startToolTeleport()
                 if tool and part then
                     previousPosition = HRP.CFrame
 
-                    HRP.CFrame =
+                    safeCharacterTeleport(
+                        HRP,
                         part.CFrame * CFrame.new(0, 3, 0)
-
-                    HRP.AssemblyLinearVelocity = Vector3.zero
-                    HRP.AssemblyAngularVelocity = Vector3.zero
-                    if Humanoid and not flying then
-                        pcall(function()
-                            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                        end)
-                    end
+                    )
 
                     Rayfield:Notify({
                         Title = "TOOL TELEPORT",
@@ -3125,6 +3211,40 @@ GameTab:CreateParagraph({
 })
 
 --//======================================================
+--// SAFE TELEPORT
+--//======================================================
+
+local function safeCharacterTeleport(root, targetCFrame)
+    if not root or not root.Parent then
+        return false
+    end
+
+    if flying then
+        stopFlying()
+    end
+
+    root.AssemblyLinearVelocity = Vector3.zero
+    root.AssemblyAngularVelocity = Vector3.zero
+    root.CFrame = targetCFrame
+
+    task.defer(function()
+        if root and root.Parent then
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+        end
+        if Humanoid and Humanoid.Parent then
+            Humanoid.PlatformStand = false
+            Humanoid.Sit = false
+            pcall(function()
+                Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            end)
+        end
+    end)
+
+    return true
+end
+
+--//======================================================
 --// TELEPORT
 --//======================================================
 
@@ -3167,21 +3287,10 @@ local function teleportToPlayer(player)
         return
     end
 
-    HRP.CFrame =
-        targetHRP.CFrame
-        * CFrame.new(
-            3,
-            0,
-            0
-        )
-
-    HRP.AssemblyLinearVelocity = Vector3.zero
-    HRP.AssemblyAngularVelocity = Vector3.zero
-    if Humanoid and not flying then
-        pcall(function()
-            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-        end)
-    end
+    safeCharacterTeleport(
+        HRP,
+        targetHRP.CFrame * CFrame.new(3, 0, 0)
+    )
 
     Rayfield:Notify({
 
@@ -3268,21 +3377,10 @@ TeleportTab:CreateButton({
         if spawn
             and spawn:IsA("BasePart") then
 
-            HRP.CFrame =
-                spawn.CFrame
-                * CFrame.new(
-                    0,
-                    5,
-                    0
-                )
-
-            HRP.AssemblyLinearVelocity = Vector3.zero
-            HRP.AssemblyAngularVelocity = Vector3.zero
-            if Humanoid and not flying then
-                pcall(function()
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                end)
-            end
+            safeCharacterTeleport(
+                HRP,
+                spawn.CFrame * CFrame.new(0, 5, 0)
+            )
 
         else
 
@@ -3416,18 +3514,13 @@ local function teleportToWaypoint(name)
     local data = waypoints[name]
     previousPosition = HRP.CFrame
 
-    HRP.CFrame = CFrame.lookAt(
-        Vector3.new(data.x, data.y, data.z),
-        Vector3.new(data.x + data.lx, data.y + data.ly, data.z + data.lz)
+    safeCharacterTeleport(
+        HRP,
+        CFrame.lookAt(
+            Vector3.new(data.x, data.y, data.z),
+            Vector3.new(data.x + data.lx, data.y + data.ly, data.z + data.lz)
+        )
     )
-
-    HRP.AssemblyLinearVelocity = Vector3.zero
-    HRP.AssemblyAngularVelocity = Vector3.zero
-    if Humanoid and not flying then
-        pcall(function()
-            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-        end)
-    end
 
     Rayfield:Notify({
         Title = "WAYPOINT",
@@ -3468,14 +3561,7 @@ WaypointsTab:CreateButton({
     Callback = function()
         if HRP and previousPosition then
             local current = HRP.CFrame
-            HRP.CFrame = previousPosition
-            HRP.AssemblyLinearVelocity = Vector3.zero
-            HRP.AssemblyAngularVelocity = Vector3.zero
-            if Humanoid and not flying then
-                pcall(function()
-                    Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                end)
-            end
+            safeCharacterTeleport(HRP, previousPosition)
             previousPosition = current
         else
             Rayfield:Notify({
@@ -3836,7 +3922,7 @@ ConfigurationTab:CreateDropdown({
 
 ConfigurationTab:CreateParagraph({
 
-    Title = "SPACE HUB  •  4.0.6  /  ORBITAL EDITION",
+    Title = "SPACE HUB  •  3.4.0  /  ORBITAL EDITION",
 
     Content =
         "Premium Orbital Interface\n\n" ..
@@ -3856,51 +3942,34 @@ ConfigurationTab:CreateParagraph({
 LocalPlayer.CharacterAdded:Connect(
     function(character)
 
-        task.wait(0.5)
-
         if flying then
             stopFlying()
         end
 
-        updateCharacter(
-            character
-        )
+        -- Reset controller state before the new character is used.
+        stopPlayerPhysicsStabilizer()
 
-        -- Make sure a freshly spawned character cannot inherit a stale
-        -- PlatformStanding/Flying/Physics state from the old character.
-        recoverCharacterPhysics(character)
+        task.wait(0.2)
 
-        if Humanoid then
-            Humanoid.WalkSpeed = walkSpeed
-            Humanoid.UseJumpPower = true
-            Humanoid.JumpPower = jumpPower
-            Humanoid.HipHeight = hipHeight
-        end
+        updateCharacter(character)
+        startPlayerPhysicsStabilizer(character)
 
         if customGravityEnabled then
             workspace.Gravity = customGravity
+        else
+            workspace.Gravity = originalGravity
         end
 
         if espEnabled then
-
-            task.wait(0.2)
-
-            refreshESP()
-
+            task.defer(refreshESP)
         end
 
-        if flightEnabled then
+        -- Do not auto-start Flight during respawn. A saved Flight toggle
+        -- must not force the new Humanoid into a physics state.
+        flightEnabled = false
 
-            task.wait(0.2)
-
-            startFlying()
-
-        end
-
-        -- Rebind the aimbot to the new character automatically.
         if aimbotEnabled then
-            task.wait(0.1)
-            startAimbot()
+            task.delay(0.1, startAimbot)
         end
 
     end
