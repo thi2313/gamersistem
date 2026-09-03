@@ -58,6 +58,12 @@ local espMaxDistance = 1000
 
 local jumpPower = 50
 local hipHeight = 2
+
+-- HipHeight is physics-sensitive and differs between games/rigs.
+-- Never force the generic value during startup/config loading.
+local hipHeightModified = false
+local interfaceInitializing = true
+
 local customGravityEnabled = false
 local customGravity = 196.2
 local originalGravity = workspace.Gravity
@@ -107,7 +113,16 @@ local function updateCharacter(character)
         Humanoid.WalkSpeed = walkSpeed
         Humanoid.UseJumpPower = true
         Humanoid.JumpPower = jumpPower
-        Humanoid.HipHeight = hipHeight
+
+        -- IMPORTANT:
+        -- Different games and custom rigs use different native HipHeight values.
+        -- Forcing 2 here can make the Humanoid fail to detect the floor and stay
+        -- forever in Freefall/FallingDown even while visually touching the ground.
+        if hipHeightModified then
+            Humanoid.HipHeight = hipHeight
+        else
+            hipHeight = Humanoid.HipHeight
+        end
     end
 
 end
@@ -819,11 +834,20 @@ UniversalTab:CreateSlider({
     Range = {0, 10},
     Increment = 0.1,
     Suffix = " HH",
-    CurrentValue = 2,
+    CurrentValue = hipHeight,
     Flag = "HipHeight",
     Callback = function(value)
         hipHeight = value
-        if Humanoid then
+
+        -- Rayfield may fire callbacks while creating/loading flags.
+        -- Do not let a saved/default HipHeight alter character physics on load.
+        if interfaceInitializing then
+            return
+        end
+
+        hipHeightModified = true
+
+        if Humanoid and Humanoid.Parent then
             Humanoid.HipHeight = value
         end
     end
@@ -3784,7 +3808,14 @@ LocalPlayer.CharacterAdded:Connect(
             Humanoid.WalkSpeed = walkSpeed
             Humanoid.UseJumpPower = true
             Humanoid.JumpPower = jumpPower
-            Humanoid.HipHeight = hipHeight
+
+            -- Only reapply HipHeight after respawn if the user explicitly
+            -- changed it during this session.
+            if hipHeightModified then
+                Humanoid.HipHeight = hipHeight
+            else
+                hipHeight = Humanoid.HipHeight
+            end
         end
 
         if customGravityEnabled then
@@ -3825,6 +3856,21 @@ pcall(function()
     Rayfield:LoadConfiguration()
 
 end)
+
+-- Configuration loading can invoke slider callbacks. Keep the game's native
+-- HipHeight instead of silently restoring an incompatible saved value.
+if Humanoid and Humanoid.Parent then
+    hipHeight = Humanoid.HipHeight
+
+    pcall(function()
+        local flag = Rayfield.Flags and Rayfield.Flags["HipHeight"]
+        if flag and flag.Set then
+            flag:Set(hipHeight)
+        end
+    end)
+end
+
+interfaceInitializing = false
 
 --//======================================================
 --// STARTUP
