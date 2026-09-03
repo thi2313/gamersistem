@@ -891,19 +891,31 @@ local noclipOriginalState={}
 
 local function noclipRestore()
     for part,state in pairs(noclipOriginalState) do
-        if part and part.Parent then part.CanCollide=state end
+        if part and part.Parent and part:IsA("BasePart") then
+            part.CanCollide=state.CanCollide
+            part.CanTouch=state.CanTouch
+            part.CanQuery=state.CanQuery
+        end
     end
     table.clear(noclipOriginalState)
 end
 
 local function noclipApply(character)
     if not noclipEnabled or not character or not character.Parent then return end
+
     for _,part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
             if noclipOriginalState[part]==nil then
-                noclipOriginalState[part]=part.CanCollide
+                noclipOriginalState[part]={
+                    CanCollide=part.CanCollide,
+                    CanTouch=part.CanTouch,
+                    CanQuery=part.CanQuery
+                }
             end
+
             part.CanCollide=false
+            part.CanTouch=false
+            part.CanQuery=false
         end
     end
 end
@@ -911,14 +923,27 @@ end
 local function noclipWatch(character)
     if noclipCharacterConnection then noclipCharacterConnection:Disconnect() end
     if not noclipEnabled then return end
+
     noclipCharacterConnection=character.DescendantAdded:Connect(function(obj)
         if noclipEnabled and obj:IsA("BasePart") then
-            if noclipOriginalState[obj]==nil then noclipOriginalState[obj]=obj.CanCollide end
+            if noclipOriginalState[obj]==nil then
+                noclipOriginalState[obj]={
+                    CanCollide=obj.CanCollide,
+                    CanTouch=obj.CanTouch,
+                    CanQuery=obj.CanQuery
+                }
+            end
+
             obj.CanCollide=false
+            obj.CanTouch=false
+            obj.CanQuery=false
         end
     end)
+
     task.defer(function()
-        if noclipEnabled and LocalPlayer.Character==character then noclipApply(character) end
+        if noclipEnabled and LocalPlayer.Character==character then
+            noclipApply(character)
+        end
     end)
 end
 
