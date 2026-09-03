@@ -875,7 +875,7 @@ UniversalTab:CreateSlider({
 })
 
 --//======================================================
---// NOCLIP - FULL PHYSICS
+--// NOCLIP - FULL PHYSICS / SAFE RESTORE
 --//======================================================
 local noclipEnabled = false
 local noclipConnection = nil
@@ -888,6 +888,36 @@ local function noclipClearState()
     noclipCharacter = nil
 end
 
+local function noclipRememberPart(part)
+    if not part or not part:IsA("BasePart") then
+        return
+    end
+
+    if noclipOriginalState[part] == nil then
+        noclipOriginalState[part] = {
+            CanCollide = part.CanCollide,
+            CanTouch = part.CanTouch,
+            CanQuery = part.CanQuery
+        }
+    end
+end
+
+local function noclipApplyPart(part)
+    if not noclipEnabled or not part or not part.Parent then
+        return
+    end
+
+    if not part:IsA("BasePart") then
+        return
+    end
+
+    noclipRememberPart(part)
+
+    part.CanCollide = false
+    part.CanTouch = false
+    part.CanQuery = false
+end
+
 local function noclipRestore(character)
     for part, state in pairs(noclipOriginalState) do
         if part and part.Parent and part:IsA("BasePart") then
@@ -898,11 +928,14 @@ local function noclipRestore(character)
             end
         end
     end
+
     noclipClearState()
 end
 
 local function noclipApply(character)
-    if not noclipEnabled or not character or not character.Parent then return end
+    if not noclipEnabled or not character or not character.Parent then
+        return
+    end
 
     if noclipCharacter ~= character then
         noclipRestore()
@@ -910,19 +943,7 @@ local function noclipApply(character)
     end
 
     for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if noclipOriginalState[part] == nil then
-                noclipOriginalState[part] = {
-                    CanCollide = part.CanCollide,
-                    CanTouch = part.CanTouch,
-                    CanQuery = part.CanQuery
-                }
-            end
-
-            part.CanCollide = false
-            part.CanTouch = false
-            part.CanQuery = false
-        end
+        noclipApplyPart(part)
     end
 end
 
@@ -932,23 +953,16 @@ local function noclipWatch(character)
         noclipCharacterConnection = nil
     end
 
-    if not noclipEnabled or not character then return end
+    if not noclipEnabled or not character then
+        return
+    end
+
     noclipCharacter = character
 
     noclipCharacterConnection = character.DescendantAdded:Connect(function(obj)
-        if not noclipEnabled or not obj:IsA("BasePart") then return end
-
-        if noclipOriginalState[obj] == nil then
-            noclipOriginalState[obj] = {
-                CanCollide = obj.CanCollide,
-                CanTouch = obj.CanTouch,
-                CanQuery = obj.CanQuery
-            }
+        if noclipEnabled then
+            noclipApplyPart(obj)
         end
-
-        obj.CanCollide = false
-        obj.CanTouch = false
-        obj.CanQuery = false
     end)
 
     task.defer(function()
@@ -958,7 +972,44 @@ local function noclipWatch(character)
     end)
 end
 
+local function noclipResetHumanoid(character)
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if root and root.Parent then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    if humanoid and humanoid.Parent then
+        humanoid.Sit = false
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate = true
+
+        pcall(function()
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end)
+
+        task.wait()
+
+        if humanoid.Parent then
+            pcall(function()
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            end)
+        end
+    end
+
+    if root and root.Parent then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+
 local function noclipDisable()
+    if not noclipEnabled and not next(noclipOriginalState) then
+        return
+    end
+
     noclipEnabled = false
 
     if noclipConnection then
@@ -971,48 +1022,46 @@ local function noclipDisable()
         noclipCharacterConnection = nil
     end
 
-    local character = noclipCharacter or Character
+    local character = noclipCharacter or LocalPlayer.Character or Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
 
-    -- Prevent the character from being restored inside the floor.
+    -- Move out of the floor before restoring collisions/touch/query.
     if root and root.Parent then
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
-        root.CFrame = root.CFrame + Vector3.new(0, 2.5, 0)
+        root.CFrame = root.CFrame + Vector3.new(0, 3, 0)
         task.wait()
     end
 
     noclipRestore(character)
-
-    if Humanoid and Humanoid.Parent then
-        Humanoid.PlatformStand = false
-        Humanoid.Sit = false
-        pcall(function()
-            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-        end)
-    end
-
-    if root and root.Parent then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-    end
+    noclipResetHumanoid(character)
 end
 
 local function noclipEnable()
-    if noclipEnabled then return end
+    if noclipEnabled then
+        return
+    end
 
     local character = LocalPlayer.Character
-    if not character or not character.Parent then return end
+    if not character or not character.Parent then
+        return
+    end
 
     noclipEnabled = true
     noclipCharacter = character
+
     noclipWatch(character)
 
     noclipConnection = RunService.Stepped:Connect(function()
-        if not noclipEnabled then return end
+        if not noclipEnabled then
+            return
+        end
 
         local currentCharacter = LocalPlayer.Character
         if currentCharacter and currentCharacter.Parent then
+            if noclipCharacter ~= currentCharacter then
+                noclipWatch(currentCharacter)
+            end
             noclipApply(currentCharacter)
         end
     end)
@@ -3176,27 +3225,96 @@ GameTab:CreateParagraph({
 })
 
 --//======================================================
---// SAFE TELEPORT
+--// SAFE TELEPORT / GROUND ALIGNMENT
 --//======================================================
+local function getTeleportGroundPosition(targetPosition, character)
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = {character}
+    rayParams.IgnoreWater = true
+
+    local ignoreModels = {}
+    local filterInstances = {character}
+    rayParams.FilterDescendantsInstances = filterInstances
+
+    local origin = targetPosition + Vector3.new(0, 1, 0)
+    local direction = Vector3.new(0, -500, 0)
+
+    for _ = 1, 8 do
+        local result = workspace:Raycast(origin, direction, rayParams)
+
+        if not result then
+            return nil
+        end
+
+        local hit = result.Instance
+        local model = hit and hit:FindFirstAncestorOfClass("Model")
+        local humanoid = model and model:FindFirstChildOfClass("Humanoid")
+        local tool = hit and hit:FindFirstAncestorOfClass("Tool")
+
+        -- Do not use another character or a dropped Tool as the ground.
+        if humanoid then
+            if not ignoreModels[model] then
+                ignoreModels[model] = true
+                table.insert(filterInstances, model)
+                rayParams.FilterDescendantsInstances = filterInstances
+                continue
+            end
+        elseif tool then
+            if not ignoreModels[tool] then
+                ignoreModels[tool] = true
+                table.insert(filterInstances, tool)
+                rayParams.FilterDescendantsInstances = filterInstances
+                continue
+            end
+        end
+
+        return result.Position
+    end
+
+    return nil
+end
+
 local function safeCharacterTeleport(root, targetCFrame)
-    if not root or not root.Parent then
+    if not root or not root.Parent or not targetCFrame then
         return false
     end
+
+    local character = root.Parent
+    if not character or not character:IsA("Model") then
+        character = LocalPlayer.Character
+    end
+
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
     if flying then
         stopFlying()
     end
 
-    root.AssemblyLinearVelocity = Vector3.zero
-    root.AssemblyAngularVelocity = Vector3.zero
-
-    if noclipEnabled and Character then
-        noclipApply(Character)
+    if root.Parent then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
     end
 
-    -- Keep teleports slightly above the requested position to avoid
-    -- placing the HumanoidRootPart inside the floor.
-    root.CFrame = targetCFrame + Vector3.new(0, 2.5, 0)
+    if noclipEnabled then
+        noclipApply(character)
+    end
+
+    local groundPosition = getTeleportGroundPosition(targetCFrame.Position, character)
+    local finalPosition
+
+    if groundPosition then
+        local hipHeight = humanoid and humanoid.HipHeight or 2
+        if hipHeight <= 0 then
+            hipHeight = 2
+        end
+        finalPosition = groundPosition + Vector3.new(0, hipHeight + 0.15, 0)
+    else
+        -- Fallback for places where no floor can be raycast.
+        finalPosition = targetCFrame.Position + Vector3.new(0, 0.25, 0)
+    end
+
+    root.CFrame = CFrame.new(finalPosition) * targetCFrame.Rotation
 
     task.wait()
 
@@ -3205,16 +3323,31 @@ local function safeCharacterTeleport(root, targetCFrame)
         root.AssemblyAngularVelocity = Vector3.zero
     end
 
-    if Humanoid and Humanoid.Parent then
-        Humanoid.PlatformStand = false
-        Humanoid.Sit = false
+    if humanoid and humanoid.Parent then
+        humanoid.PlatformStand = false
+        humanoid.Sit = false
+        humanoid.AutoRotate = true
+
         pcall(function()
-            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
         end)
+
+        task.wait()
+
+        if humanoid.Parent then
+            pcall(function()
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            end)
+        end
     end
 
-    if noclipEnabled and Character then
-        noclipApply(Character)
+    if root and root.Parent then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    if noclipEnabled then
+        noclipApply(character)
     end
 
     return true
@@ -3929,7 +4062,14 @@ LocalPlayer.CharacterAdded:Connect(
         updateCharacter(character)
 
         if noclipEnabled then
-            noclipClearState()
+            -- Restore the old character first so its original physics values
+            -- are not lost when Roblox creates the new character.
+            if noclipCharacter and noclipCharacter ~= character then
+                noclipRestore(noclipCharacter)
+            else
+                noclipClearState()
+            end
+
             noclipCharacter = character
             noclipWatch(character)
             noclipApply(character)
