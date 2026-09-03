@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// SPACE HUB ERROR 404
---// VERSION 4.0.4
+--// VERSION 4.0.5
 --//======================================================
 
 --//======================================================
@@ -503,196 +503,200 @@ UniversalTab:CreateSlider({
 --//======================================================
 
 UniversalTab:CreateSection(
-    "FLIGHT SYSTEM"
+    "MOVEMENT  /  FLIGHT"
 )
 
-local function removeFlightObjects()
+local function removeFlightObjects(character)
+    local targetHRP = character or HRP
 
-    if not HRP then
+    if not targetHRP then
         return
     end
 
-    local velocity =
-        HRP:FindFirstChild(
-            "SpaceHub_FlightVelocity"
-        )
-
+    local velocity = targetHRP:FindFirstChild("SpaceHub_FlightVelocity")
     if velocity then
         velocity:Destroy()
     end
 
-    local attachment =
-        HRP:FindFirstChild(
-            "SpaceHub_FlightAttachment"
-        )
-
+    local attachment = targetHRP:FindFirstChild("SpaceHub_FlightAttachment")
     if attachment then
         attachment:Destroy()
     end
 
+    local orientation = targetHRP:FindFirstChild("SpaceHub_FlightRotation")
+    if orientation then
+        orientation:Destroy()
+    end
+
+    local orientationAttachment = targetHRP:FindFirstChild("SpaceHub_FlightOrientation")
+    if orientationAttachment then
+        orientationAttachment:Destroy()
+    end
 end
 
 local function stopFlying()
-
     flying = false
 
     if flyConnection then
-
         flyConnection:Disconnect()
-
         flyConnection = nil
-
     end
 
     removeFlightObjects()
 
-    if Humanoid then
+    if Humanoid and Humanoid.Parent then
         Humanoid.PlatformStand = false
+        Humanoid.AutoRotate = true
+        Humanoid.Sit = false
+        if HRP and HRP.Parent then
+            HRP.AssemblyLinearVelocity = Vector3.zero
+            HRP.AssemblyAngularVelocity = Vector3.zero
+        end
+        pcall(function()
+            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end)
     end
-
 end
 
 local function startFlying()
-
-    if not HRP
-        or not Humanoid then
-
+    if not flightEnabled then
         return
-
     end
 
-    stopFlying()
+    if not HRP or not HRP.Parent
+        or not Humanoid or not Humanoid.Parent then
+        return
+    end
+
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+
+    removeFlightObjects()
 
     flying = true
 
-    local attachment =
-        Instance.new("Attachment")
+    local flightCharacter = Character
+    local flightHRP = HRP
+    local flightHumanoid = Humanoid
 
-    attachment.Name =
-        "SpaceHub_FlightAttachment"
+    -- Keep the character facing exactly the direction it had when Fly started.
+    local lockedRotation = flightHRP.CFrame.Rotation
 
-    attachment.Parent =
-        HRP
+    flightHumanoid.AutoRotate = false
+    flightHumanoid.PlatformStand = false
 
-    local velocity =
-        Instance.new("LinearVelocity")
+    local attachment = Instance.new("Attachment")
+    attachment.Name = "SpaceHub_FlightAttachment"
+    attachment.Parent = flightHRP
 
-    velocity.Name =
-        "SpaceHub_FlightVelocity"
+    local velocity = Instance.new("LinearVelocity")
+    velocity.Name = "SpaceHub_FlightVelocity"
+    velocity.Attachment0 = attachment
+    velocity.MaxForce = math.huge
+    velocity.RelativeTo = Enum.ActuatorRelativeTo.World
+    velocity.VectorVelocity = Vector3.zero
+    velocity.Parent = flightHRP
 
-    velocity.Attachment0 =
-        attachment
+    local orientationAttachment = Instance.new("Attachment")
+    orientationAttachment.Name = "SpaceHub_FlightOrientation"
+    orientationAttachment.Parent = flightHRP
 
-    velocity.MaxForce =
-        math.huge
+    local orientation = Instance.new("AlignOrientation")
+    orientation.Name = "SpaceHub_FlightRotation"
+    orientation.Attachment0 = orientationAttachment
+    orientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    orientation.CFrame = lockedRotation
+    orientation.RigidityEnabled = true
+    orientation.Responsiveness = 200
+    orientation.MaxTorque = math.huge
+    orientation.Parent = flightHRP
 
-    velocity.RelativeTo =
-        Enum.ActuatorRelativeTo.World
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if not flightEnabled
+            or not flying
+            or Character ~= flightCharacter
+            or HRP ~= flightHRP
+            or not flightHRP.Parent
+            or not flightHumanoid.Parent then
 
-    velocity.VectorVelocity =
-        Vector3.zero
-
-    velocity.Parent =
-        HRP
-
-    Humanoid.PlatformStand =
-        true
-
-    flyConnection =
-        RunService.RenderStepped:Connect(
-            function()
-
-                if not flying then
-                    return
-                end
-
-                if not HRP
-                    or not HRP.Parent then
-
-                    stopFlying()
-
-                    return
-
-                end
-
-                local camera =
-                    workspace.CurrentCamera
-
-                if not camera then
-                    return
-                end
-
-                local direction =
-                    Vector3.zero
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.W
-                ) then
-
-                    direction +=
-                        camera.CFrame.LookVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.S
-                ) then
-
-                    direction -=
-                        camera.CFrame.LookVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.A
-                ) then
-
-                    direction -=
-                        camera.CFrame.RightVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.D
-                ) then
-
-                    direction +=
-                        camera.CFrame.RightVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.Space
-                ) then
-
-                    direction +=
-                        Vector3.yAxis
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.LeftControl
-                ) then
-
-                    direction -=
-                        Vector3.yAxis
-
-                end
-
-                if direction.Magnitude > 0 then
-
-                    direction =
-                        direction.Unit
-                        * flightSpeed
-
-                end
-
-                velocity.VectorVelocity =
-                    direction
-
+            if flyConnection then
+                flyConnection:Disconnect()
+                flyConnection = nil
             end
-        )
 
+            if flightHRP and flightHRP.Parent then
+                removeFlightObjects(flightHRP)
+            end
+
+            if flightHumanoid and flightHumanoid.Parent then
+                flightHumanoid.PlatformStand = false
+                flightHumanoid.AutoRotate = true
+                flightHumanoid.Sit = false
+                if flightHRP and flightHRP.Parent then
+                    flightHRP.AssemblyLinearVelocity = Vector3.zero
+                    flightHRP.AssemblyAngularVelocity = Vector3.zero
+                end
+                pcall(function()
+                    flightHumanoid:ChangeState(Enum.HumanoidStateType.Running)
+                end)
+            end
+
+            flying = false
+            return
+        end
+
+        -- Hard-lock the orientation without changing the camera.
+        orientation.CFrame = lockedRotation
+
+        local camera = workspace.CurrentCamera
+        if not camera then
+            velocity.VectorVelocity = Vector3.zero
+            return
+        end
+
+        local look = camera.CFrame.LookVector
+        local right = camera.CFrame.RightVector
+
+        local forward = Vector3.new(look.X, 0, look.Z)
+        local strafe = Vector3.new(right.X, 0, right.Z)
+
+        if forward.Magnitude > 0 then
+            forward = forward.Unit
+        end
+
+        if strafe.Magnitude > 0 then
+            strafe = strafe.Unit
+        end
+
+        local direction = Vector3.zero
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            direction += forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            direction -= forward
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            direction -= strafe
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            direction += strafe
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            direction += Vector3.yAxis
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            direction -= Vector3.yAxis
+        end
+
+        if direction.Magnitude > 0 then
+            velocity.VectorVelocity = direction.Unit * flightSpeed
+        else
+            velocity.VectorVelocity = Vector3.zero
+        end
+    end)
 end
 
 UniversalTab:CreateSlider({
@@ -701,7 +705,7 @@ UniversalTab:CreateSlider({
 
     Range = {
         10,
-        2000
+        3000
     },
 
     Increment = 10,
@@ -731,6 +735,8 @@ UniversalTab:CreateToggle({
 
     Callback = function(enabled)
 
+        flightEnabled = enabled
+
         if enabled then
             startFlying()
         else
@@ -751,7 +757,6 @@ UniversalTab:CreateParagraph({
         "LEFT CTRL  →  Descend"
 
 })
-
 
 --//======================================================
 --// PLAYER UTILITIES
@@ -870,73 +875,211 @@ UniversalTab:CreateSlider({
 })
 
 --//======================================================
---// NOCLIP
+--// NOCLIP - FULL PHYSICS / SAFE RESTORE
 --//======================================================
+local noclipEnabled = false
+local noclipConnection = nil
+local noclipCharacterConnection = nil
+local noclipOriginalState = {}
+local noclipCharacter = nil
 
-UniversalTab:CreateToggle({
+local function noclipClearState()
+    table.clear(noclipOriginalState)
+    noclipCharacter = nil
+end
 
-    Name = "Noclip",
-
-    CurrentValue = false,
-
-    Flag = "Noclip",
-
-    Callback = function(enabled)
-
-        noclip =
-            enabled
-
-        if noclipConnection then
-
-            noclipConnection:Disconnect()
-
-            noclipConnection = nil
-
-        end
-
-        if not enabled
-            and Character then
-
-            for _, part in ipairs(
-                Character:GetDescendants()
-            ) do
-
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-
-            end
-
-            return
-
-        end
-
-        noclipConnection =
-            RunService.Stepped:Connect(
-                function()
-
-                    if not noclip
-                        or not Character then
-
-                        return
-
-                    end
-
-                    for _, part in ipairs(
-                        Character:GetDescendants()
-                    ) do
-
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
-
-                    end
-
-                end
-            )
-
+local function noclipRememberPart(part)
+    if not part or not part:IsA("BasePart") then
+        return
     end
 
+    if noclipOriginalState[part] == nil then
+        noclipOriginalState[part] = {
+            CanCollide = part.CanCollide,
+            CanTouch = part.CanTouch,
+            CanQuery = part.CanQuery
+        }
+    end
+end
+
+local function noclipApplyPart(part)
+    if not noclipEnabled or not part or not part.Parent then
+        return
+    end
+
+    if not part:IsA("BasePart") then
+        return
+    end
+
+    noclipRememberPart(part)
+
+    part.CanCollide = false
+    part.CanTouch = false
+    part.CanQuery = false
+end
+
+local function noclipRestore(character)
+    for part, state in pairs(noclipOriginalState) do
+        if part and part.Parent and part:IsA("BasePart") then
+            if not character or part:IsDescendantOf(character) then
+                part.CanCollide = state.CanCollide
+                part.CanTouch = state.CanTouch
+                part.CanQuery = state.CanQuery
+            end
+        end
+    end
+
+    noclipClearState()
+end
+
+local function noclipApply(character)
+    if not noclipEnabled or not character or not character.Parent then
+        return
+    end
+
+    if noclipCharacter ~= character then
+        noclipRestore()
+        noclipCharacter = character
+    end
+
+    for _, part in ipairs(character:GetDescendants()) do
+        noclipApplyPart(part)
+    end
+end
+
+local function noclipWatch(character)
+    if noclipCharacterConnection then
+        noclipCharacterConnection:Disconnect()
+        noclipCharacterConnection = nil
+    end
+
+    if not noclipEnabled or not character then
+        return
+    end
+
+    noclipCharacter = character
+
+    noclipCharacterConnection = character.DescendantAdded:Connect(function(obj)
+        if noclipEnabled then
+            noclipApplyPart(obj)
+        end
+    end)
+
+    task.defer(function()
+        if noclipEnabled and LocalPlayer.Character == character then
+            noclipApply(character)
+        end
+    end)
+end
+
+local function noclipResetHumanoid(character)
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if root and root.Parent then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    if humanoid and humanoid.Parent then
+        humanoid.Sit = false
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate = true
+
+        pcall(function()
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end)
+
+        task.wait()
+
+        if humanoid.Parent then
+            pcall(function()
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            end)
+        end
+    end
+
+    if root and root.Parent then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+
+local function noclipDisable()
+    if not noclipEnabled and not next(noclipOriginalState) then
+        return
+    end
+
+    noclipEnabled = false
+
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
+    if noclipCharacterConnection then
+        noclipCharacterConnection:Disconnect()
+        noclipCharacterConnection = nil
+    end
+
+    local character = noclipCharacter or LocalPlayer.Character or Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    -- Move out of the floor before restoring collisions/touch/query.
+    if root and root.Parent then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        root.CFrame = root.CFrame + Vector3.new(0, 3, 0)
+        task.wait()
+    end
+
+    noclipRestore(character)
+    noclipResetHumanoid(character)
+end
+
+local function noclipEnable()
+    if noclipEnabled then
+        return
+    end
+
+    local character = LocalPlayer.Character
+    if not character or not character.Parent then
+        return
+    end
+
+    noclipEnabled = true
+    noclipCharacter = character
+
+    noclipWatch(character)
+
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not noclipEnabled then
+            return
+        end
+
+        local currentCharacter = LocalPlayer.Character
+        if currentCharacter and currentCharacter.Parent then
+            if noclipCharacter ~= currentCharacter then
+                noclipWatch(currentCharacter)
+            end
+            noclipApply(currentCharacter)
+        end
+    end)
+
+    noclipApply(character)
+end
+
+GameTab:CreateToggle({
+    Name = "NoClip",
+    CurrentValue = false,
+    Flag = "NoClip",
+    Callback = function(value)
+        if value then
+            noclipEnable()
+        else
+            noclipDisable()
+        end
+    end
 })
 
 --//======================================================
@@ -3756,72 +3899,6 @@ end)
 ConfigurationTab:CreateParagraph({
 
     Title = "✦ SYSTEM CONFIGURATION  /  PREFERENCES",
-
-    Content =
-        "Tune movement, interface and targeting preferences."
-
-})
-
-ConfigurationTab:CreateSection(
-    "PARAMETERS  /  MOVEMENT"
-)
-
-ConfigurationTab:CreateSlider({
-
-    Name = "Default WalkSpeed",
-
-    Range = {
-        1,
-        250
-    },
-
-    Increment = 1,
-
-    Suffix = " SPD",
-
-    CurrentValue = 16,
-
-    Flag = "ConfigWalkSpeed",
-
-    Callback = function(value)
-
-        walkSpeed =
-            value
-
-        if Humanoid then
-            Humanoid.WalkSpeed =
-                value
-        end
-
-    end
-
-})
-
-ConfigurationTab:CreateSlider({
-
-    Name = "Default FlightSpeed",
-
-    Range = {
-        10,
-        300
-    },
-
-    Increment = 5,
-
-    Suffix = " SPD",
-
-    CurrentValue = 50,
-
-    Flag = "ConfigFlightSpeed",
-
-    Callback = function(value)
-
-        flightSpeed =
-            value
-
-    end
-
-})
 
 --//======================================================
 --// THEMES
