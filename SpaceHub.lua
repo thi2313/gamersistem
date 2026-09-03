@@ -1,7 +1,7 @@
 --//======================================================
 --// SPACE HUB
 --// SPACE HUB ERROR 404
---// VERSION 4.0.5
+--// VERSION 4.0.4
 --//======================================================
 
 --//======================================================
@@ -61,8 +61,6 @@ local hipHeight = 2
 local customGravityEnabled = false
 local customGravity = 196.2
 local originalGravity = workspace.Gravity
-local characterPhysicsConnection = nil
-local characterStateConnection = nil
 
 local selectedPlayer = nil
 local spectating = false
@@ -547,14 +545,6 @@ local function stopFlying()
     if Humanoid and Humanoid.Parent then
         Humanoid.PlatformStand = false
         Humanoid.AutoRotate = true
-        Humanoid.Sit = false
-        if HRP and HRP.Parent then
-            HRP.AssemblyLinearVelocity = Vector3.zero
-            HRP.AssemblyAngularVelocity = Vector3.zero
-        end
-        pcall(function()
-            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
-        end)
     end
 end
 
@@ -585,7 +575,7 @@ local function startFlying()
     local lockedRotation = flightHRP.CFrame.Rotation
 
     flightHumanoid.AutoRotate = false
-    flightHumanoid.PlatformStand = false
+    flightHumanoid.PlatformStand = true
 
     local attachment = Instance.new("Attachment")
     attachment.Name = "SpaceHub_FlightAttachment"
@@ -633,14 +623,6 @@ local function startFlying()
             if flightHumanoid and flightHumanoid.Parent then
                 flightHumanoid.PlatformStand = false
                 flightHumanoid.AutoRotate = true
-                flightHumanoid.Sit = false
-                if flightHRP and flightHRP.Parent then
-                    flightHRP.AssemblyLinearVelocity = Vector3.zero
-                    flightHRP.AssemblyAngularVelocity = Vector3.zero
-                end
-                pcall(function()
-                    flightHumanoid:ChangeState(Enum.HumanoidStateType.Running)
-                end)
             end
 
             flying = false
@@ -875,210 +857,75 @@ UniversalTab:CreateSlider({
 })
 
 --//======================================================
---// NOCLIP - FULL PHYSICS / SAFE RESTORE
 --//======================================================
-local noclipEnabled = false
-local noclipConnection = nil
-local noclipCharacterConnection = nil
-local noclipOriginalState = {}
-local noclipCharacter = nil
+--// NOCLIP - SAFE / RESPAWN FIX
+--//======================================================
+local noclipEnabled=false
+local noclipConnection=nil
+local noclipCharacterConnection=nil
+local noclipOriginalState={}
 
-local function noclipClearState()
+local function noclipRestore()
+    for part,state in pairs(noclipOriginalState) do
+        if part and part.Parent then part.CanCollide=state end
+    end
     table.clear(noclipOriginalState)
-    noclipCharacter = nil
-end
-
-local function noclipRememberPart(part)
-    if not part or not part:IsA("BasePart") then
-        return
-    end
-
-    if noclipOriginalState[part] == nil then
-        noclipOriginalState[part] = {
-            CanCollide = part.CanCollide,
-            CanTouch = part.CanTouch,
-            CanQuery = part.CanQuery
-        }
-    end
-end
-
-local function noclipApplyPart(part)
-    if not noclipEnabled or not part or not part.Parent then
-        return
-    end
-
-    if not part:IsA("BasePart") then
-        return
-    end
-
-    noclipRememberPart(part)
-
-    part.CanCollide = false
-    part.CanTouch = false
-    part.CanQuery = false
-end
-
-local function noclipRestore(character)
-    for part, state in pairs(noclipOriginalState) do
-        if part and part.Parent and part:IsA("BasePart") then
-            if not character or part:IsDescendantOf(character) then
-                part.CanCollide = state.CanCollide
-                part.CanTouch = state.CanTouch
-                part.CanQuery = state.CanQuery
-            end
-        end
-    end
-
-    noclipClearState()
 end
 
 local function noclipApply(character)
-    if not noclipEnabled or not character or not character.Parent then
-        return
-    end
-
-    if noclipCharacter ~= character then
-        noclipRestore()
-        noclipCharacter = character
-    end
-
-    for _, part in ipairs(character:GetDescendants()) do
-        noclipApplyPart(part)
+    if not noclipEnabled or not character or not character.Parent then return end
+    for _,part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if noclipOriginalState[part]==nil then
+                noclipOriginalState[part]=part.CanCollide
+            end
+            part.CanCollide=false
+        end
     end
 end
 
 local function noclipWatch(character)
-    if noclipCharacterConnection then
-        noclipCharacterConnection:Disconnect()
-        noclipCharacterConnection = nil
-    end
-
-    if not noclipEnabled or not character then
-        return
-    end
-
-    noclipCharacter = character
-
-    noclipCharacterConnection = character.DescendantAdded:Connect(function(obj)
-        if noclipEnabled then
-            noclipApplyPart(obj)
+    if noclipCharacterConnection then noclipCharacterConnection:Disconnect() end
+    if not noclipEnabled then return end
+    noclipCharacterConnection=character.DescendantAdded:Connect(function(obj)
+        if noclipEnabled and obj:IsA("BasePart") then
+            if noclipOriginalState[obj]==nil then noclipOriginalState[obj]=obj.CanCollide end
+            obj.CanCollide=false
         end
     end)
-
     task.defer(function()
-        if noclipEnabled and LocalPlayer.Character == character then
-            noclipApply(character)
-        end
+        if noclipEnabled and LocalPlayer.Character==character then noclipApply(character) end
     end)
-end
-
-local function noclipResetHumanoid(character)
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-
-    if root and root.Parent then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    if humanoid and humanoid.Parent then
-        humanoid.Sit = false
-        humanoid.PlatformStand = false
-        humanoid.AutoRotate = true
-
-        pcall(function()
-            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end)
-
-        task.wait()
-
-        if humanoid.Parent then
-            pcall(function()
-                humanoid:ChangeState(Enum.HumanoidStateType.Running)
-            end)
-        end
-    end
-
-    if root and root.Parent then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-    end
 end
 
 local function noclipDisable()
-    if not noclipEnabled and not next(noclipOriginalState) then
-        return
-    end
-
-    noclipEnabled = false
-
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
-
-    if noclipCharacterConnection then
-        noclipCharacterConnection:Disconnect()
-        noclipCharacterConnection = nil
-    end
-
-    local character = noclipCharacter or LocalPlayer.Character or Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-
-    -- Move out of the floor before restoring collisions/touch/query.
-    if root and root.Parent then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        root.CFrame = root.CFrame + Vector3.new(0, 3, 0)
-        task.wait()
-    end
-
-    noclipRestore(character)
-    noclipResetHumanoid(character)
+    noclipEnabled=false
+    if noclipConnection then noclipConnection:Disconnect(); noclipConnection=nil end
+    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
+    noclipRestore()
 end
 
 local function noclipEnable()
-    if noclipEnabled then
-        return
-    end
-
-    local character = LocalPlayer.Character
-    if not character or not character.Parent then
-        return
-    end
-
-    noclipEnabled = true
-    noclipCharacter = character
-
-    noclipWatch(character)
-
-    noclipConnection = RunService.Stepped:Connect(function()
-        if not noclipEnabled then
-            return
-        end
-
-        local currentCharacter = LocalPlayer.Character
-        if currentCharacter and currentCharacter.Parent then
-            if noclipCharacter ~= currentCharacter then
-                noclipWatch(currentCharacter)
-            end
-            noclipApply(currentCharacter)
-        end
+    if noclipEnabled then return end
+    noclipEnabled=true
+    if LocalPlayer.Character then noclipWatch(LocalPlayer.Character) end
+    noclipConnection=RunService.Stepped:Connect(function()
+        if noclipEnabled then noclipApply(LocalPlayer.Character) end
     end)
-
-    noclipApply(character)
 end
 
+LocalPlayer.CharacterAdded:Connect(function(character)
+    noclipRestore()
+    if noclipCharacterConnection then noclipCharacterConnection:Disconnect(); noclipCharacterConnection=nil end
+    if noclipEnabled then noclipWatch(character) end
+end)
+
 GameTab:CreateToggle({
-    Name = "NoClip",
-    CurrentValue = false,
-    Flag = "NoClip",
-    Callback = function(value)
-        if value then
-            noclipEnable()
-        else
-            noclipDisable()
-        end
+    Name="NoClip",
+    CurrentValue=false,
+    Flag="NoClip",
+    Callback=function(value)
+        if value then noclipEnable() else noclipDisable() end
     end
 })
 
@@ -1519,10 +1366,8 @@ local function startToolTeleport()
                 if tool and part then
                     previousPosition = HRP.CFrame
 
-                    safeCharacterTeleport(
-                        HRP,
+                    HRP.CFrame =
                         part.CFrame * CFrame.new(0, 3, 0)
-                    )
 
                     Rayfield:Notify({
                         Title = "TOOL TELEPORT",
@@ -3225,135 +3070,6 @@ GameTab:CreateParagraph({
 })
 
 --//======================================================
---// SAFE TELEPORT / GROUND ALIGNMENT
---//======================================================
-local function getTeleportGroundPosition(targetPosition, character)
-    local rayParams = RaycastParams.new()
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    rayParams.FilterDescendantsInstances = {character}
-    rayParams.IgnoreWater = true
-
-    local ignoreModels = {}
-    local filterInstances = {character}
-    rayParams.FilterDescendantsInstances = filterInstances
-
-    local origin = targetPosition + Vector3.new(0, 1, 0)
-    local direction = Vector3.new(0, -500, 0)
-
-    for _ = 1, 8 do
-        local result = workspace:Raycast(origin, direction, rayParams)
-
-        if not result then
-            return nil
-        end
-
-        local hit = result.Instance
-        local model = hit and hit:FindFirstAncestorOfClass("Model")
-        local humanoid = model and model:FindFirstChildOfClass("Humanoid")
-        local tool = hit and hit:FindFirstAncestorOfClass("Tool")
-
-        -- Do not use another character or a dropped Tool as the ground.
-        if humanoid then
-            if not ignoreModels[model] then
-                ignoreModels[model] = true
-                table.insert(filterInstances, model)
-                rayParams.FilterDescendantsInstances = filterInstances
-                continue
-            end
-        elseif tool then
-            if not ignoreModels[tool] then
-                ignoreModels[tool] = true
-                table.insert(filterInstances, tool)
-                rayParams.FilterDescendantsInstances = filterInstances
-                continue
-            end
-        end
-
-        return result.Position
-    end
-
-    return nil
-end
-
-local function safeCharacterTeleport(root, targetCFrame)
-    if not root or not root.Parent or not targetCFrame then
-        return false
-    end
-
-    local character = root.Parent
-    if not character or not character:IsA("Model") then
-        character = LocalPlayer.Character
-    end
-
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-
-    if flying then
-        stopFlying()
-    end
-
-    if root.Parent then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    if noclipEnabled then
-        noclipApply(character)
-    end
-
-    local groundPosition = getTeleportGroundPosition(targetCFrame.Position, character)
-    local finalPosition
-
-    if groundPosition then
-        local hipHeight = humanoid and humanoid.HipHeight or 2
-        if hipHeight <= 0 then
-            hipHeight = 2
-        end
-        finalPosition = groundPosition + Vector3.new(0, hipHeight + 0.15, 0)
-    else
-        -- Fallback for places where no floor can be raycast.
-        finalPosition = targetCFrame.Position + Vector3.new(0, 0.25, 0)
-    end
-
-    root.CFrame = CFrame.new(finalPosition) * targetCFrame.Rotation
-
-    task.wait()
-
-    if root and root.Parent then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    if humanoid and humanoid.Parent then
-        humanoid.PlatformStand = false
-        humanoid.Sit = false
-        humanoid.AutoRotate = true
-
-        pcall(function()
-            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-        end)
-
-        task.wait()
-
-        if humanoid.Parent then
-            pcall(function()
-                humanoid:ChangeState(Enum.HumanoidStateType.Running)
-            end)
-        end
-    end
-
-    if root and root.Parent then
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-    end
-
-    if noclipEnabled then
-        noclipApply(character)
-    end
-
-    return true
-end
-
---//======================================================
 --// TELEPORT
 --//======================================================
 
@@ -3396,10 +3112,13 @@ local function teleportToPlayer(player)
         return
     end
 
-    safeCharacterTeleport(
-        HRP,
-        targetHRP.CFrame * CFrame.new(3, 0, 0)
-    )
+    HRP.CFrame =
+        targetHRP.CFrame
+        * CFrame.new(
+            3,
+            0,
+            0
+        )
 
     Rayfield:Notify({
 
@@ -3486,10 +3205,13 @@ TeleportTab:CreateButton({
         if spawn
             and spawn:IsA("BasePart") then
 
-            safeCharacterTeleport(
-                HRP,
-                spawn.CFrame * CFrame.new(0, 5, 0)
-            )
+            HRP.CFrame =
+                spawn.CFrame
+                * CFrame.new(
+                    0,
+                    5,
+                    0
+                )
 
         else
 
@@ -3623,12 +3345,9 @@ local function teleportToWaypoint(name)
     local data = waypoints[name]
     previousPosition = HRP.CFrame
 
-    safeCharacterTeleport(
-        HRP,
-        CFrame.lookAt(
-            Vector3.new(data.x, data.y, data.z),
-            Vector3.new(data.x + data.lx, data.y + data.ly, data.z + data.lz)
-        )
+    HRP.CFrame = CFrame.lookAt(
+        Vector3.new(data.x, data.y, data.z),
+        Vector3.new(data.x + data.lx, data.y + data.ly, data.z + data.lz)
     )
 
     Rayfield:Notify({
@@ -3670,7 +3389,7 @@ WaypointsTab:CreateButton({
     Callback = function()
         if HRP and previousPosition then
             local current = HRP.CFrame
-            safeCharacterTeleport(HRP, previousPosition)
+            HRP.CFrame = previousPosition
             previousPosition = current
         else
             Rayfield:Notify({
@@ -3900,6 +3619,72 @@ ConfigurationTab:CreateParagraph({
 
     Title = "✦ SYSTEM CONFIGURATION  /  PREFERENCES",
 
+    Content =
+        "Tune movement, interface and targeting preferences."
+
+})
+
+ConfigurationTab:CreateSection(
+    "PARAMETERS  /  MOVEMENT"
+)
+
+ConfigurationTab:CreateSlider({
+
+    Name = "Default WalkSpeed",
+
+    Range = {
+        1,
+        250
+    },
+
+    Increment = 1,
+
+    Suffix = " SPD",
+
+    CurrentValue = 16,
+
+    Flag = "ConfigWalkSpeed",
+
+    Callback = function(value)
+
+        walkSpeed =
+            value
+
+        if Humanoid then
+            Humanoid.WalkSpeed =
+                value
+        end
+
+    end
+
+})
+
+ConfigurationTab:CreateSlider({
+
+    Name = "Default FlightSpeed",
+
+    Range = {
+        10,
+        300
+    },
+
+    Increment = 5,
+
+    Suffix = " SPD",
+
+    CurrentValue = 50,
+
+    Flag = "ConfigFlightSpeed",
+
+    Callback = function(value)
+
+        flightSpeed =
+            value
+
+    end
+
+})
+
 --//======================================================
 --// THEMES
 --//======================================================
@@ -3985,46 +3770,47 @@ ConfigurationTab:CreateParagraph({
 LocalPlayer.CharacterAdded:Connect(
     function(character)
 
+        task.wait(0.5)
+
         if flying then
             stopFlying()
         end
 
-        -- Reset controller state before the new character is used.
+        updateCharacter(
+            character
+        )
 
-        task.wait(0.2)
-
-        updateCharacter(character)
-
-        if noclipEnabled then
-            -- Restore the old character first so its original physics values
-            -- are not lost when Roblox creates the new character.
-            if noclipCharacter and noclipCharacter ~= character then
-                noclipRestore(noclipCharacter)
-            else
-                noclipClearState()
-            end
-
-            noclipCharacter = character
-            noclipWatch(character)
-            noclipApply(character)
+        if Humanoid then
+            Humanoid.WalkSpeed = walkSpeed
+            Humanoid.UseJumpPower = true
+            Humanoid.JumpPower = jumpPower
+            Humanoid.HipHeight = hipHeight
         end
 
         if customGravityEnabled then
             workspace.Gravity = customGravity
-        else
-            workspace.Gravity = originalGravity
         end
 
         if espEnabled then
-            task.defer(refreshESP)
+
+            task.wait(0.2)
+
+            refreshESP()
+
         end
 
-        -- Do not auto-start Flight during respawn. A saved Flight toggle
-        -- must not force the new Humanoid into a physics state.
-        flightEnabled = false
+        if flightEnabled then
 
+            task.wait(0.2)
+
+            startFlying()
+
+        end
+
+        -- Rebind the aimbot to the new character automatically.
         if aimbotEnabled then
-            task.delay(0.1, startAimbot)
+            task.wait(0.1)
+            startAimbot()
         end
 
     end
