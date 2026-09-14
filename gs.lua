@@ -1,2241 +1,2435 @@
---//======================================================
---// SPACE HUB
---// PREMIUM ORBITAL INTERFACE
---// VERSION 3.0.0
---//======================================================
+-- BOO HUB ON TOP
+local Player = game:GetService("Players").LocalPlayer
+local Mouse = Player:GetMouse()
 
---//======================================================
---// SERVICES
---//======================================================
-
-local Players = game:GetService("Players")
+local TextService = game:GetService("TextService")
+local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Lighting = game:GetService("Lighting")
-local HttpService = game:GetService("HttpService")
+local InputService = game:GetService("UserInputService")
+local CoreGuiService = game:GetService("CoreGui")
+local ContentService = game:GetService("ContentProvider")
 
-local LocalPlayer = Players.LocalPlayer
-
---//======================================================
---// STATE
---//======================================================
-
-local Character
-local Humanoid
-local HRP
-
-local walkSpeed = 16
-local flightSpeed = 50
-
-local flying = false
-local infiniteJump = false
-local noclip = false
-local fullbright = false
-
-local espEnabled = false
-
-local aimbotEnabled = false
-local aimbotFOVEnabled = true
-local aimbotFOV = 250
-local aimbotSmoothness = 0.18
-local teamCheck = false
-local aimbotMaxDistance = 500
-local aimbotPriority = "FOV"
-local aimbotPart = "Head"
-local aimbotVisibleCheck = false
-
-local espShowName = true
-local espShowHealth = true
-local espShowDistance = true
-local espTeamColors = true
-local espMaxDistance = 1000
-
-local jumpPower = 50
-local hipHeight = 2
-local customGravityEnabled = false
-local customGravity = 196.2
-local originalGravity = workspace.Gravity
-
-local selectedPlayer = nil
-local spectating = false
-local selectedWaypoint = nil
-local waypoints = {}
-local previousPosition = nil
-
-local dashboardLabels = {}
-
-local flyConnection
-local aimbotConnection
-local noclipConnection
-local jumpConnection
-local fullbrightConnection
-
-local espObjects = {}
-
-local originalLighting = {
-    Brightness = Lighting.Brightness,
-    ClockTime = Lighting.ClockTime,
-    FogEnd = Lighting.FogEnd,
-    GlobalShadows = Lighting.GlobalShadows
+local Themes = {
+	Light = {
+		MainFrame = Color3.fromRGB(255,255,255),
+		Minimise = Color3.fromRGB(255,106,0),
+		MinimiseAccent = Color3.fromRGB(147,59,0),
+		Maximise = Color3.fromRGB(25,255,0),
+		MaximiseAccent = Color3.fromRGB(0,255,110),
+		NavBar = Color3.fromRGB(124,37,255),
+		NavBarAccent = Color3.fromRGB(255,255,255),
+		NavBarInvert = Color3.fromRGB(30,30,30),
+		TitleBar = Color3.fromRGB(124,37,255),
+		TitleBarAccent = Color3.fromRGB(255,255,255),
+		Overlay = Color3.fromRGB(124,37,255),
+		Banner = Color3.fromRGB(255,255,255),
+		BannerAccent = Color3.fromRGB(124,37,255),
+		Content = Color3.fromRGB(124,37,255),
+		Button = Color3.fromRGB(124,37,255),
+		ButtonAccent = Color3.fromRGB(255,255,255),
+		ChipSet = Color3.fromRGB(124,37,255),
+		ChipSetAccent = Color3.fromRGB(255,255,255),
+		DataTable = Color3.fromRGB(124,37,255),
+		DataTableAccent = Color3.fromRGB(255,255,255),
+		Slider = Color3.fromRGB(255,255,255),
+		SliderAccent = Color3.fromRGB(124,37,255),
+		Toggle = Color3.fromRGB(124,37,255),
+		ToggleAccent = Color3.fromRGB(255,255,255),
+		Dropdown = Color3.fromRGB(255,255,255),
+		DropdownAccent = Color3.fromRGB(124,37,255),
+		ColorPicker = Color3.fromRGB(255,255,255),
+		ColorPickerAccent = Color3.fromRGB(124,37,255),
+		TextField = Color3.fromRGB(124,37,255),
+		TextFieldAccent = Color3.fromRGB(124,37,255),
+	},
+	Dark = {
+		MainFrame = Color3.fromRGB(30,30,30),
+		Minimise = Color3.fromRGB(255,106,0),
+		MinimiseAccent = Color3.fromRGB(147,59,0),
+		Maximise = Color3.fromRGB(25,255,0),
+		MaximiseAccent = Color3.fromRGB(0,255,110),
+		NavBar = Color3.fromRGB(55,55,55),
+		NavBarAccent = Color3.fromRGB(255,255,255),
+		NavBarInvert = Color3.fromRGB(235,235,235),
+		TitleBar = Color3.fromRGB(55,55,55),
+		TitleBarAccent = Color3.fromRGB(255,255,255),
+		Overlay = Color3.fromRGB(175,175,175),
+		Banner = Color3.fromRGB(55,55,55),
+		BannerAccent = Color3.fromRGB(255,255,255),
+		Content = Color3.fromRGB(85,85,85),
+		Button = Color3.fromRGB(85,85,85),
+		ButtonAccent = Color3.fromRGB(255,255,255),
+		ChipSet = Color3.fromRGB(235,235,235),
+		ChipSetAccent = Color3.fromRGB(85,85,85),
+		DataTable = Color3.fromRGB(235,235,235),
+		DataTableAccent = Color3.fromRGB(85,85,85),
+		Slider = Color3.fromRGB(85,85,85),
+		SliderAccent = Color3.fromRGB(235,235,235),
+		Toggle = Color3.fromRGB(205,205,205),
+		ToggleAccent = Color3.fromRGB(125,125,125),
+		Dropdown = Color3.fromRGB(85,85,85),
+		DropdownAccent = Color3.fromRGB(235,235,235),
+		ColorPicker = Color3.fromRGB(85,85,85),
+		ColorPickerAccent = Color3.fromRGB(235,235,235),
+		TextField = Color3.fromRGB(175,175,175),
+		TextFieldAccent = Color3.fromRGB(255,255,255),
+	},
+	Mocha = {
+		MainFrame = Color3.fromRGB(255,255,255),
+		Minimise = Color3.fromRGB(219, 210, 202),
+		MinimiseAccent = Color3.fromRGB(219, 210, 202),
+		Maximise = Color3.fromRGB(189, 183, 177),
+		MaximiseAccent = Color3.fromRGB(189, 183, 177),
+		NavBar = Color3.fromRGB(176, 148, 125),
+		NavBarAccent = Color3.fromRGB(255,255,255),
+		NavBarInvert = Color3.fromRGB(30,30,30),
+		TitleBar = Color3.fromRGB(176, 148, 125),
+		TitleBarAccent = Color3.fromRGB(255,255,255),
+		Overlay = Color3.fromRGB(176, 148, 125),
+		Banner = Color3.fromRGB(255,255,255),
+		BannerAccent = Color3.fromRGB(176, 148, 125),
+		Content = Color3.fromRGB(176, 148, 125),
+		Button = Color3.fromRGB(176, 148, 125),
+		ButtonAccent = Color3.fromRGB(255,255,255),
+		ChipSet = Color3.fromRGB(176, 148, 125),
+		ChipSetAccent = Color3.fromRGB(255,255,255),
+		DataTable = Color3.fromRGB(176, 148, 125),
+		DataTableAccent = Color3.fromRGB(255,255,255),
+		Slider = Color3.fromRGB(255,255,255),
+		SliderAccent = Color3.fromRGB(176, 148, 125),
+		Toggle = Color3.fromRGB(176, 148, 125),
+		ToggleAccent = Color3.fromRGB(255,255,255),
+		Dropdown = Color3.fromRGB(255,255,255),
+		DropdownAccent = Color3.fromRGB(176, 148, 125),
+		ColorPicker = Color3.fromRGB(255,255,255),
+		ColorPickerAccent = Color3.fromRGB(176, 148, 125),
+		TextField = Color3.fromRGB(175,175,175),
+		TextFieldAccent = Color3.fromRGB(255,255,255)
+	},
+	Aqua = {
+		MainFrame = Color3.fromRGB(255,255,255),
+		Minimise = Color3.fromRGB(219, 210, 202),
+		MinimiseAccent = Color3.fromRGB(219, 210, 202),
+		Maximise = Color3.fromRGB(189, 183, 177),
+		MaximiseAccent = Color3.fromRGB(189, 183, 177),
+		NavBar = Color3.fromRGB(116, 112, 140),
+		NavBarAccent = Color3.fromRGB(255,255,255),
+		NavBarInvert = Color3.fromRGB(30,30,30),
+		TitleBar = Color3.fromRGB(116, 112, 140),
+		TitleBarAccent = Color3.fromRGB(255,255,255),
+		Overlay = Color3.fromRGB(116, 112, 140),
+		Banner = Color3.fromRGB(255,255,255),
+		BannerAccent = Color3.fromRGB(116, 112, 140),
+		Content = Color3.fromRGB(116, 112, 140),
+		Button = Color3.fromRGB(116, 112, 140),
+		ButtonAccent = Color3.fromRGB(255,255,255),
+		ChipSet = Color3.fromRGB(116, 112, 140),
+		ChipSetAccent = Color3.fromRGB(255,255,255),
+		DataTable = Color3.fromRGB(116, 112, 140),
+		DataTableAccent = Color3.fromRGB(255,255,255),
+		Slider = Color3.fromRGB(255,255,255),
+		SliderAccent = Color3.fromRGB(116, 112, 140),
+		Toggle = Color3.fromRGB(116, 112, 140),
+		ToggleAccent = Color3.fromRGB(255,255,255),
+		Dropdown = Color3.fromRGB(255,255,255),
+		DropdownAccent = Color3.fromRGB(116, 112, 140),
+		ColorPicker = Color3.fromRGB(255,255,255),
+		ColorPickerAccent = Color3.fromRGB(116, 112, 140),
+		TextField = Color3.fromRGB(175,175,175),
+		TextFieldAccent = Color3.fromRGB(255,255,255)
+	},
+	Jester = {
+		MainFrame = Color3.fromRGB(255,255,255),
+		Minimise = Color3.fromRGB(219, 210, 202),
+		MinimiseAccent = Color3.fromRGB(219, 210, 202),
+		Maximise = Color3.fromRGB(189, 183, 177),
+		MaximiseAccent = Color3.fromRGB(189, 183, 177),
+		NavBar = Color3.fromRGB(219, 68, 103),
+		NavBarAccent = Color3.fromRGB(255,255,255),
+		NavBarInvert = Color3.fromRGB(30,30,30),
+		TitleBar = Color3.fromRGB(219, 68, 103),
+		TitleBarAccent = Color3.fromRGB(255,255,255),
+		Overlay = Color3.fromRGB(219, 68, 103),
+		Banner = Color3.fromRGB(255,255,255),
+		BannerAccent = Color3.fromRGB(219, 68, 103),
+		Content = Color3.fromRGB(219, 68, 103),
+		Button = Color3.fromRGB(219, 68, 103),
+		ButtonAccent = Color3.fromRGB(255,255,255),
+		ChipSet = Color3.fromRGB(219, 68, 103),
+		ChipSetAccent = Color3.fromRGB(255,255,255),
+		DataTable = Color3.fromRGB(219, 68, 103),
+		DataTableAccent = Color3.fromRGB(255,255,255),
+		Slider = Color3.fromRGB(255,255,255),
+		SliderAccent = Color3.fromRGB(219, 68, 103),
+		Toggle = Color3.fromRGB(219, 68, 103),
+		ToggleAccent = Color3.fromRGB(255,255,255),
+		Dropdown = Color3.fromRGB(255,255,255),
+		DropdownAccent = Color3.fromRGB(219, 68, 103),
+		ColorPicker = Color3.fromRGB(255,255,255),
+		ColorPickerAccent = Color3.fromRGB(219, 68, 103),
+		TextField = Color3.fromRGB(175,175,175),
+		TextFieldAccent = Color3.fromRGB(255,255,255),
+	}
 }
 
---//======================================================
---// CHARACTER SYSTEM
---//======================================================
-
-local function updateCharacter(character)
-
-    Character = character
-
-    Humanoid = character:WaitForChild(
-        "Humanoid",
-        10
-    )
-
-    HRP = character:WaitForChild(
-        "HumanoidRootPart",
-        10
-    )
-
-    if Humanoid then
-        Humanoid.WalkSpeed = walkSpeed
-        Humanoid.UseJumpPower = true
-        Humanoid.JumpPower = jumpPower
-        Humanoid.HipHeight = hipHeight
-    end
-
-end
-
-if LocalPlayer.Character then
-    updateCharacter(LocalPlayer.Character)
-end
-
---//======================================================
---// RAYFIELD
---//======================================================
-
-local Rayfield = loadstring(game:HttpGet(
-    "https://sirius.menu/rayfield"
-))()
-
---//======================================================
---// WINDOW
---//======================================================
-
-local SpaceTheme = {
-    TextColor = Color3.fromRGB(232, 244, 255),
-    Background = Color3.fromRGB(8, 12, 22),
-    Topbar = Color3.fromRGB(11, 18, 32),
-    Shadow = Color3.fromRGB(0, 0, 0),
-
-    NotificationBackground = Color3.fromRGB(13, 22, 38),
-    NotificationActionsBackground = Color3.fromRGB(22, 34, 54),
-
-    TabBackground = Color3.fromRGB(12, 20, 34),
-    TabStroke = Color3.fromRGB(28, 45, 67),
-    TabBackgroundSelected = Color3.fromRGB(24, 82, 112),
-    TabTextColor = Color3.fromRGB(145, 169, 194),
-    SelectedTabTextColor = Color3.fromRGB(235, 250, 255),
-
-    ElementBackground = Color3.fromRGB(13, 21, 35),
-    ElementBackgroundHover = Color3.fromRGB(18, 31, 49),
-    SecondaryElementBackground = Color3.fromRGB(9, 16, 28),
-    ElementStroke = Color3.fromRGB(27, 48, 70),
-    SecondaryElementStroke = Color3.fromRGB(20, 36, 54),
-
-    SliderBackground = Color3.fromRGB(23, 48, 70),
-    SliderProgress = Color3.fromRGB(0, 190, 255),
-    SliderStroke = Color3.fromRGB(73, 215, 255),
-
-    ToggleBackground = Color3.fromRGB(17, 28, 43),
-    ToggleEnabled = Color3.fromRGB(0, 170, 230),
-    ToggleDisabled = Color3.fromRGB(57, 72, 91),
-    ToggleEnabledStroke = Color3.fromRGB(72, 220, 255),
-    ToggleDisabledStroke = Color3.fromRGB(74, 91, 112),
-    ToggleEnabledOuterStroke = Color3.fromRGB(30, 88, 113),
-    ToggleDisabledOuterStroke = Color3.fromRGB(36, 49, 66),
-
-    DropdownSelected = Color3.fromRGB(20, 36, 55),
-    DropdownUnselected = Color3.fromRGB(12, 21, 34),
-
-    InputBackground = Color3.fromRGB(11, 20, 33),
-    InputStroke = Color3.fromRGB(34, 58, 81),
-    PlaceholderColor = Color3.fromRGB(108, 132, 158)
+local Types = {
+	"RoundFrame",
+	"Shadow",
+	"Circle",
+	"CircleButton",
+	"Frame",
+	"Label",
+	"Button",
+	"SmoothButton",
+	"Box",
+	"ScrollingFrame",
+	"Menu",
+	"NavBar"
 }
 
-local Window = Rayfield:CreateWindow({
-
-    Name = "SPACE HUB  //  ORBITAL",
-
-    Icon = "orbit",
-
-    LoadingTitle = "SPACE HUB",
-
-    LoadingSubtitle =
-        "Premium Orbital Interface  •  v3.0.0",
-
-    ShowText = "SPACE HUB",
-
-    ToggleUIKeybind = "K",
-
-    Theme = SpaceTheme,
-
-    DisableRayfieldPrompts = false,
-
-    DisableBuildWarnings = false,
-
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = nil,
-        FileName = "SpaceHub"
-    },
-
-    Discord = {
-        Enabled = false,
-        Invite = "",
-        RememberJoins = true
-    },
-
-    KeySystem = true,
-
-    KeySettings = {
-
-        Title = "SPACE HUB",
-
-        Subtitle = "Orbital Access",
-
-        Note =
-            "Enter your Space Hub access key",
-
-        FileName = "SpaceHubKey",
-
-        SaveKey = false,
-
-        GrabKeyFromSite = false,
-
-        Key = {
-            "spacehub1254"
-        }
-
-    }
-
-})
-
---//======================================================
---// TABS
---//======================================================
-
-local DashboardTab =
-    Window:CreateTab(
-        "Dashboard",
-        "layout-dashboard"
-    )
-
-local UniversalTab =
-    Window:CreateTab(
-        "Universal",
-        "move"
-    )
-
-local GameTab =
-    Window:CreateTab(
-        "Game",
-        "crosshair"
-    )
-
-local TeleportTab =
-    Window:CreateTab(
-        "Teleport",
-        "map-pin"
-    )
-
---//======================================================
---// WAYPOINTS TAB
---//======================================================
-
-local WaypointsTab =
-    Window:CreateTab(
-        "Waypoints",
-        "map"
-    )
-
-local PlayerManagerTab =
-    Window:CreateTab(
-        "Player Manager",
-        "users"
-    )
-
-local ConfigurationTab =
-    Window:CreateTab(
-        "Configuration",
-        "settings-2"
-    )
-
---//======================================================
---// DASHBOARD
---//======================================================
-
-DashboardTab:CreateParagraph({
-    Title = "✦ SPACE HUB  /  COMMAND DECK",
-    Content =
-        "Live orbital control center for movement, visuals, targeting and transportation.\n" ..
-        "All status panels below update automatically."
-})
-
-DashboardTab:CreateDivider()
-DashboardTab:CreateSection("LIVE SYSTEM STATUS")
-
-local SystemStatusLabel = DashboardTab:CreateLabel("●  SYSTEM ONLINE", "circle-check")
-local PlayerStatusLabel = DashboardTab:CreateLabel("Operator  •  " .. LocalPlayer.DisplayName .. "  @" .. LocalPlayer.Name, "user")
-local CharacterStatusLabel = DashboardTab:CreateLabel("Character  •  Synchronizing...", "scan")
-local RuntimeStatusLabel = DashboardTab:CreateLabel("Runtime  •  Initializing...", "activity")
-
-DashboardTab:CreateDivider()
-DashboardTab:CreateSection("LIVE TELEMETRY")
-
-local FPSLabel = DashboardTab:CreateLabel("FPS  •  --", "gauge")
-local PingLabel = DashboardTab:CreateLabel("Ping  •  -- ms", "wifi")
-local PlayersLabel = DashboardTab:CreateLabel("Players  •  --", "users")
-local PositionLabel = DashboardTab:CreateLabel("Position  •  --", "map-pin")
-
-DashboardTab:CreateDivider()
-DashboardTab:CreateSection("ACTIVE MODULES")
-
-local MovementStatusLabel = DashboardTab:CreateLabel("Movement  •  STANDBY", "move")
-local VisualStatusLabel = DashboardTab:CreateLabel("Visuals  •  STANDBY", "eye")
-local TargetStatusLabel = DashboardTab:CreateLabel("Targeting  •  STANDBY", "crosshair")
-local PhysicsStatusLabel = DashboardTab:CreateLabel("Physics  •  DEFAULT", "orbit")
-local WaypointStatusLabel = DashboardTab:CreateLabel("Waypoints  •  0 SAVED", "bookmark")
-
-DashboardTab:CreateDivider()
-DashboardTab:CreateSection("INTERFACE")
-
-DashboardTab:CreateParagraph({
-    Title = "KEYBOARD",
-    Content =
-        "Press  K  to hide/show the interface.\n" ..
-        "Flight:  W A S D  •  SPACE  •  LEFT CTRL"
-})
-
-DashboardTab:CreateButton({
-    Name = "Re-Synchronize Character",
-    Callback = function()
-        if LocalPlayer.Character then
-            updateCharacter(LocalPlayer.Character)
-            Rayfield:Notify({
-                Title = "SYSTEM",
-                Content = "Character systems synchronized.",
-                Duration = 3,
-                Image = "refresh-cw"
-            })
-        end
-    end
-})
-
-task.spawn(function()
-    local frames = 0
-    local last = os.clock()
-
-    RunService.RenderStepped:Connect(function()
-        frames += 1
-        local now = os.clock()
-        if now - last >= 0.5 then
-            local fps = math.floor(frames / (now - last) + 0.5)
-            frames = 0
-            last = now
-
-            local characterReady = Character and Humanoid and HRP and "READY" or "WAITING"
-            local hp = Humanoid and math.floor(Humanoid.Health + 0.5) or 0
-            local maxHp = Humanoid and math.floor(Humanoid.MaxHealth + 0.5) or 0
-
-            CharacterStatusLabel:Set(
-                "Character  •  " .. characterReady ..
-                "  •  HP " .. tostring(hp) .. "/" .. tostring(maxHp),
-                "scan"
-            )
-
-            local ping = "--"
-            pcall(function()
-                local stats = game:GetService("Stats")
-                local network = stats:FindFirstChild("Network")
-                local serverStats = network and network:FindFirstChild("ServerStatsItem")
-                local dataPing = serverStats and serverStats:FindFirstChild("Data Ping")
-                if dataPing then
-                    ping = tostring(math.floor(dataPing:GetValue() + 0.5))
-                end
-            end)
-
-            FPSLabel:Set("FPS  •  " .. tostring(fps), "gauge")
-            PingLabel:Set("Ping  •  " .. tostring(ping) .. " ms", "wifi")
-            PlayersLabel:Set("Players  •  " .. tostring(#Players:GetPlayers()), "users")
-
-            if HRP then
-                local p = HRP.Position
-                PositionLabel:Set(
-                    string.format("Position  •  X %.1f  Y %.1f  Z %.1f", p.X, p.Y, p.Z),
-                    "map-pin"
-                )
-            else
-                PositionLabel:Set("Position  •  --", "map-pin")
-            end
-
-            MovementStatusLabel:Set(
-                "Movement  •  " ..
-                (flying and "FLIGHT ONLINE" or ("WALKSPEED " .. tostring(math.floor(walkSpeed)))),
-                "move"
-            )
-
-            VisualStatusLabel:Set(
-                "Visuals  •  " ..
-                (espEnabled and "ESP ONLINE" or "STANDBY"),
-                "eye"
-            )
-
-            TargetStatusLabel:Set(
-                "Targeting  •  " ..
-                (aimbotEnabled and ("LOCKED / " .. aimbotPriority) or "STANDBY"),
-                "crosshair"
-            )
-
-            PhysicsStatusLabel:Set(
-                "Physics  •  " ..
-                (customGravityEnabled and ("GRAVITY " .. tostring(math.floor(customGravity))) or "DEFAULT"),
-                "orbit"
-            )
-
-            local waypointCount = 0
-            for _ in pairs(waypoints) do
-                waypointCount += 1
-            end
-            WaypointStatusLabel:Set(
-                "Waypoints  •  " .. tostring(waypointCount) .. " SAVED",
-                "bookmark"
-            )
-
-            RuntimeStatusLabel:Set(
-                "Runtime  •  " .. string.format("%.1fs", os.clock()),
-                "activity"
-            )
-        end
-    end)
-end)
-
---//======================================================
---// UNIVERSAL HEADER
---//======================================================
-
-UniversalTab:CreateParagraph({
-
-    Title = "✦ ORBITAL CONTROL  /  MOVEMENT",
-
-    Content =
-        "Universal movement and player utilities.\n" ..
-        "Configure your personal movement systems below."
-
-})
-
---//======================================================
---// MOVEMENT
---//======================================================
-
-UniversalTab:CreateSection(
-    "MOVEMENT  /  CORE"
-)
-
-UniversalTab:CreateSlider({
-
-    Name = "WalkSpeed",
-
-    Range = {
-        16,
-        250
-    },
-
-    Increment = 1,
-
-    Suffix = " SPD",
-
-    CurrentValue = 16,
-
-    Flag = "WalkSpeed",
-
-    Callback = function(value)
-
-        walkSpeed = value
-
-        if Humanoid
-            and Humanoid.Parent then
-
-            Humanoid.WalkSpeed =
-                value
-
-        end
-
-    end
-
-})
-
---//======================================================
---// FLIGHT
---//======================================================
-
-UniversalTab:CreateSection(
-    "MOVEMENT  /  FLIGHT"
-)
-
-local function removeFlightObjects()
-
-    if not HRP then
-        return
-    end
-
-    local velocity =
-        HRP:FindFirstChild(
-            "SpaceHub_FlightVelocity"
-        )
-
-    if velocity then
-        velocity:Destroy()
-    end
-
-    local attachment =
-        HRP:FindFirstChild(
-            "SpaceHub_FlightAttachment"
-        )
-
-    if attachment then
-        attachment:Destroy()
-    end
-
+local ActualTypes = {
+	RoundFrame = "ImageLabel",
+	Shadow = "ImageLabel",
+	Circle = "ImageLabel",
+	CircleButton = "ImageButton",
+	Frame = "Frame",
+	Label = "TextLabel",
+	Button = "TextButton",
+	SmoothButton = "ImageButton",
+	Box = "TextBox",
+	ScrollingFrame = "ScrollingFrame",
+	Menu = "ImageButton",
+	NavBar = "ImageButton"
+}
+
+local Properties = {
+	RoundFrame = {
+		BackgroundTransparency = 1,
+		Image = "http://www.roblox.com/asset/?id=5554237731",
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Rect.new(3,3,297,297)
+	},
+	SmoothButton = {
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		Image = "http://www.roblox.com/asset/?id=5554237731",
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Rect.new(3,3,297,297)
+	},
+	Shadow = {
+		Name = "Shadow",
+		BackgroundTransparency = 1,
+		Image = "http://www.roblox.com/asset/?id=5554236805",
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Rect.new(23,23,277,277),
+		Size = UDim2.fromScale(1,1) + UDim2.fromOffset(30,30),
+		Position = UDim2.fromOffset(-15,-15)
+	},
+	Circle = {
+		BackgroundTransparency = 1,
+		Image = "http://www.roblox.com/asset/?id=5554831670"
+	},
+	CircleButton = {
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Image = "http://www.roblox.com/asset/?id=5554831670"
+	},
+	Frame = {
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1,1)
+	},
+	Label = {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(5,0),
+		Size = UDim2.fromScale(1,1) - UDim2.fromOffset(5,0),
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left
+	},
+	Button = {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(5,0),
+		Size = UDim2.fromScale(1,1) - UDim2.fromOffset(5,0),
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left
+	},
+	Box = {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(5,0),
+		Size = UDim2.fromScale(1,1) - UDim2.fromOffset(5,0),
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left
+	},
+	ScrollingFrame = {
+		BackgroundTransparency = 1,
+		ScrollBarThickness = 0,
+		CanvasSize = UDim2.fromScale(0,0),
+		Size = UDim2.fromScale(1,1)
+	},
+	Menu = {
+		Name = "More",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		Image = "http://www.roblox.com/asset/?id=5555108481",
+		Size = UDim2.fromOffset(20,20),
+		Position = UDim2.fromScale(1,0.5) - UDim2.fromOffset(25,10)
+	},
+	NavBar = {
+		Name = "SheetToggle",
+		Image = "http://www.roblox.com/asset/?id=5576439039",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(20,20),
+		Position = UDim2.fromOffset(5,5),
+		AutoButtonColor = false
+	}
+}
+
+function FindType(String)
+	for _, Type in next, Types do
+		if Type:sub(1, #String):lower() == String:lower() then
+			return Type
+		end
+	end
+	return false
 end
 
-local function stopFlying()
+local Objects = {}
 
-    flying = false
-
-    if flyConnection then
-
-        flyConnection:Disconnect()
-
-        flyConnection = nil
-
-    end
-
-    removeFlightObjects()
-
-    if Humanoid then
-        Humanoid.PlatformStand = false
-    end
-
+function Objects.new(Type)
+	local TargetType = FindType(Type)
+	if TargetType then
+		local NewImage = Instance.new(ActualTypes[TargetType])
+		if Properties[TargetType] then
+			for Property, Value in next, Properties[TargetType] do
+				NewImage[Property] = Value
+			end
+		end
+		return NewImage
+	else
+		return Instance.new(Type)
+	end
 end
 
-local function startFlying()
-
-    if not HRP
-        or not Humanoid then
-
-        return
-
-    end
-
-    stopFlying()
-
-    flying = true
-
-    local attachment =
-        Instance.new("Attachment")
-
-    attachment.Name =
-        "SpaceHub_FlightAttachment"
-
-    attachment.Parent =
-        HRP
-
-    local velocity =
-        Instance.new("LinearVelocity")
-
-    velocity.Name =
-        "SpaceHub_FlightVelocity"
-
-    velocity.Attachment0 =
-        attachment
-
-    velocity.MaxForce =
-        math.huge
-
-    velocity.RelativeTo =
-        Enum.ActuatorRelativeTo.World
-
-    velocity.VectorVelocity =
-        Vector3.zero
-
-    velocity.Parent =
-        HRP
-
-    Humanoid.PlatformStand =
-        true
-
-    flyConnection =
-        RunService.RenderStepped:Connect(
-            function()
-
-                if not flying then
-                    return
-                end
-
-                if not HRP
-                    or not HRP.Parent then
-
-                    stopFlying()
-
-                    return
-
-                end
-
-                local camera =
-                    workspace.CurrentCamera
-
-                if not camera then
-                    return
-                end
-
-                local direction =
-                    Vector3.zero
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.W
-                ) then
-
-                    direction +=
-                        camera.CFrame.LookVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.S
-                ) then
-
-                    direction -=
-                        camera.CFrame.LookVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.A
-                ) then
-
-                    direction -=
-                        camera.CFrame.RightVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.D
-                ) then
-
-                    direction +=
-                        camera.CFrame.RightVector
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.Space
-                ) then
-
-                    direction +=
-                        Vector3.yAxis
-
-                end
-
-                if UserInputService:IsKeyDown(
-                    Enum.KeyCode.LeftControl
-                ) then
-
-                    direction -=
-                        Vector3.yAxis
-
-                end
-
-                if direction.Magnitude > 0 then
-
-                    direction =
-                        direction.Unit
-                        * flightSpeed
-
-                end
-
-                velocity.VectorVelocity =
-                    direction
-
-            end
-        )
-
+local function GetXY(GuiObject)
+	local Max, May = GuiObject.AbsoluteSize.X, GuiObject.AbsoluteSize.Y
+	local Px, Py = math.clamp(Mouse.X - GuiObject.AbsolutePosition.X, 0, Max), math.clamp(Mouse.Y - GuiObject.AbsolutePosition.Y, 0, May)
+	return Px/Max, Py/May
 end
 
-UniversalTab:CreateSlider({
-
-    Name = "Flight Speed",
-
-    Range = {
-        10,
-        3000
-    },
-
-    Increment = 10,
-
-    Suffix = " SPD",
-
-    CurrentValue = 10,
-
-    Flag = "FlightSpeed",
-
-    Callback = function(value)
-
-        flightSpeed =
-            value
-
-    end
-
-})
-
-UniversalTab:CreateToggle({
-
-    Name = "Flight",
-
-    CurrentValue = false,
-
-    Flag = "Flight",
-
-    Callback = function(enabled)
-
-        if enabled then
-            startFlying()
-        else
-            stopFlying()
-        end
-
-    end
-
-})
-
-UniversalTab:CreateParagraph({
-
-    Title = "FLIGHT CONTROLS",
-
-    Content =
-        "W A S D  →  Navigation\n" ..
-        "SPACE  →  Ascend\n" ..
-        "LEFT CTRL  →  Descend"
-
-})
-
---//======================================================
---// PLAYER UTILITIES
---//======================================================
-
-UniversalTab:CreateSection(
-    "PLAYER  /  UTILITIES"
-)
-
-UniversalTab:CreateToggle({
-
-    Name = "Infinite Jump",
-
-    CurrentValue = false,
-
-    Flag = "InfiniteJump",
-
-    Callback = function(enabled)
-
-        infiniteJump =
-            enabled
-
-        if jumpConnection then
-
-            jumpConnection:Disconnect()
-
-            jumpConnection = nil
-
-        end
-
-        if not enabled then
-            return
-        end
-
-        jumpConnection =
-            UserInputService.JumpRequest:Connect(
-                function()
-
-                    if Humanoid then
-
-                        Humanoid:ChangeState(
-                            Enum.HumanoidStateType.Jumping
-                        )
-
-                    end
-
-                end
-            )
-
-    end
-
-})
-
---//======================================================
---// PLAYER CONTROLS
---//======================================================
-
-UniversalTab:CreateSection("PLAYER  /  ADVANCED CONTROLS")
-
-UniversalTab:CreateSlider({
-    Name = "JumpPower",
-    Range = {0, 250},
-    Increment = 1,
-    Suffix = " JP",
-    CurrentValue = 50,
-    Flag = "JumpPower",
-    Callback = function(value)
-        jumpPower = value
-        if Humanoid then
-            Humanoid.UseJumpPower = true
-            Humanoid.JumpPower = value
-        end
-    end
-})
-
-UniversalTab:CreateSlider({
-    Name = "HipHeight",
-    Range = {0, 10},
-    Increment = 0.1,
-    Suffix = " HH",
-    CurrentValue = 2,
-    Flag = "HipHeight",
-    Callback = function(value)
-        hipHeight = value
-        if Humanoid then
-            Humanoid.HipHeight = value
-        end
-    end
-})
-
-UniversalTab:CreateSection("PHYSICS  /  LOCAL")
-
-UniversalTab:CreateToggle({
-    Name = "Custom Gravity",
-    CurrentValue = false,
-    Flag = "CustomGravity",
-    Callback = function(enabled)
-        customGravityEnabled = enabled
-        workspace.Gravity = enabled and customGravity or originalGravity
-    end
-})
-
-UniversalTab:CreateSlider({
-    Name = "Gravity",
-    Range = {0, 500},
-    Increment = 1,
-    Suffix = " G",
-    CurrentValue = 196,
-    Flag = "Gravity",
-    Callback = function(value)
-        customGravity = value
-        if customGravityEnabled then
-            workspace.Gravity = value
-        end
-    end
-})
-
---//======================================================
---// NOCLIP
---//======================================================
-
-UniversalTab:CreateToggle({
-
-    Name = "Noclip",
-
-    CurrentValue = false,
-
-    Flag = "Noclip",
-
-    Callback = function(enabled)
-
-        noclip =
-            enabled
-
-        if noclipConnection then
-
-            noclipConnection:Disconnect()
-
-            noclipConnection = nil
-
-        end
-
-        if not enabled
-            and Character then
-
-            for _, part in ipairs(
-                Character:GetDescendants()
-            ) do
-
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-
-            end
-
-            return
-
-        end
-
-        noclipConnection =
-            RunService.Stepped:Connect(
-                function()
-
-                    if not noclip
-                        or not Character then
-
-                        return
-
-                    end
-
-                    for _, part in ipairs(
-                        Character:GetDescendants()
-                    ) do
-
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
-
-                    end
-
-                end
-            )
-
-    end
-
-})
-
---//======================================================
---// FULLBRIGHT
---//======================================================
-
-UniversalTab:CreateToggle({
-
-    Name = "Fullbright",
-
-    CurrentValue = false,
-
-    Flag = "Fullbright",
-
-    Callback = function(enabled)
-
-        fullbright =
-            enabled
-
-        if fullbrightConnection then
-
-            fullbrightConnection:Disconnect()
-
-            fullbrightConnection = nil
-
-        end
-
-        if enabled then
-
-            fullbrightConnection =
-                RunService.RenderStepped:Connect(
-                    function()
-
-                        Lighting.Brightness = 2
-                        Lighting.ClockTime = 14
-                        Lighting.FogEnd = 100000
-                        Lighting.GlobalShadows = false
-
-                    end
-                )
-
-        else
-
-            Lighting.Brightness =
-                originalLighting.Brightness
-
-            Lighting.ClockTime =
-                originalLighting.ClockTime
-
-            Lighting.FogEnd =
-                originalLighting.FogEnd
-
-            Lighting.GlobalShadows =
-                originalLighting.GlobalShadows
-
-        end
-
-    end
-
-})
-
---//======================================================
---// GAME HEADER
---//======================================================
-
-GameTab:CreateParagraph({
-
-    Title = "✦ TARGETING & VISUALS  /  COMBAT",
-
-    Content =
-        "Advanced player visualization and targeting controls."
-
-})
-
---//======================================================
---// ESP / ADVANCED VISUALS
---//======================================================
-
-GameTab:CreateSection("VISUALS  /  ADVANCED ESP")
-
-local function getTeamColor(player)
-    if espTeamColors and player.Team then
-        return player.Team.TeamColor.Color
-    end
-    return Color3.fromRGB(0, 190, 255)
+local function CircleAnim(GuiObject, EndColour, StartColour)
+	local PX, PY = GetXY(GuiObject)
+	local Circle = Objects.new("Circle")
+	Circle.Size = UDim2.fromScale(0,0)
+	Circle.Position = UDim2.fromScale(PX,PY)
+	Circle.ImageColor3 = StartColour or GuiObject.ImageColor3
+	Circle.ZIndex = 200
+	Circle.Parent = GuiObject
+	local Size = GuiObject.AbsoluteSize.X
+	TweenService:Create(Circle, TweenInfo.new(1), {Position = UDim2.fromScale(PX,PY) - UDim2.fromOffset(Size/2,Size/2), ImageTransparency = 1, ImageColor3 = EndColour, Size = UDim2.fromOffset(Size,Size)}):Play()
+	spawn(function()
+		wait(2)
+		Circle:Destroy()
+	end)
 end
 
-local function removeESP(player)
-    local data = espObjects[player]
-    if not data then return end
-    if data.Highlight then data.Highlight:Destroy() end
-    if data.Billboard then data.Billboard:Destroy() end
-    espObjects[player] = nil
+local BooHub = {}
+
+local Styles = {
+	[1] = "Normal",
+	[2] = "Invert",
+	[3] = "Sheets"
+}
+
+local ThisTheme
+
+local NavBar = {
+	Normal = function()
+		local NewNavBar = Objects.new("Round")
+		NewNavBar.Name = "NavBar"
+		NewNavBar.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-10,30)
+		NewNavBar.Position = UDim2.fromOffset(5,35)
+		NewNavBar.ImageColor3 = ThisTheme.NavBar
+		NewNavBar.ZIndex = 100
+
+		local NavBarShadow = Objects.new("Shadow")
+		NavBarShadow.ImageColor3 = ThisTheme.NavBar
+		NavBarShadow.Parent = NewNavBar
+		NavBarShadow.ZIndex = 100
+
+		local NavBarContent = Objects.new("Frame")
+		NavBarContent.Name = "Content"
+		NavBarContent.Parent = NewNavBar
+
+		NavBarContent.ChildAdded:Connect(function(Child)
+			pcall(function()
+				local Children = #NavBarContent:GetChildren() - 2
+				TweenService:Create(Child, TweenInfo.new(1), {TextTransparency = (Children > 1) and 0.5 or 0}):Play()
+			end)
+			pcall(function()
+				local Children = #NavBarContent:GetChildren() - 2
+				TweenService:Create(Child, TweenInfo.new(1), {ImageTransparency = (Children > 1) and 0.5 or 0}):Play()
+			end)
+			pcall(function()
+				local Children = #NavBarContent:GetChildren() - 2
+				TweenService:Create(Child:FindFirstChildWhichIsA("ImageLabel"), TweenInfo.new(1), {ImageTransparency = (Children > 1) and 0.5 or 0}):Play()
+			end)
+			pcall(function()
+				Child.TextColor3 = ThisTheme.NavBarAccent
+			end)
+			pcall(function()
+				Child:FindFirstChildWhichIsA("ImageLabel").ImageColor3 = ThisTheme.NavBarAccent
+			end)
+			pcall(function()
+				Child.ImageColor3 = ThisTheme.NavBarAccent
+			end)
+		end)
+
+		local NavBarList = Objects.new("UIListLayout")
+		NavBarList.FillDirection = Enum.FillDirection.Horizontal
+		NavBarList.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		NavBarList.VerticalAlignment = Enum.VerticalAlignment.Center
+		NavBarList.SortOrder = Enum.SortOrder.LayoutOrder
+		NavBarList.Parent = NavBarContent
+
+		local NavBarPadding = Objects.new("UIPadding")
+		NavBarPadding.PaddingLeft = UDim.new(0,5)
+		NavBarPadding.Parent = NavBarContent
+
+		return NewNavBar, NavBarContent
+	end,
+	Invert = function()
+		local NewNavBar = Objects.new("Round")
+		NewNavBar.Name = "NavBar"
+		NewNavBar.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-10,30)
+		NewNavBar.Position = UDim2.fromOffset(5,35)
+		NewNavBar.ImageColor3 = ThisTheme.NavBarAccent
+		NewNavBar.ImageTransparency = 1
+		NewNavBar.ZIndex = 100
+
+		local NavBarShadow = Objects.new("Shadow")
+		NavBarShadow.ImageColor3 = ThisTheme.NavBarInvert
+		NavBarShadow.ImageTransparency = 1
+		NavBarShadow.Parent = NewNavBar
+		NavBarShadow.ZIndex = 100
+
+		TweenService:Create(NewNavBar, TweenInfo.new(1), {ImageTransparency = 0}):Play()
+		TweenService:Create(NavBarShadow, TweenInfo.new(1), {ImageTransparency = 0}):Play()
+
+		local NavBarContent = Objects.new("Frame")
+		NavBarContent.Name = "Content"
+		NavBarContent.Parent = NewNavBar
+
+		NavBarContent.ChildAdded:Connect(function(Child)
+			pcall(function()
+				local Children = #NavBarContent:GetChildren() - 2
+				TweenService:Create(Child, TweenInfo.new(1), {TextTransparency = (Children > 1) and 0.5 or 0}):Play()
+			end)
+			pcall(function()
+				local Children = #NavBarContent:GetChildren() - 2
+				TweenService:Create(Child, TweenInfo.new(1), {ImageTransparency = (Children > 1) and 0.5 or 0}):Play()
+			end)
+			pcall(function()
+				local Children = #NavBarContent:GetChildren() - 2
+				TweenService:Create(Child:FindFirstChildWhichIsA("ImageLabel"), TweenInfo.new(1), {ImageTransparency = (Children > 1) and 0.5 or 0}):Play()
+			end)
+			pcall(function()
+				Child.TextColor3 = ThisTheme.NavBar
+			end)
+			pcall(function()
+				Child:FindFirstChildWhichIsA("ImageLabel").ImageColor3 = ThisTheme.NavBar
+			end)
+			pcall(function()
+				Child.ImageColor3 = ThisTheme.NavBar
+			end)
+		end)
+
+		local NavBarList = Objects.new("UIListLayout")
+		NavBarList.FillDirection = Enum.FillDirection.Horizontal
+		NavBarList.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		NavBarList.VerticalAlignment = Enum.VerticalAlignment.Center
+		NavBarList.SortOrder = Enum.SortOrder.LayoutOrder
+		NavBarList.Parent = NavBarContent
+
+		local NavBarPadding = Objects.new("UIPadding")
+		NavBarPadding.PaddingLeft = UDim.new(0,5)
+		NavBarPadding.Parent = NavBarContent
+
+		return NewNavBar, NavBarContent
+	end,
+	Sheets = function()
+		local NewNavBar = Objects.new("Round")
+		NewNavBar.ClipsDescendants = true
+		NewNavBar.Name = "NavBar"
+		NewNavBar.Size = UDim2.fromScale(0,1) - UDim2.fromOffset(0,30)
+		NewNavBar.Position = UDim2.fromOffset(0,30)
+		NewNavBar.ImageColor3 = ThisTheme.NavBarAccent
+		NewNavBar.ZIndex = 100
+
+		local NavBarOverlay = Objects.new("Frame")
+		NavBarOverlay.Name = "Overlay"
+		NavBarOverlay.BackgroundColor3 = ThisTheme.NavBar
+		NavBarOverlay.BackgroundTransparency = 1
+		NavBarOverlay.Size = UDim2.fromScale(1,1) - UDim2.fromOffset(0,30)
+		NavBarOverlay.Position = UDim2.fromOffset(0,30)
+		NavBarOverlay.ZIndex = 75
+
+		local NavBarMenu = Objects.new("NavBar")
+		NavBarMenu.ZIndex = 100
+
+		local NavBarShadow = Objects.new("Shadow")
+		NavBarShadow.ImageColor3 = ThisTheme.NavBar
+		NavBarShadow.Parent = NewNavBar
+		NavBarShadow.ZIndex = 100
+
+		local Effect1, Effect2, Effect3 = Objects.new("Frame"), Objects.new("Frame"), Objects.new("Frame")
+
+		Effect1.ZIndex = 100
+		Effect2.ZIndex = 100
+		Effect3.ZIndex = 100
+
+		Effect1.BackgroundTransparency = 0
+		Effect2.BackgroundTransparency = 0
+		Effect3.BackgroundTransparency = 0
+
+		Effect1.BackgroundColor3 = ThisTheme.NavBarAccent
+		Effect2.BackgroundColor3 = ThisTheme.NavBarAccent
+		Effect3.BackgroundColor3 = ThisTheme.NavBar
+
+		Effect1.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,5)
+		Effect2.Size = UDim2.fromScale(0,1) + UDim2.fromOffset(5,0)
+		Effect3.Size = UDim2.fromScale(0,1) + UDim2.fromOffset(1,0)
+
+		Effect1.Position = UDim2.fromScale(0,0)
+		Effect2.Position = UDim2.fromScale(1,0) - UDim2.fromOffset(5,0)
+		Effect3.Position = UDim2.fromScale(1,0)
+
+		Effect1.Parent = NewNavBar
+		Effect2.Parent = NewNavBar
+		Effect3.Parent = NewNavBar
+
+		local NavBarContent = Objects.new("Frame")
+		NavBarContent.Name = "Content"
+		NavBarContent.Parent = NewNavBar
+
+		local NavBarList = Objects.new("UIListLayout")
+		NavBarList.FillDirection = Enum.FillDirection.Vertical
+		NavBarList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		NavBarList.VerticalAlignment = Enum.VerticalAlignment.Top
+		NavBarList.SortOrder = Enum.SortOrder.LayoutOrder
+		NavBarList.Parent = NavBarContent
+
+		local NavBarPadding = Objects.new("UIPadding")
+		NavBarPadding.PaddingLeft = UDim.new(0,5)
+		NavBarPadding.PaddingRight = UDim.new(0,5)
+		NavBarPadding.PaddingTop = UDim.new(0,5)
+		NavBarPadding.PaddingBottom = UDim.new(0,5)
+		NavBarPadding.Parent = NavBarContent
+
+		NavBarContent.ChildAdded:Connect(function(Child)
+			pcall(function()
+				local Children = #NavBarContent:GetChildren() - 2
+				TweenService:Create(Child, TweenInfo.new(1), {TextTransparency = (Children > 1) and 0.5 or 0}):Play()
+			end)
+			pcall(function()
+				local Children = #NavBarContent:GetChildren() - 2
+				TweenService:Create(Child, TweenInfo.new(1), {ImageTransparency = (Children > 1) and 0.5 or 0}):Play()
+			end)
+			pcall(function()
+				local Children = #NavBarContent:GetChildren() - 2
+				TweenService:Create(Child:FindFirstChildWhichIsA("ImageLabel"), TweenInfo.new(1), {ImageTransparency = (Children > 1) and 0.5 or 0}):Play()
+			end)
+			pcall(function()
+				Child.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+			end)
+			pcall(function()
+				Child:FindFirstChildWhichIsA("ImageLabel").ImageColor3 = ThisTheme.NavBar
+			end)
+			pcall(function()
+				Child.TextColor3 = ThisTheme.NavBar
+			end)
+			pcall(function()
+				Child.ImageColor3 = ThisTheme.NavBar
+			end)
+		end)
+
+		return NewNavBar, NavBarContent, NavBarMenu,  NavBarOverlay
+	end
+}
+
+local MainGUI
+
+function TryAddMenu(Object, Menu, ReturnTable)
+	local Menu = Menu
+	local ReturnTable = ReturnTable
+	ReturnTable.Object = Object
+	local Total = 0
+
+	table.foreach(Menu, function(_, Value)
+		Total = Total + ((typeof(Value) == "function") and 1 or 0)
+	end)
+
+	if Total > 0 then
+		local MenuToggle = false
+
+		local MenuButton = Objects.new("Menu")
+		MenuButton.ImageTransparency = 1
+		MenuButton.Parent = Object
+
+		TweenService:Create(MenuButton, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+
+		local Size = Total * 30 + ((Total + 1) * 2)
+
+		local MenuBuild = Objects.new("Round")
+		MenuBuild.Name = "Menu"
+		MenuBuild.ImageColor3 = ThisTheme.ButtonAccent
+		MenuBuild.Size = UDim2.fromOffset(120,0)
+		MenuBuild.Position = UDim2.fromOffset(MenuButton.AbsolutePosition.X,MenuButton.AbsolutePosition.Y) - UDim2.fromOffset(125,5)
+		MenuBuild.ZIndex = 100
+		MenuBuild.ClipsDescendants = true
+		MenuBuild.Parent = MainGUI
+
+		MenuButton:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+			MenuBuild.Position = UDim2.fromOffset(MenuButton.AbsolutePosition.X,MenuButton.AbsolutePosition.Y) - UDim2.fromOffset(125,5)
+		end)
+
+		local MenuContent = Objects.new("Frame")
+		MenuContent.Name = "Content"
+		MenuContent.Parent = MenuBuild
+
+		local MenuList = Objects.new("UIListLayout")
+		MenuList.Padding = UDim.new(0,2)
+		MenuList.Parent = MenuContent
+
+		local MenuPadding = Objects.new("UIPadding")
+		MenuPadding.PaddingTop = UDim.new(0,2)
+		MenuPadding.PaddingRight = UDim.new(0,2)
+		MenuPadding.PaddingLeft = UDim.new(0,2)
+		MenuPadding.PaddingBottom = UDim.new(0,2)
+		MenuPadding.Parent = MenuContent
+
+		MenuButton.MouseButton1Down:Connect(function()
+			MenuToggle = not MenuToggle
+			TweenService:Create(MenuBuild, TweenInfo.new(0.15), {Size = MenuToggle and UDim2.fromOffset(120,Size) or UDim2.fromOffset(120,0)}):Play()
+		end)
+
+		table.foreach(Menu, function(Option, Value)
+			if typeof(Value) == "function" then
+				local MenuOption = Objects.new("SmoothButton")
+				MenuOption.Name = "MenuOption"
+				MenuOption.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+				MenuOption.ImageColor3 = ThisTheme.Button
+				MenuOption.ImageTransparency = 1
+				MenuOption.ZIndex = 150
+				MenuOption.Parent = MenuContent
+
+				local OptionShadow = Objects.new("Shadow")
+				OptionShadow.ImageColor3 = ThisTheme.Button
+				OptionShadow.ImageTransparency = 1
+				OptionShadow.Parent = MenuOption
+
+				local OptionValue = Objects.new("Label")
+				OptionValue.Name = "Value"
+				OptionValue.Position = UDim2.fromScale(0,0)
+				OptionValue.Size = UDim2.fromScale(1,1) - UDim2.fromOffset(5,0)
+				OptionValue.Text = Option
+				OptionValue.TextColor3 = ThisTheme.Button
+				OptionValue.Font = Enum.Font.Gotham
+				OptionValue.TextSize = 12
+				OptionValue.ZIndex = 150
+				OptionValue.TextXAlignment = Enum.TextXAlignment.Right
+				OptionValue.Parent = MenuOption
+
+				MenuOption.MouseButton1Down:Connect(function()
+					Value(ReturnTable)
+					MenuToggle = false
+					TweenService:Create(MenuBuild, TweenInfo.new(0.15), {Size = UDim2.fromOffset(120,0)}):Play()
+				end)
+
+				MenuOption.MouseEnter:Connect(function()
+					TweenService:Create(MenuOption, TweenInfo.new(0.15), {ImageTransparency = 0.8}):Play()
+					TweenService:Create(OptionShadow, TweenInfo.new(0.15), {ImageTransparency = 0.8}):Play()
+				end)
+
+				MenuOption.MouseLeave:Connect(function()
+					TweenService:Create(MenuOption, TweenInfo.new(0.15), {ImageTransparency = 1}):Play()
+					TweenService:Create(OptionShadow, TweenInfo.new(0.15), {ImageTransparency = 1}):Play()
+				end)
+			end
+		end)
+		return true, MenuButton
+	end
+	return false
 end
 
-local function createESP(player)
-    if player == LocalPlayer then return end
-    removeESP(player)
-    if not espEnabled then return end
+function CreateNewButton(ButtonConfig, Parent)
+	local ButtonText = ButtonConfig.Text or "nil button"
+	local ButtonCallback = ButtonConfig.Callback or function() print("nil button") end
+	local Menu = ButtonConfig.Menu or {}
 
-    local character = player.Character
-    local head = character and character:FindFirstChild("Head")
-    if not character or not head then return end
+	local Button = Objects.new("SmoothButton")
+	Button.Name = "Button"
+	Button.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+	Button.ImageColor3 = ThisTheme.Button
+	Button.ImageTransparency = 1
+	Button.Parent = Parent
 
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "SpaceHub_ESP"
-    highlight.Adornee = character
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.FillTransparency = 0.72
-    highlight.OutlineTransparency = 0
-    highlight.FillColor = getTeamColor(player)
-    highlight.OutlineColor = getTeamColor(player)
-    highlight.Parent = character
+	local ButtonShadow = Objects.new("Shadow")
+	ButtonShadow.ImageColor3 = ThisTheme.Button
+	ButtonShadow.ImageTransparency = 1
+	ButtonShadow.Parent = Button
 
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "SpaceHub_PlayerInfo"
-    billboard.Adornee = head
-    billboard.Size = UDim2.fromOffset(260, 72)
-    billboard.StudsOffset = Vector3.new(0, 3.2, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = head
+	local ButtonLabel = Objects.new("Label")
+	ButtonLabel.Text = ButtonText
+	ButtonLabel.TextColor3 = ThisTheme.ButtonAccent
+	ButtonLabel.Font = Enum.Font.GothamSemibold
+	ButtonLabel.TextSize = 14
+	ButtonLabel.ClipsDescendants = true
+	ButtonLabel.TextTransparency = 1
+	ButtonLabel.Parent = Button
 
-    local label = Instance.new("TextLabel")
-    label.Name = "Info"
-    label.Size = UDim2.fromScale(1, 1)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 13
-    label.TextWrapped = true
-    label.TextColor3 = getTeamColor(player)
-    label.TextStrokeTransparency = 0
-    label.TextStrokeColor3 = Color3.fromRGB(5, 10, 20)
-    label.Parent = billboard
+	TweenService:Create(Button, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+	TweenService:Create(ButtonShadow, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+	TweenService:Create(ButtonLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
 
-    espObjects[player] = {
-        Highlight = highlight,
-        Billboard = billboard,
-        Label = label
-    }
+	Button.MouseButton1Down:Connect(function()
+		CircleAnim(ButtonLabel, ThisTheme.ButtonAccent, ThisTheme.Button)
+		ButtonCallback()
+	end)
+
+	local MenuAdded = TryAddMenu(Button, Menu, {})
+
+	return Button, ButtonLabel
 end
 
-local function refreshESP()
-    for player in pairs(espObjects) do
-        if not player.Parent or not espEnabled then
-            removeESP(player)
-        end
-    end
-    if not espEnabled then return end
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            createESP(player)
-        end
-    end
+function BooHub.Load(Config)
+	local Style = (Config.Style and math.clamp(Config.Style, 1, 3)) or 1
+	local Title = Config.Title or "BooHubLua"
+	local SizeX = Config.SizeX or 300
+	local SizeY = Config.SizeY or 500
+	local Theme = Config.Theme or "Light"
+	local Overrides = Config.ColorOverrides or {}
+	local Open = true
+
+	Theme = Themes[Theme]
+
+	ThisTheme = Theme
+
+	for KeyOverride, ValueOverride in next, Overrides do
+		ThisTheme[KeyOverride] = ValueOverride
+	end
+
+	pcall(function() OldInstance:Destroy() end);
+
+    local function GetExploit()
+        local Table = {};
+        Table.Synapse = syn;
+        Table.ProtoSmasher = pebc_create;
+        Table.Sentinel = issentinelclosure;
+        Table.ScriptWare = getexecutorname;
+    
+        for ExploitName, ExploitFunction in next, Table do
+            if (ExploitFunction) then
+                return ExploitName;
+            end;
+        end;
+        
+        return "Undefined";
+    end;
+
+    local ProtectFunctions = {};
+    ProtectFunctions.Synapse = function(GuiObject) syn.protect_gui(GuiObject); GuiObject.Parent = CoreGuiService; end;
+    ProtectFunctions.ProtoSmasher = function(GuiObject) GuiObject.Parent = get_hidden_gui(); end;
+    ProtectFunctions.Sentinel = function(GuiObject) GuiObject.Parent = CoreGuiService; end;
+    ProtectFunctions.ScriptWare = function(GuiObject) GuiObject.Parent = gethui(); end;
+    ProtectFunctions.Undefined = function(GuiObject) GuiObject.Parent = CoreGuiService; end;
+
+	local NewInstance = Objects.new("ScreenGui")
+	NewInstance.Name = Title
+    ProtectFunctions[GetExploit()](NewInstance);
+
+    getgenv().OldInstance = NewInstance;
+
+	MainGUI = NewInstance
+
+	local MainFrame = Objects.new("Round")
+	MainFrame.Name = "MainFrame"
+	MainFrame.Size = UDim2.fromOffset(0,SizeY)
+	MainFrame.Position = UDim2.fromScale(0.5,0.5) - UDim2.fromOffset(SizeX/2,SizeY/2)
+	MainFrame.ImageColor3 = Theme.MainFrame
+	MainFrame.Parent = NewInstance
+
+	TweenService:Create(MainFrame, TweenInfo.new(1), {Size = UDim2.fromOffset(SizeX,SizeY)}):Play()
+
+	wait(1)
+
+	local MainShadow = Objects.new("Shadow")
+	MainShadow.ImageColor3 = Theme.MainFrame
+	MainShadow.Parent = MainFrame
+
+	local TitleBar = Objects.new("SmoothButton")
+	TitleBar.Name = "TitleBar"
+	TitleBar.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+	TitleBar.ImageColor3 = Theme.TitleBar
+	TitleBar.ImageTransparency = 1
+	TitleBar.Parent = MainFrame
+
+	local ExtraBar = Objects.new("Frame")
+	ExtraBar.Name = "Hidden"
+	ExtraBar.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,5)
+	ExtraBar.Position = UDim2.fromScale(0,1) - UDim2.fromOffset(0,5)
+	ExtraBar.BackgroundColor3 = Theme.TitleBar
+	ExtraBar.Parent = TitleBar
+
+	local TitleShadow = Objects.new("Shadow")
+	TitleShadow.ImageColor3 = Theme.TitleBar
+	TitleShadow.ImageTransparency = 1
+	TitleShadow.Parent = TitleBar
+
+	local TitleText = Objects.new("Button")
+	TitleText.Name = "Title"
+	TitleText.Text = Title
+	TitleText.TextColor3 = Theme.TitleBarAccent
+	TitleText.TextTransparency = 1
+	TitleText.Font = Enum.Font.GothamBold
+	TitleText.Parent = TitleBar
+
+	TitleText.MouseButton1Down:Connect(function()
+		local Mx, My = Mouse.X, Mouse.Y
+		local MouseMove, MouseKill
+		MouseMove = Mouse.Move:Connect(function()
+			local nMx, nMy = Mouse.X, Mouse.Y
+			local Dx, Dy = nMx - Mx, nMy - My
+			MainFrame.Position = MainFrame.Position + UDim2.fromOffset(Dx, Dy)
+			Mx, My = nMx, nMy
+		end)
+		MouseKill = InputService.InputEnded:Connect(function(UserInput)
+			if UserInput.UserInputType == Enum.UserInputType.MouseButton1 then
+				MouseMove:Disconnect()
+				MouseKill:Disconnect()
+			end
+		end)
+	end)
+
+	local MinimiseButton = Objects.new("SmoothButton")
+	MinimiseButton.Size = UDim2.fromOffset(20,20)
+	MinimiseButton.Position = UDim2.fromScale(1,0) + UDim2.fromOffset(-25,5)
+	MinimiseButton.ImageColor3 = Theme.Minimise
+	MinimiseButton.ImageTransparency = 1
+	MinimiseButton.Parent = TitleBar
+
+	local MinimiseShadow = Objects.new("Shadow")
+	MinimiseShadow.ImageColor3 = Theme.MinimiseAccent
+	MinimiseShadow.ImageTransparency = 1
+	MinimiseShadow.Parent = MinimiseButton
+
+	MinimiseButton.MouseButton1Down:Connect(function()
+		Open = not Open
+		TweenService:Create(MainShadow, TweenInfo.new(0.15), {ImageTransparency = 1}):Play()
+		TweenService:Create(MainFrame, TweenInfo.new(0.15), {Size = Open and UDim2.fromOffset(SizeX,SizeY) or UDim2.fromOffset(SizeX,30)}):Play()
+		TweenService:Create(MinimiseButton, TweenInfo.new(0.15), {ImageColor3 = Open and Theme.Minimise or Theme.Maximise}):Play()
+		TweenService:Create(MinimiseShadow, TweenInfo.new(0.15), {ImageColor3 = Open and Theme.MinimiseAccent or Theme.MaximiseAccent}):Play()
+		if Open then
+			wait(0.15)
+			MainFrame.ClipsDescendants = false
+			TweenService:Create(MainShadow, TweenInfo.new(0.15), {ImageTransparency = 0}):Play()
+		else
+			MainFrame.ClipsDescendants = true
+		end
+	end)
+
+	local Content = Objects.new("Round")
+	Content.Name = "Content"
+	Content.ImageColor3 = Theme.Content
+	Content.Size = UDim2.fromScale(1,1) - UDim2.fromOffset(10,75)
+	Content.Position = UDim2.fromOffset(5,70)
+	Content.ImageTransparency = 1
+	Content.Parent = MainFrame
+
+	local NavigationBar, NavigationBarContent, NavBarMenu, NavBarOverlay = NavBar[Styles[Style]]()
+	NavigationBar.Parent = MainFrame
+
+	TweenService:Create(TitleBar, TweenInfo.new(1), {ImageTransparency = 0}):Play()
+	TweenService:Create(ExtraBar, TweenInfo.new(1), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(TitleShadow, TweenInfo.new(1), {ImageTransparency = 0}):Play()
+	TweenService:Create(TitleText, TweenInfo.new(1), {TextTransparency = 0}):Play()
+	TweenService:Create(MinimiseButton, TweenInfo.new(1), {ImageTransparency = 0}):Play()
+	TweenService:Create(MinimiseShadow, TweenInfo.new(1), {ImageTransparency = 0}):Play()
+	TweenService:Create(Content, TweenInfo.new(1), {ImageTransparency = 0.8}):Play()
+
+	wait(1)
+
+	if NavBarMenu then
+		TweenService:Create(TitleText, TweenInfo.new(0.5), {
+			Size = TitleText.Size - UDim2.fromOffset(25,0),
+			Position = TitleText.Position + UDim2.fromOffset(25,0)
+		}):Play()
+		TweenService:Create(Content, TweenInfo.new(0.5), {
+			Size = Content.Size + UDim2.fromOffset(0,35),
+			Position = Content.Position - UDim2.fromOffset(0,35)
+		}):Play()
+
+		NavBarMenu.ImageTransparency = 1
+		NavBarMenu.Parent = TitleBar
+
+		TweenService:Create(NavBarMenu, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+
+		NavBarOverlay.Parent = MainFrame
+
+		local MenuToggle = false
+
+		NavBarMenu.MouseButton1Down:Connect(function()
+			MenuToggle = not MenuToggle
+			TweenService:Create(NavigationBar, TweenInfo.new(0.15), {Size = (MenuToggle and UDim2.fromScale(0.5,1) or UDim2.fromScale(0,1)) - UDim2.fromOffset(0,30)}):Play()
+			TweenService:Create(NavBarOverlay, TweenInfo.new(0.15), {BackgroundTransparency = MenuToggle and 0.5 or 1}):Play()
+			if MenuToggle then
+				wait(0.15)
+				NavigationBar.ClipsDescendants = false
+			else
+				NavigationBar.ClipsDescendants = true
+			end
+		end)
+	end
+
+	local TabCount = 0
+
+	local TabLibrary = {}
+
+	local ButtonTrack = {}
+	local PageTrack = {}
+
+	function TabLibrary.Banner(BannerConfig)
+		local BannerText = BannerConfig.Text
+		local BannerOptions = BannerConfig.Options or {}
+
+		local ExistingBanner, ExistingBannerOverlay = MainFrame:FindFirstChild("BannerOverlay"), MainFrame:FindFirstChild("Banner")
+
+		if ExistingBanner then
+			ExistingBanner:Destroy()
+		end
+
+		if ExistingBannerOverlay then
+			ExistingBannerOverlay:Destroy()
+		end
+
+		local BannerOverlay = Objects.new("Frame")
+		BannerOverlay.Name = "BannerOverlay"
+		BannerOverlay.BackgroundColor3 = Theme.BannerAccent
+		BannerOverlay.Size = UDim2.fromScale(1,1) - UDim2.fromOffset(0,30)
+		BannerOverlay.Position = UDim2.fromOffset(0,30)
+		BannerOverlay.ZIndex = 75
+		BannerOverlay.Parent = MainFrame
+
+		local TextSize = TextService:GetTextSize(BannerText, 12, Enum.Font.Gotham, Vector2.new(0,0)).X
+
+		local Lines = math.ceil((TextSize) / (MainFrame.AbsoluteSize.X - 10))
+
+		local BannerSize = UDim2.fromScale(1,0) + UDim2.fromOffset(-10,(Lines*20)+40)
+		local BannerPosition = UDim2.fromScale(0,1) + UDim2.fromOffset(5,(-Lines*20)-45)
+
+		local Banner = Objects.new("Round")
+		Banner.Name = "Banner"
+		Banner.ImageTransparency = 1
+		Banner.ImageColor3 = Theme.Banner
+		Banner.Size = BannerSize
+		Banner.Position = BannerPosition
+		Banner.ZIndex = 80
+		Banner.Parent = MainFrame
+
+		local BannerLabel = Objects.new("Label")
+		BannerLabel.Name = "Value"
+		BannerLabel.Text = BannerText
+		BannerLabel.TextColor3 = Theme.BannerAccent
+		BannerLabel.TextSize = 12
+		BannerLabel.Font = Enum.Font.Gotham
+		BannerLabel.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-5,(Lines*20)+5)
+		BannerLabel.TextWrapped = true
+		BannerLabel.Position = UDim2.fromOffset(5,0)
+		BannerLabel.TextTransparency = 1
+		BannerLabel.ZIndex = 80
+		BannerLabel.Parent = Banner
+
+		TweenService:Create(BannerOverlay, TweenInfo.new(0.5), {BackgroundTransparency = 0.5}):Play()
+		TweenService:Create(Banner, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+		TweenService:Create(BannerLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+
+		local BannerContainer = Objects.new("Frame")
+		BannerContainer.Name = "Options"
+		BannerContainer.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-10,0)
+		BannerContainer.Position = UDim2.fromScale(0,1) - UDim2.fromOffset(-5,35)
+		BannerContainer.ZIndex = 80
+		BannerContainer.ClipsDescendants = true
+		BannerContainer.Parent = Banner
+
+		local BannerList = Objects.new("UIListLayout")
+		BannerList.FillDirection = Enum.FillDirection.Horizontal
+		BannerList.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		BannerList.SortOrder = Enum.SortOrder.LayoutOrder
+		BannerList.Padding = UDim.new(0,5)
+		BannerList.Parent = BannerContainer
+
+		BannerOptions["Ok"] = function()
+			TweenService:Create(BannerContainer, TweenInfo.new(0.5), {Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-10,0)}):Play()
+			TweenService:Create(BannerOverlay, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+			TweenService:Create(Banner, TweenInfo.new(0.5), {ImageTransparency = 1}):Play()
+			TweenService:Create(BannerLabel, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+		end
+
+		table.foreach(BannerOptions, function(Option, Value)
+			if typeof(Value) == "function" then
+				local TextSize = TextService:GetTextSize(Option:upper(), 12, Enum.Font.GothamBold, Vector2.new(0,0)).X
+
+				local OptionItem = Objects.new("SmoothButton")
+				OptionItem.ImageColor3 = Theme.BannerAccent
+				OptionItem.ImageTransparency = 0.9
+				OptionItem.Size = UDim2.fromOffset(TextSize+10,30)
+				OptionItem.ZIndex = 80
+				OptionItem.ClipsDescendants = true
+				OptionItem.Parent = BannerContainer
+
+				local OptionLabel = Objects.new("Label")
+				OptionLabel.Text = Option:upper()
+				OptionLabel.TextSize = 12
+				OptionLabel.TextColor3 = Theme.BannerAccent
+				OptionLabel.Font = Enum.Font.GothamBold
+				OptionLabel.Size = UDim2.fromScale(1,1)
+				OptionLabel.Position = UDim2.fromScale(0,0)
+				OptionLabel.TextXAlignment = Enum.TextXAlignment.Center
+				OptionLabel.ZIndex = 80
+				OptionLabel.Parent = OptionItem
+
+				OptionItem.MouseButton1Down:Connect(function()
+					Value()
+					CircleAnim(OptionItem, Theme.Banner)
+				end)
+			end
+		end)
+
+		TweenService:Create(BannerContainer, TweenInfo.new(0.5), {Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-10,30)}):Play()
+	end
+
+	function TabLibrary.New(TabConfig)
+		local ImageID = TabConfig.ID
+		local Title = TabConfig.Title
+
+		local Button
+
+		if ImageID then
+			if Title then
+				local Settings = {
+					TextSize = 12,
+					Font = Enum.Font.GothamBold,
+					Vector = Vector2.new(0,0)
+				}
+
+				local TextSize = TextService:GetTextSize(Title:upper(), Settings.TextSize, Settings.Font, Settings.Vector).X
+
+				Button = Objects.new("Button")
+				Button.Name = Title:upper()
+				Button.TextXAlignment = Enum.TextXAlignment.Right
+				Button.TextSize = Settings.TextSize
+				Button.Font = Settings.Font
+				Button.Text = Title:upper()
+				Button.Size = UDim2.fromScale(0,1) + UDim2.fromOffset(TextSize+35)
+				Button.ZIndex = 200
+				Button.TextTransparency = 1
+			end
+
+			local FetchURL = "rbxassetid://"..ImageID
+
+			local Image = RunService:IsStudio() and "http://www.roblox.com/asset/?id=5472131383" or game:GetObjects(FetchURL)[1].Texture
+
+			local NewImage = Objects.new(Button and "Round" or "SmoothButton")
+			NewImage.Name = ImageID
+			NewImage.BackgroundTransparency = 1
+			NewImage.Size = UDim2.fromOffset(20,20)
+			NewImage.ScaleType = Enum.ScaleType.Stretch
+			NewImage.Image = Image
+			NewImage.ZIndex = 200
+			NewImage.ImageTransparency = 1
+
+			if Button then
+				NewImage.Position = UDim2.fromScale(0,0.5) - UDim2.fromOffset(0,10)
+				NewImage.Parent = Button
+			else
+				Button = NewImage
+			end
+
+		else
+			local Settings = {
+				TextSize = 12,
+				Font = Enum.Font.GothamBold,
+				Vector = Vector2.new(0,0)
+			}
+
+			local TextSize = TextService:GetTextSize(Title:upper(), Settings.TextSize, Settings.Font, Settings.Vector).X
+
+			Button = Objects.new("Button")
+			Button.Name = Title:upper()
+			Button.TextXAlignment = Enum.TextXAlignment.Center
+			Button.TextSize = Settings.TextSize
+			Button.Font = Settings.Font
+			Button.Text = Title:upper()
+			Button.Size = UDim2.fromScale(0,1) + UDim2.fromOffset(TextSize+10)
+			Button.ZIndex = 200
+			Button.TextTransparency = 1
+		end
+
+		Button.Parent = NavigationBarContent
+
+		local PageContentFrame = Objects.new("Scroll")
+		PageContentFrame.Name = Title:upper() or ImageID
+		PageContentFrame.Visible = (TabCount == 0)
+		PageContentFrame.ZIndex = 50
+		PageContentFrame.Parent = Content
+
+		table.insert(ButtonTrack, Button)
+		table.insert(PageTrack, PageContentFrame)
+
+		Button.MouseButton1Down:Connect(function()
+			for _, Track in next, ButtonTrack do
+				if not (Track == Button) then
+					TweenService:Create(Track, TweenInfo.new(0.15), {TextTransparency = 0.5}):Play()
+					pcall(function()
+						TweenService:Create(Track:FindFirstChildWhichIsA("ImageLabel"), TweenInfo.new(0.15), {ImageTransparency = 0.5}):Play()
+					end)
+				else
+					TweenService:Create(Track, TweenInfo.new(0.15), {TextTransparency = 0}):Play()
+					pcall(function()
+						TweenService:Create(Track:FindFirstChildWhichIsA("ImageLabel"), TweenInfo.new(0.15), {ImageTransparency = 0}):Play()
+					end)
+				end
+			end
+			for _, Track in next, PageTrack do
+				Track.Visible = (Track == PageContentFrame)
+			end
+		end)
+
+		local PagePadding = Objects.new("UIPadding")
+		PagePadding.PaddingLeft = UDim.new(0,5)
+		PagePadding.PaddingRight = UDim.new(0,5)
+		PagePadding.PaddingTop = UDim.new(0,5)
+		PagePadding.PaddingBottom = UDim.new(0,5)
+		PagePadding.Parent = PageContentFrame
+
+		local PageList = Objects.new("UIListLayout")
+		PageList.SortOrder = Enum.SortOrder.LayoutOrder
+		PageList.Padding = UDim.new(0,5)
+		PageList.Parent = PageContentFrame
+
+		PageList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			PageContentFrame.CanvasSize = UDim2.fromOffset(0,PageList.AbsoluteContentSize.Y+10)
+		end)
+
+		TabCount = TabCount + 1
+
+		local OptionLibrary = {}
+
+		function OptionLibrary.Button(ButtonConfig)
+			local NewButton, ButtonLabel = CreateNewButton(ButtonConfig, PageContentFrame)
+
+			local ButtonLibrary = {}
+
+			function ButtonLibrary:SetText(Value)
+				ButtonLabel.Text = Value
+			end
+
+			function ButtonLibrary:GetText()
+				return ButtonLabel.Text
+			end
+
+			return ButtonLibrary
+		end
+
+		function OptionLibrary.Dropdown(DropdownConfig)
+			local DropdownText = DropdownConfig.Text or "nil dropdown"
+			local DropdownCallback = DropdownConfig.Callback or function() print("nil dropdown") end
+			local DropdownOptions = DropdownConfig.Options or {}
+			local Menu = DropdownConfig.Menu or {}
+
+			local Dropdown = Objects.new("Frame")
+			Dropdown.Name = "Dropdown"
+			Dropdown.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+			Dropdown.Parent = PageContentFrame
+
+			local DropdownBar = Objects.new("Round")
+			DropdownBar.Name = "TitleBar"
+			DropdownBar.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+			DropdownBar.ImageColor3 = Theme.Dropdown
+			DropdownBar.ImageTransparency = 1
+			DropdownBar.Parent = Dropdown
+
+			local DropdownTitle = Objects.new("Button")
+			DropdownTitle.Name = "Title"
+			DropdownTitle.Font = Enum.Font.GothamSemibold
+			DropdownTitle.Text = DropdownText
+			DropdownTitle.TextColor3 = Theme.DropdownAccent
+			DropdownTitle.TextTransparency = 1
+			DropdownTitle.TextSize = 14
+			DropdownTitle.Parent = DropdownBar
+
+			local DropdownToggle = Objects.new("Round")
+			DropdownToggle.Name = "Container"
+			DropdownToggle.Size = UDim2.fromOffset(24,24)
+			DropdownToggle.Position = UDim2.fromScale(1,0.5) - UDim2.fromOffset(27,12)
+			DropdownToggle.ImageColor3 = Theme.DropdownAccent
+			DropdownToggle.ImageTransparency = 1 -- 0.8
+			DropdownToggle.Parent = DropdownBar
+
+			local DropdownButton = Objects.new("Round")
+			DropdownButton.Name = "Drop"
+			DropdownButton.Image = "http://www.roblox.com/asset/?id=5574299686"
+			DropdownButton.ScaleType = Enum.ScaleType.Stretch
+			DropdownButton.Size = UDim2.fromScale(1,1) - UDim2.fromOffset(4,4)
+			DropdownButton.Position = UDim2.fromOffset(2,2)
+			DropdownButton.ImageColor3 = Theme.DropdownAccent
+			DropdownButton.ImageTransparency = 1
+			DropdownButton.Parent = DropdownToggle
+
+			TweenService:Create(DropdownBar, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(DropdownTitle, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+			TweenService:Create(DropdownToggle, TweenInfo.new(0.5), {ImageTransparency = 0.8}):Play()
+			TweenService:Create(DropdownButton, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+
+			local DropdownContent = Objects.new("Frame")
+			DropdownContent.Name = "Content"
+			DropdownContent.Size = UDim2.fromScale(1,0)
+			DropdownContent.Position = UDim2.fromOffset(0,35)
+			DropdownContent.ClipsDescendants = true
+			DropdownContent.Parent = Dropdown
+
+			local NumberOfOptions = #DropdownOptions
+			local DropToggle = false
+			local DropdownSize = UDim2.fromScale(1,0) + UDim2.fromOffset(0,(NumberOfOptions*20) + ((NumberOfOptions - 1) * 5))
+
+			local DropdownList = Objects.new("UIListLayout")
+			DropdownList.SortOrder = Enum.SortOrder.LayoutOrder
+			DropdownList.Padding = UDim.new(0,5)
+			DropdownList.Parent = DropdownContent
+
+			DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+				if DropToggle then
+					DropdownContent.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(DropdownList.AbsoluteContentSize.Y)
+					DropdownSize = UDim2.fromScale(1,0) + UDim2.fromOffset(DropdownList.AbsoluteContentSize.Y)
+				end
+			end)
+
+			table.foreach(DropdownOptions, function(_, Value)
+				local NewButton = CreateNewButton({
+					Text = Value,
+					Callback = function() end
+				}, DropdownContent)
+
+				NewButton.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,20)
+				NewButton.MouseButton1Down:Connect(function()
+					DropdownCallback(Value)
+					DropdownTitle.Text = DropdownText..": "..Value
+				end)
+			end)
+
+			DropdownTitle.MouseButton1Down:Connect(function()
+				DropToggle = not DropToggle
+				TweenService:Create(DropdownButton, TweenInfo.new(0.15), {Rotation = DropToggle and 135 or 0}):Play()
+				TweenService:Create(DropdownContent, TweenInfo.new(0.15), {Size = DropToggle and DropdownSize or UDim2.fromScale(1,0)}):Play()
+				TweenService:Create(Dropdown, TweenInfo.new(0.15), {Size = DropToggle and (DropdownSize + UDim2.fromOffset(0,35)) or (UDim2.fromScale(1,0) + UDim2.fromOffset(0,30))}):Play()
+			end)
+
+			local MenuAdded, MenuButton = TryAddMenu(DropdownBar, Menu, {})
+
+			if MenuAdded then
+				DropdownToggle.Position = DropdownToggle.Position - UDim2.fromOffset(25,0)
+				MenuButton.ImageColor3 = Theme.DropdownAccent
+			end
+
+			local DropdownLibrary = {}
+
+			function DropdownLibrary:SetText(Value)
+				DropdownTitle.Text = Value
+			end
+
+			function DropdownLibrary:GetText()
+				return DropdownTitle.Text
+			end
+
+			function DropdownLibrary:SetOptions(NewMenu)
+				DropdownOptions = NewMenu or {}
+				NumberOfOptions = #DropdownOptions
+				DropdownSize = UDim2.fromScale(1,0) + UDim2.fromOffset(0,(NumberOfOptions*20) + ((NumberOfOptions - 1) * 5))
+
+				if DropdownContent then
+					DropdownContent:Destroy()
+				end
+
+				TweenService:Create(Dropdown, TweenInfo.new(0.15), {Size = DropToggle and (DropdownSize + UDim2.fromOffset(0,35)) or (UDim2.fromScale(1,0) + UDim2.fromOffset(0,30))}):Play()
+
+				DropdownContent = Objects.new("Frame")
+				DropdownContent.Name = "Content"
+				DropdownContent.Size = DropToggle and DropdownSize or UDim2.fromScale(1,0)
+				DropdownContent.Position = UDim2.fromOffset(0,35)
+				DropdownContent.ClipsDescendants = true
+				DropdownContent.Parent = Dropdown
+
+				local DropdownList = Objects.new("UIListLayout")
+				DropdownList.SortOrder = Enum.SortOrder.LayoutOrder
+				DropdownList.Padding = UDim.new(0,5)
+				DropdownList.Parent = DropdownContent
+
+				table.foreach(DropdownOptions, function(_, Value)
+					local NewButton = CreateNewButton({
+						Text = Value,
+						Callback = function() end
+					}, DropdownContent)
+
+					NewButton.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,20)
+					NewButton.MouseButton1Down:Connect(function()
+						DropdownCallback(Value)
+						DropdownTitle.Text = DropdownText..": "..Value
+					end)
+				end)
+			end
+
+			function DropdownLibrary:GetOptions()
+				return DropdownOptions
+			end
+
+			return DropdownLibrary
+		end
+
+		function OptionLibrary.ChipSet(ChipSetConfig)
+			local ChipSetText = ChipSetConfig.Text or "nil chipset"
+			local ChipSetCallback = ChipSetConfig.Callback or function() print("nil chipset") end
+			local ChipSetOptions = ChipSetConfig.Options or {}
+
+			local TotalOptions = 0
+
+			table.foreach(ChipSetOptions, function()
+				TotalOptions = TotalOptions + 1
+			end)
+
+			if TotalOptions > 0 then
+				local Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,(TotalOptions*30)+((TotalOptions+1)*5))
+
+				local ChipSet = Objects.new("Round")
+				ChipSet.Name = "ChipSet"
+				ChipSet.Size = Size
+				ChipSet.ImageColor3 = Theme.ChipSet
+				ChipSet.ImageTransparency = 1
+				ChipSet.Parent = PageContentFrame
+
+				local ChipList = Objects.new("UIListLayout")
+				ChipList.SortOrder = Enum.SortOrder.LayoutOrder
+				ChipList.Padding = UDim.new(0,5)
+				ChipList.Parent = ChipSet
+
+				local ChipPadding = Objects.new("UIPadding")
+				ChipPadding.PaddingBottom = UDim.new(0,5)
+				ChipPadding.PaddingTop = UDim.new(0,5)
+				ChipPadding.PaddingRight= UDim.new(0,5)
+				ChipPadding.PaddingLeft = UDim.new(0,5)
+				ChipPadding.Parent = ChipSet
+
+				local BuildTable = {}
+
+				table.foreach(ChipSetOptions, function(Key, Value)
+					if typeof(Value) == "table" then
+						BuildTable[Key] = Value.Enabled
+					else
+						BuildTable[Key] = Value
+					end
+				end)
+
+				ChipSetCallback(BuildTable)
+
+				TweenService:Create(ChipSet, TweenInfo.new(0.5), {ImageTransparency = 0.9}):Play()
+
+				table.foreach(ChipSetOptions, function(Key, Value)
+					local ChipItem = Objects.new("SmoothButton")
+					ChipItem.Name = "ChipItem"
+					ChipItem.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+					ChipItem.ImageColor3 = BuildTable[Key] and Theme.ChipSet or Theme.ChipSetAccent
+					ChipItem.ImageTransparency = 1
+					ChipItem.Parent = ChipSet
+
+					local ChipShadow = Objects.new("Shadow")
+					ChipShadow.ImageColor3 = BuildTable[Key] and Theme.ChipSet or Theme.ChipSetAccent
+					ChipShadow.ImageTransparency = 1
+					ChipShadow.Parent = ChipItem
+
+					local Tick = Objects.new("Round")
+					Tick.ScaleType = Enum.ScaleType.Stretch
+					Tick.Image = "http://www.roblox.com/asset/?id=5554953789"
+					Tick.ImageColor3 = Theme.ChipSetAccent
+					Tick.ImageTransparency = 1
+					Tick.Size = UDim2.fromScale(1,1) - UDim2.fromOffset(10,10)
+					Tick.SizeConstraint = Enum.SizeConstraint.RelativeYY
+					Tick.Position = UDim2.fromOffset(5,5)
+					Tick.Parent = ChipItem
+
+					local ChipLabel = Objects.new("Label")
+					ChipLabel.Size = BuildTable[Key] and (UDim2.fromScale(1,1) - UDim2.fromOffset(30)) or (UDim2.fromScale(1,1) - UDim2.fromOffset(5))
+					ChipLabel.Position = BuildTable[Key] and UDim2.fromOffset(30) or UDim2.fromOffset(5)
+					ChipLabel.Text = Key
+					ChipLabel.Font = Enum.Font.Gotham
+					ChipLabel.TextSize = 12
+					ChipLabel.TextColor3 = BuildTable[Key] and Theme.ChipSetAccent or Theme.ChipSet
+					ChipLabel.TextTransparency = 1
+					ChipLabel.Parent = ChipItem
+
+					TweenService:Create(ChipItem, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+					TweenService:Create(ChipShadow, TweenInfo.new(0.5), {ImageTransparency = 0.2}):Play()
+					TweenService:Create(Tick, TweenInfo.new(0.5), {ImageTransparency = BuildTable[Key] and 0 or 1}):Play()
+					TweenService:Create(ChipLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+
+					local ChipMenu
+
+					if typeof(Value) == "table" then
+						local Menu = Value.Menu or {}
+
+						local MenuAdded, MenuButton = TryAddMenu(ChipItem, Menu, {})
+
+						MenuButton.ImageColor3 = BuildTable[Key] and Theme.ChipSetAccent or Theme.ChipSet
+
+						ChipMenu = MenuButton
+					end
+
+					ChipItem.MouseButton1Down:Connect(function()
+						BuildTable[Key] = not BuildTable[Key]
+						local Enabled = BuildTable[Key]
+						TweenService:Create(ChipItem, TweenInfo.new(0.15), {ImageColor3 = Enabled and Theme.ChipSet or Theme.ChipSetAccent}):Play()
+						TweenService:Create(ChipShadow, TweenInfo.new(0.15), {ImageColor3 = Enabled and Theme.ChipSet or Theme.ChipSetAccent}):Play()
+						TweenService:Create(Tick, TweenInfo.new(0.15), {ImageTransparency = Enabled and 0 or 1}):Play()
+						TweenService:Create(ChipLabel, TweenInfo.new(0.15), {TextColor3 = Enabled and Theme.ChipSetAccent or Theme.ChipSet, Position = Enabled and UDim2.fromOffset(30) or UDim2.fromOffset(5), Size = Enabled and (UDim2.fromScale(1,1) - UDim2.fromOffset(30)) or (UDim2.fromScale(1,1) - UDim2.fromOffset(5))}):Play()
+						if ChipMenu then
+							TweenService:Create(ChipMenu, TweenInfo.new(0.15), {ImageColor3 = Enabled and Theme.ChipSetAccent or Theme.ChipSet}):Play()
+						end
+						ChipSetCallback(BuildTable)
+					end)
+				end)
+
+				local ChipSetLibrary = {}
+
+				function ChipSetLibrary:SetOptions(NewMenu)
+					ChipSetOptions = NewMenu or {}
+
+					TotalOptions = 0
+
+					table.foreach(ChipSetOptions, function()
+						TotalOptions = TotalOptions + 1
+					end)
+
+					for _, Element in next, ChipSet:GetChildren() do
+						Element:Destroy()
+					end
+
+					Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,(TotalOptions*30)+((TotalOptions+1)*5))
+
+					TweenService:Create(ChipSet, TweenInfo.new(0.15), {Size = Size}):Play()
+
+					local ChipList = Objects.new("UIListLayout")
+					ChipList.SortOrder = Enum.SortOrder.LayoutOrder
+					ChipList.Padding = UDim.new(0,5)
+					ChipList.Parent = ChipSet
+
+					local ChipPadding = Objects.new("UIPadding")
+					ChipPadding.PaddingBottom = UDim.new(0,5)
+					ChipPadding.PaddingTop = UDim.new(0,5)
+					ChipPadding.PaddingRight= UDim.new(0,5)
+					ChipPadding.PaddingLeft = UDim.new(0,5)
+					ChipPadding.Parent = ChipSet
+
+					local BuildTable = {}
+
+					table.foreach(ChipSetOptions, function(Key, Value)
+						if typeof(Value) == "table" then
+							BuildTable[Key] = Value.Enabled
+						else
+							BuildTable[Key] = Value
+						end
+					end)
+
+					ChipSetCallback(BuildTable)
+
+					TweenService:Create(ChipSet, TweenInfo.new(0.5), {ImageTransparency = 0.9}):Play()
+
+					table.foreach(ChipSetOptions, function(Key, Value)
+						local ChipItem = Objects.new("SmoothButton")
+						ChipItem.Name = "ChipItem"
+						ChipItem.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+						ChipItem.ImageColor3 = BuildTable[Key] and Theme.ChipSet or Theme.ChipSetAccent
+						ChipItem.ImageTransparency = 1
+						ChipItem.Parent = ChipSet
+
+						local ChipShadow = Objects.new("Shadow")
+						ChipShadow.ImageColor3 = BuildTable[Key] and Theme.ChipSet or Theme.ChipSetAccent
+						ChipShadow.ImageTransparency = 1
+						ChipShadow.Parent = ChipItem
+
+						local Tick = Objects.new("Round")
+						Tick.ScaleType = Enum.ScaleType.Stretch
+						Tick.Image = "http://www.roblox.com/asset/?id=5554953789"
+						Tick.ImageColor3 = Theme.ChipSetAccent
+						Tick.ImageTransparency = 1
+						Tick.Size = UDim2.fromScale(1,1) - UDim2.fromOffset(10,10)
+						Tick.SizeConstraint = Enum.SizeConstraint.RelativeYY
+						Tick.Position = UDim2.fromOffset(5,5)
+						Tick.Parent = ChipItem
+
+						local ChipLabel = Objects.new("Label")
+						ChipLabel.Size = BuildTable[Key] and (UDim2.fromScale(1,1) - UDim2.fromOffset(30)) or (UDim2.fromScale(1,1) - UDim2.fromOffset(5))
+						ChipLabel.Position = BuildTable[Key] and UDim2.fromOffset(30) or UDim2.fromOffset(5)
+						ChipLabel.Text = Key
+						ChipLabel.Font = Enum.Font.Gotham
+						ChipLabel.TextSize = 12
+						ChipLabel.TextColor3 = BuildTable[Key] and Theme.ChipSetAccent or Theme.ChipSet
+						ChipLabel.TextTransparency = 1
+						ChipLabel.Parent = ChipItem
+
+						TweenService:Create(ChipItem, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+						TweenService:Create(ChipShadow, TweenInfo.new(0.5), {ImageTransparency = 0.2}):Play()
+						TweenService:Create(Tick, TweenInfo.new(0.5), {ImageTransparency = BuildTable[Key] and 0 or 1}):Play()
+						TweenService:Create(ChipLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+
+						local ChipMenu
+
+						if typeof(Value) == "table" then
+							local Menu = Value.Menu or {}
+
+							local MenuAdded, MenuButton = TryAddMenu(ChipItem, Menu, {})
+
+							MenuButton.ImageColor3 = BuildTable[Key] and Theme.ChipSetAccent or Theme.ChipSet
+
+							ChipMenu = MenuButton
+						end
+
+						ChipItem.MouseButton1Down:Connect(function()
+							BuildTable[Key] = not BuildTable[Key]
+							local Enabled = BuildTable[Key]
+							TweenService:Create(ChipItem, TweenInfo.new(0.15), {ImageColor3 = Enabled and Theme.ChipSet or Theme.ChipSetAccent}):Play()
+							TweenService:Create(ChipShadow, TweenInfo.new(0.15), {ImageColor3 = Enabled and Theme.ChipSet or Theme.ChipSetAccent}):Play()
+							TweenService:Create(Tick, TweenInfo.new(0.15), {ImageTransparency = Enabled and 0 or 1}):Play()
+							TweenService:Create(ChipLabel, TweenInfo.new(0.15), {TextColor3 = Enabled and Theme.ChipSetAccent or Theme.ChipSet, Position = Enabled and UDim2.fromOffset(30) or UDim2.fromOffset(5), Size = Enabled and (UDim2.fromScale(1,1) - UDim2.fromOffset(30)) or (UDim2.fromScale(1,1) - UDim2.fromOffset(5))}):Play()
+							if ChipMenu then
+								TweenService:Create(ChipMenu, TweenInfo.new(0.15), {ImageColor3 = Enabled and Theme.ChipSetAccent or Theme.ChipSet}):Play()
+							end
+							ChipSetCallback(BuildTable)
+						end)
+					end)
+				end
+
+				function ChipSetLibrary:GetOptions()
+					return ChipSetOptions
+				end
+
+				return ChipSetLibrary
+			end
+		end
+
+		function OptionLibrary.DataTable(DataTableConfig)
+			local DataTableText = DataTableConfig.Text or "nil chipset"
+			local DataTableCallback = DataTableConfig.Callback or function() print("nil chipset") end
+			local DataTableOptions = DataTableConfig.Options or {}
+
+			local TotalOptions = 0
+
+			table.foreach(DataTableOptions, function()
+				TotalOptions = TotalOptions + 1
+			end)
+
+			if TotalOptions > 0 then
+
+				local Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,(TotalOptions*30)+((TotalOptions+1)*5))
+
+				local DataTable = Objects.new("Round")
+				DataTable.Name = "DataTable"
+				DataTable.Size = Size
+				DataTable.ImageColor3 = Theme.DataTable
+				DataTable.ImageTransparency = 1
+				DataTable.Parent = PageContentFrame
+
+				local DataShadow = Objects.new("Shadow")
+				DataShadow.ImageColor3 = Theme.DataTable
+				DataShadow.ImageTransparency = 1
+				DataShadow.Parent = DataTable
+
+				local DataContainer = Objects.new("Frame")
+				DataContainer.Name = "Container"
+				DataContainer.Parent = DataTable
+
+				local DataList = Objects.new("UIListLayout")
+				DataList.SortOrder = Enum.SortOrder.LayoutOrder
+				DataList.Padding = UDim.new(0,5)
+				DataList.Parent = DataContainer
+
+				local DataPadding = Objects.new("UIPadding")
+				DataPadding.PaddingBottom = UDim.new(0,5)
+				DataPadding.PaddingTop = UDim.new(0,5)
+				DataPadding.PaddingRight= UDim.new(0,5)
+				DataPadding.PaddingLeft = UDim.new(0,5)
+				DataPadding.Parent = DataContainer
+
+				local BuildTable = {}
+
+				table.foreach(DataTableOptions, function(Key, Value)
+					if typeof(Value) == "table" then
+						BuildTable[Key] = Value.Enabled
+					else
+						BuildTable[Key] = Value
+					end
+				end)
+
+				DataTableCallback(BuildTable)
+
+				TweenService:Create(DataTable, TweenInfo.new(0.5), {ImageTransparency = 0.9}):Play()
+				TweenService:Create(DataShadow, TweenInfo.new(0.5), {ImageTransparency = 0.8}):Play()
+
+				table.foreach(DataTableOptions, function(Key, Value)
+					local DataItem = Objects.new("SmoothButton")
+					DataItem.Name = "DataItem"
+					DataItem.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+					DataItem.ImageColor3 = BuildTable[Key] and Theme.DataTable or Theme.DataTableAccent
+					DataItem.ImageTransparency = 1
+					DataItem.Parent = DataContainer
+
+					local DataTracker = Objects.new("Round")
+					DataTracker.Name = "Tracker"
+					DataTracker.Size = UDim2.fromOffset(24,24)
+					DataTracker.Position = UDim2.fromScale(0,0.5) + UDim2.fromOffset(3,-12)
+					DataTracker.ImageColor3 = Theme.DataTable
+					DataTracker.ImageTransparency = 1
+					DataTracker.Parent = DataItem
+
+					local Tick = Objects.new("Round")
+					Tick.Name = "Tick"
+					Tick.ScaleType = Enum.ScaleType.Stretch
+					Tick.Image = "http://www.roblox.com/asset/?id=5554953789"
+					Tick.ImageColor3 = Theme.DataTableAccent
+					Tick.ImageTransparency = 1
+					Tick.Size = UDim2.fromScale(1,1) - UDim2.fromOffset(4,4)
+					Tick.SizeConstraint = Enum.SizeConstraint.RelativeYY
+					Tick.Position = UDim2.fromOffset(2,2)
+					Tick.Parent = DataTracker
+
+					local DataLabel = Objects.new("Label")
+					DataLabel.Name = "Value"
+					DataLabel.Size = (UDim2.fromScale(1,1) - UDim2.fromOffset(30))
+					DataLabel.Position = UDim2.fromOffset(30) or UDim2.fromOffset(5)
+					DataLabel.Text = Key
+					DataLabel.Font = Enum.Font.Gotham
+					DataLabel.TextSize = 14
+					DataLabel.TextColor3 = Theme.DataTable
+					DataLabel.TextTransparency = 1
+					DataLabel.Parent = DataItem
+
+					TweenService:Create(DataItem, TweenInfo.new(0.5), {ImageTransparency = BuildTable[Key] and 0.8 or 0}):Play()
+					TweenService:Create(DataTracker, TweenInfo.new(0.5), {ImageTransparency = BuildTable[Key] and 0 or 0.8}):Play()
+					TweenService:Create(Tick, TweenInfo.new(0.5), {ImageTransparency = BuildTable[Key] and 0 or 0.7}):Play()
+					TweenService:Create(DataLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+
+					local DataMenu
+
+					if typeof(Value) == "table" then
+						local Menu = Value.Menu or {}
+
+						local MenuAdded, MenuButton = TryAddMenu(DataItem, Menu, {})
+
+						MenuButton.ImageColor3 = Theme.DataTable
+
+						DataMenu = MenuButton
+					end
+
+					DataItem.MouseButton1Down:Connect(function()
+						BuildTable[Key] = not BuildTable[Key]
+						local Enabled = BuildTable[Key]
+						TweenService:Create(DataItem, TweenInfo.new(0.15), {ImageTransparency = Enabled and 0.8 or 0, ImageColor3 = Enabled and Theme.DataTable or Theme.DataTableAccent}):Play()
+						TweenService:Create(Tick, TweenInfo.new(0.15), {ImageTransparency = Enabled and 0 or 0.7}):Play()
+						TweenService:Create(DataTracker, TweenInfo.new(0.15), {ImageTransparency = Enabled and 0 or 0.8}):Play()
+						DataTableCallback(BuildTable)
+					end)
+				end)
+
+				local DataTableLibrary = {}
+
+				function DataTableLibrary:SetOptions(NewMenu)
+					if DataContainer then
+						DataContainer:Destroy()
+					end
+
+					DataTableOptions = NewMenu or {}
+
+					TotalOptions = 0
+
+					table.foreach(DataTableOptions, function()
+						TotalOptions = TotalOptions + 1
+					end)
+
+					Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,(TotalOptions*30)+((TotalOptions+1)*5))
+
+					DataTable.Size = Size
+
+					DataContainer = Objects.new("Frame")
+					DataContainer.Name = "Container"
+					DataContainer.Parent = DataTable
+
+					local DataList = Objects.new("UIListLayout")
+					DataList.SortOrder = Enum.SortOrder.LayoutOrder
+					DataList.Padding = UDim.new(0,5)
+					DataList.Parent = DataContainer
+
+					local DataPadding = Objects.new("UIPadding")
+					DataPadding.PaddingBottom = UDim.new(0,5)
+					DataPadding.PaddingTop = UDim.new(0,5)
+					DataPadding.PaddingRight= UDim.new(0,5)
+					DataPadding.PaddingLeft = UDim.new(0,5)
+					DataPadding.Parent = DataContainer
+
+					local BuildTable = {}
+
+					table.foreach(DataTableOptions, function(Key, Value)
+						if typeof(Value) == "table" then
+							BuildTable[Key] = Value.Enabled
+						else
+							BuildTable[Key] = Value
+						end
+					end)
+
+					DataTableCallback(BuildTable)
+
+					TweenService:Create(DataTable, TweenInfo.new(0.5), {ImageTransparency = 0.9}):Play()
+					TweenService:Create(DataShadow, TweenInfo.new(0.5), {ImageTransparency = 0.8}):Play()
+
+					table.foreach(DataTableOptions, function(Key, Value)
+						local DataItem = Objects.new("SmoothButton")
+						DataItem.Name = "DataItem"
+						DataItem.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+						DataItem.ImageColor3 = BuildTable[Key] and Theme.DataTable or Theme.DataTableAccent
+						DataItem.ImageTransparency = 1
+						DataItem.Parent = DataContainer
+
+						local DataTracker = Objects.new("Round")
+						DataTracker.Name = "Tracker"
+						DataTracker.Size = UDim2.fromOffset(24,24)
+						DataTracker.Position = UDim2.fromScale(0,0.5) + UDim2.fromOffset(3,-12)
+						DataTracker.ImageColor3 = Theme.DataTable
+						DataTracker.ImageTransparency = 1
+						DataTracker.Parent = DataItem
+
+						local Tick = Objects.new("Round")
+						Tick.Name = "Tick"
+						Tick.ScaleType = Enum.ScaleType.Stretch
+						Tick.Image = "http://www.roblox.com/asset/?id=5554953789"
+						Tick.ImageColor3 = Theme.DataTableAccent
+						Tick.ImageTransparency = 1
+						Tick.Size = UDim2.fromScale(1,1) - UDim2.fromOffset(4,4)
+						Tick.SizeConstraint = Enum.SizeConstraint.RelativeYY
+						Tick.Position = UDim2.fromOffset(2,2)
+						Tick.Parent = DataTracker
+
+						local DataLabel = Objects.new("Label")
+						DataLabel.Name = "Value"
+						DataLabel.Size = (UDim2.fromScale(1,1) - UDim2.fromOffset(30))
+						DataLabel.Position = UDim2.fromOffset(30) or UDim2.fromOffset(5)
+						DataLabel.Text = Key
+						DataLabel.Font = Enum.Font.Gotham
+						DataLabel.TextSize = 14
+						DataLabel.TextColor3 = Theme.DataTable
+						DataLabel.TextTransparency = 1
+						DataLabel.Parent = DataItem
+
+						TweenService:Create(DataItem, TweenInfo.new(0.5), {ImageTransparency = BuildTable[Key] and 0.8 or 0}):Play()
+						TweenService:Create(DataTracker, TweenInfo.new(0.5), {ImageTransparency = BuildTable[Key] and 0 or 0.8}):Play()
+						TweenService:Create(Tick, TweenInfo.new(0.5), {ImageTransparency = BuildTable[Key] and 0 or 0.7}):Play()
+						TweenService:Create(DataLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+
+						local DataMenu
+
+						if typeof(Value) == "table" then
+							local Menu = Value.Menu or {}
+
+							local MenuAdded, MenuButton = TryAddMenu(DataItem, Menu, {})
+
+							MenuButton.ImageColor3 = Theme.DataTable
+
+							DataMenu = MenuButton
+						end
+
+						DataItem.MouseButton1Down:Connect(function()
+							BuildTable[Key] = not BuildTable[Key]
+							local Enabled = BuildTable[Key]
+							TweenService:Create(DataItem, TweenInfo.new(0.15), {ImageTransparency = Enabled and 0.8 or 0, ImageColor3 = Enabled and Theme.DataTable or Theme.DataTableAccent}):Play()
+							TweenService:Create(Tick, TweenInfo.new(0.15), {ImageTransparency = Enabled and 0 or 0.7}):Play()
+							TweenService:Create(DataTracker, TweenInfo.new(0.15), {ImageTransparency = Enabled and 0 or 0.8}):Play()
+							DataTableCallback(BuildTable)
+						end)
+					end)
+				end
+
+				function DataTableLibrary:GetOptions()
+					return DataTableOptions
+				end
+
+				return DataTableLibrary
+			end
+		end
+
+		function OptionLibrary.ColorPicker(ColorPickerConfig)
+			local ColorPickerText = ColorPickerConfig.Text or "nil color picker"
+			local ColorPickerCallback = ColorPickerConfig.Callback or function() print("nil color picker") end
+			local ColorPickerDefault = ColorPickerConfig.Default or Color3.fromRGB(255,255,255)
+			local ColorPickerMenu = ColorPickerConfig.Menu or {}
+			local ColorPickerToggle = false
+
+			local H, S, V = Objects.new("NumberValue"), Objects.new("NumberValue"), Objects.new("NumberValue")
+
+			H.Value, S.Value, V.Value = Color3.toHSV(ColorPickerDefault)
+
+			local ColorPicker = Objects.new("SmoothButton")
+			ColorPicker.Name = "ColorPicker"
+			ColorPicker.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,40)
+			ColorPicker.ImageColor3 = Theme.ColorPicker
+			ColorPicker.ImageTransparency = 1
+			ColorPicker.ClipsDescendants = true
+			ColorPicker.Parent = PageContentFrame
+
+			ColorPicker.MouseButton1Down:Connect(function()
+				ColorPickerToggle = not ColorPickerToggle
+				TweenService:Create(ColorPicker, TweenInfo.new(0.15), {Size = UDim2.fromScale(1,0) + (ColorPickerToggle and UDim2.fromOffset(0,115) or UDim2.fromOffset(0,40))}):Play()
+			end)
+
+			local ColorBar = Objects.new("Round")
+			ColorBar.Name = "TitleBar"
+			ColorBar.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-10,30)
+			ColorBar.Position = UDim2.fromOffset(5,5)
+			ColorBar.ImageColor3 = Theme.ColorPickerAccent
+			ColorBar.ImageTransparency = 1
+			ColorBar.Parent = ColorPicker
+
+			local ColorShadow = Objects.new("Shadow")
+			ColorShadow.ImageColor3 = Theme.ColorPickerAccent
+			ColorShadow.ImageTransparency = 1 
+			ColorShadow.Parent = ColorBar
+
+			local ColorLabel = Objects.new("Label")
+			ColorLabel.Name = "Title"
+			ColorLabel.Font = Enum.Font.GothamSemibold
+			ColorLabel.TextColor3 = Theme.ColorPickerAccent
+			ColorLabel.TextSize = 14
+			ColorLabel.Text = ColorPickerText
+			ColorLabel.TextTransparency = 1
+			ColorLabel.Parent = ColorBar
+
+			local ColorTracker = Objects.new("Round")
+			ColorTracker.Name = "Tracker"
+			ColorTracker.Size = UDim2.fromOffset(50,20)
+			ColorTracker.Position = UDim2.fromScale(1,0) + UDim2.fromOffset(-55,5)
+			ColorTracker.ImageColor3 = ColorPickerDefault
+			ColorTracker.ImageTransparency = 1
+			ColorTracker.Parent = ColorBar
+
+			local TrackerShadow = Objects.new("Shadow")
+			TrackerShadow.ImageColor3 = ColorTracker.ImageColor3
+			TrackerShadow.ImageTransparency = 1
+			TrackerShadow.Parent = ColorTracker
+
+			ColorTracker:GetPropertyChangedSignal("ImageColor3"):Connect(function()
+				TrackerShadow.ImageColor3 = ColorTracker.ImageColor3
+			end)
+
+			local Hue = Objects.new("Round")
+			Hue.Name = "Container"
+			Hue.Position = UDim2.fromOffset(5,40)
+			Hue.Size = UDim2.fromOffset(25,20)
+			Hue.ImageColor3 = Theme.ColorPickerAccent
+			Hue.ImageTransparency = 0.8
+			Hue.Parent = ColorPicker
+
+			local Saturation = Hue:Clone()
+			Saturation.Position = Saturation.Position + UDim2.fromOffset(0,25)
+			Saturation.Parent = ColorPicker
+
+			local Value = Saturation:Clone()
+			Value.Position = Value.Position + UDim2.fromOffset(0,25)
+			Value.Parent = ColorPicker
+
+			local HueLabel = Objects.new("Label")
+			HueLabel.Name = "Label"
+			HueLabel.TextXAlignment = Enum.TextXAlignment.Center
+			HueLabel.Position = UDim2.fromScale(0,0)
+			HueLabel.Size = UDim2.fromScale(1,1)
+			HueLabel.Text = "H"
+			HueLabel.TextColor3 = Theme.ColorPickerAccent
+			HueLabel.TextSize = 12
+			HueLabel.Font = Enum.Font.GothamBold
+			HueLabel.TextTransparency = 1
+			HueLabel.Parent = Hue
+
+			local SaturationLabel = HueLabel:Clone()
+			SaturationLabel.Text = "S"
+			SaturationLabel.Parent = Saturation
+
+			local ValueLabel = HueLabel:Clone()
+			ValueLabel.Text = "V"
+			ValueLabel.Parent = Value
+
+			local function CSK(T,C)
+				return ColorSequenceKeypoint.new(T,C)
+			end
+
+			local RainbowGradient = Objects.new("UIGradient")
+			RainbowGradient.Color = ColorSequence.new({
+				CSK(0, Color3.fromRGB(255,0,0)),
+				CSK(0.157, Color3.fromRGB(255,0,255)),
+				CSK(0.323, Color3.fromRGB(0,0,255)),
+				CSK(0.488, Color3.fromRGB(0,255,255)),
+				CSK(0.66, Color3.fromRGB(0,255,0)),
+				CSK(0.817, Color3.fromRGB(255,255,0)),
+				CSK(1, Color3.fromRGB(255,0,0))
+			})
+
+			local BlackWhiteGradient = Objects.new("UIGradient")
+			BlackWhiteGradient.Color = ColorSequence.new(
+				Color3.new(1,1,1), 
+				Color3.new(0,0,0)
+			)
+
+			local SaturationGradient = Objects.new("UIGradient")
+			SaturationGradient.Color = ColorSequence.new(
+				Color3.fromHSV(H.Value,1,V.Value),
+				Color3.new(0,0,0):Lerp(Color3.fromRGB(255,255,255), V.Value)
+			)
+
+			local HueTracker = Objects.new("SmoothButton")
+			HueTracker.Name = "Tracker"
+			HueTracker.ImageColor3 = Color3.fromRGB(255,255,255)
+			HueTracker.ImageTransparency = 1
+			HueTracker.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-40,20)
+			HueTracker.Position = UDim2.fromOffset(35,40)
+			HueTracker.Parent = ColorPicker
+
+			local SaturationTracker = HueTracker:Clone()
+			SaturationTracker.Position = SaturationTracker.Position + UDim2.fromOffset(0,25)
+			SaturationTracker.Parent = ColorPicker
+
+			local ValueTracker = SaturationTracker:Clone()
+			ValueTracker.Position = ValueTracker.Position + UDim2.fromOffset(0,25)
+			ValueTracker.Parent = ColorPicker
+
+			local HueShadow = Objects.new("Shadow")
+			HueShadow.ImageColor3 = Color3.fromRGB(255,255,255)
+			HueShadow.ImageTransparency = 1
+			HueShadow.Parent = HueTracker
+
+			local SaturationShadow = HueShadow:Clone()
+			SaturationShadow.Parent = SaturationTracker
+
+			local ValueShadow = HueShadow:Clone()
+			ValueShadow.Parent = ValueTracker
+
+			local HueGrad = RainbowGradient:Clone()
+			HueGrad.Parent = HueTracker
+			local HueShadowGrad = RainbowGradient:Clone()
+			HueShadowGrad.Parent = HueShadow
+
+			local ValueGrad = BlackWhiteGradient:Clone()
+			ValueGrad.Parent = ValueTracker
+			local ValueShadowGrad = BlackWhiteGradient:Clone()
+			ValueShadowGrad.Parent = ValueShadow
+
+			local SaturationGrad = SaturationGradient:Clone()
+			SaturationGrad.Parent = SaturationTracker
+			local SaturationShadowGrad = SaturationGradient:Clone()
+			SaturationShadowGrad.Parent = SaturationShadow
+
+			TweenService:Create(ColorPicker, TweenInfo.new(0.5), {ImageTransparency = 0.5}):Play()
+			TweenService:Create(ColorBar, TweenInfo.new(0.5), {ImageTransparency = 0.8}):Play()
+			TweenService:Create(ColorShadow, TweenInfo.new(0.5), {ImageTransparency = 0.5}):Play()
+			TweenService:Create(ColorLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+			TweenService:Create(HueLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+			TweenService:Create(SaturationLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+			TweenService:Create(ValueLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+			TweenService:Create(ColorTracker, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(TrackerShadow, TweenInfo.new(0.5), {ImageTransparency = 0.2}):Play()
+			TweenService:Create(HueTracker, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(ValueTracker, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(SaturationTracker, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(HueShadow, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(SaturationShadow, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(ValueShadow, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+
+			H:GetPropertyChangedSignal("Value"):Connect(function()
+				ColorTracker.ImageColor3 = Color3.fromHSV(H.Value,S.Value,V.Value)
+				SaturationGrad.Color = ColorSequence.new(
+					Color3.fromHSV(H.Value,1,V.Value), 
+					Color3.fromRGB(0,0,0):Lerp(Color3.fromRGB(255,255,255),V.Value)
+				)
+				SaturationShadowGrad.Color = ColorSequence.new(
+					Color3.fromHSV(H.Value,1,V.Value), 
+					Color3.fromRGB(0,0,0):Lerp(Color3.fromRGB(255,255,255),V.Value)
+				)
+				ColorPickerCallback(Color3.fromHSV(H.Value,S.Value,V.Value))
+			end)
+
+			S:GetPropertyChangedSignal("Value"):Connect(function()
+				ColorTracker.ImageColor3 = Color3.fromHSV(H.Value,S.Value,V.Value)
+				SaturationGrad.Color = ColorSequence.new(
+					Color3.fromHSV(H.Value,1,V.Value), 
+					Color3.fromRGB(0,0,0):Lerp(Color3.fromRGB(255,255,255),V.Value)
+				)
+				SaturationShadowGrad.Color = ColorSequence.new(
+					Color3.fromHSV(H.Value,1,V.Value), 
+					Color3.fromRGB(0,0,0):Lerp(Color3.fromRGB(255,255,255),V.Value)
+				)
+				ColorPickerCallback(Color3.fromHSV(H.Value,S.Value,V.Value))
+			end)
+
+			V:GetPropertyChangedSignal("Value"):Connect(function()
+				ColorTracker.ImageColor3 = Color3.fromHSV(H.Value,S.Value,V.Value)
+				SaturationGrad.Color = ColorSequence.new(
+					Color3.fromHSV(H.Value,1,V.Value), 
+					Color3.fromRGB(0,0,0):Lerp(Color3.fromRGB(255,255,255),V.Value)
+				)
+				SaturationShadowGrad.Color = ColorSequence.new(
+					Color3.fromHSV(H.Value,1,V.Value), 
+					Color3.fromRGB(0,0,0):Lerp(Color3.fromRGB(255,255,255),V.Value)
+				)
+				ColorPickerCallback(Color3.fromHSV(H.Value,S.Value,V.Value))
+			end)
+
+			HueTracker.MouseButton1Down:Connect(function()
+				H.Value = 1 - GetXY(HueTracker)
+				local MouseMove, MouseKill
+				MouseMove = Mouse.Move:Connect(function()
+					H.Value = 1 - GetXY(HueTracker)
+				end)
+				MouseKill = InputService.InputEnded:Connect(function(UserInput)
+					if UserInput.UserInputType == Enum.UserInputType.MouseButton1 then
+						MouseMove:Disconnect()
+						MouseKill:Disconnect()
+					end
+				end)
+			end)
+
+			ValueTracker.MouseButton1Down:Connect(function()
+				V.Value = 1 - GetXY(HueTracker)
+				local MouseMove, MouseKill
+				MouseMove = Mouse.Move:Connect(function()
+					V.Value = 1 - GetXY(HueTracker)
+				end)
+				MouseKill = InputService.InputEnded:Connect(function(UserInput)
+					if UserInput.UserInputType == Enum.UserInputType.MouseButton1 then
+						MouseMove:Disconnect()
+						MouseKill:Disconnect()
+					end
+				end)
+			end)
+
+			SaturationTracker.MouseButton1Down:Connect(function()
+				S.Value = 1 - GetXY(HueTracker)
+				local MouseMove, MouseKill
+				MouseMove = Mouse.Move:Connect(function()
+					S.Value = 1 - GetXY(HueTracker)
+				end)
+				MouseKill = InputService.InputEnded:Connect(function(UserInput)
+					if UserInput.UserInputType == Enum.UserInputType.MouseButton1 then
+						MouseMove:Disconnect()
+						MouseKill:Disconnect()
+					end
+				end)
+			end)
+
+			local MenuAdded, MenuButton = TryAddMenu(ColorLabel, ColorPickerMenu, {})
+
+			if MenuAdded then
+				ColorTracker.Position = ColorTracker.Position - UDim2.fromOffset(25,0)
+				MenuButton.ImageColor3 = Theme.ColorPickerAccent
+			end
+
+			local ColorPickerLibrary = {}
+
+			function ColorPickerLibrary:SetText(Value)
+				ColorLabel.Text = Value
+			end
+
+			function ColorPickerLibrary:GetText()
+				return ColorLabel.Text
+			end
+
+			function ColorPickerLibrary:SetColor(Value)
+				H.Value, S.Value, V.Value = Color3.toHSV(Value)
+			end
+
+			function ColorPickerLibrary:GetColor()
+				return ColorTracker.ImageColor3
+			end
+
+			return ColorPickerLibrary
+		end
+
+		function OptionLibrary.Toggle(ToggleConfig)
+			local ToggleText = ToggleConfig.Text or "nil toggle"
+			local ToggleCallback = ToggleConfig.Callback or function() print("nil toggle") end
+			local ToggleDefault = ToggleConfig.Enabled or false
+			local Menu = ToggleConfig.Menu or {}
+
+			local Toggle = Objects.new("SmoothButton")
+			Toggle.Name = "Toggle"
+			Toggle.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+			Toggle.ImageColor3 = Theme.Toggle
+			Toggle.ImageTransparency = 1
+			Toggle.Parent = PageContentFrame
+
+			local ToggleTracker = Objects.new("Round")
+			ToggleTracker.Name = "Tracker"
+			ToggleTracker.Image = "rbxassetid://3570695787"
+			ToggleTracker.SliceCenter = Rect.new(100,100,100,100)
+			ToggleTracker.SliceScale = 1
+			ToggleTracker.Size = UDim2.fromOffset(26,12)
+			ToggleTracker.Position = UDim2.fromScale(1,0.5) - UDim2.fromOffset(41,6)
+			ToggleTracker.ImageColor3 = Theme.Toggle
+			ToggleTracker.ImageTransparency = 1
+			ToggleTracker.Parent = Toggle
+
+			local Dot = Objects.new("Circle")
+			Dot.Name = "Dot"
+			Dot.Size = UDim2.fromOffset(16,16)
+			Dot.Position = UDim2.fromScale(0,0.5) - UDim2.fromOffset(8,8)
+			Dot.ImageColor3 = Theme.ToggleAccent
+			Dot.ImageTransparency = 1
+			Dot.Parent = ToggleTracker
+
+			local DotShadow = Objects.new("Round")
+			DotShadow.Name = "Shadow"
+			DotShadow.Image = "http://www.roblox.com/asset/?id=5554831957"
+			DotShadow.ScaleType = Enum.ScaleType.Stretch
+			DotShadow.Size = UDim2.fromOffset(31,31)
+			DotShadow.Position = UDim2.fromOffset(-8,-8)
+			DotShadow.ImageColor3 = Theme.Toggle
+			DotShadow.ImageTransparency = 1
+			DotShadow.Parent = Dot
+
+			local ToggleLabel = Objects.new("Label")
+			ToggleLabel.Font = Enum.Font.GothamSemibold
+			ToggleLabel.TextSize = 14
+			ToggleLabel.Text = ToggleText
+			ToggleLabel.TextColor3 = Theme.Toggle
+			ToggleLabel.TextTransparency = 1
+			ToggleLabel.ClipsDescendants = true
+			ToggleLabel.Parent = Toggle
+
+			TweenService:Create(Toggle, TweenInfo.new(0.5), {ImageTransparency = 0.8}):Play()
+			TweenService:Create(ToggleTracker, TweenInfo.new(0.5), {ImageTransparency = 0.5}):Play()
+			TweenService:Create(Dot, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(DotShadow, TweenInfo.new(0.5), {ImageTransparency = 0.5}):Play()
+			TweenService:Create(ToggleLabel, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+
+			TweenService:Create(Dot, TweenInfo.new(0.15), {Position = (ToggleDefault and UDim2.fromScale(1,0.5) or UDim2.fromScale(0,0.5)) - UDim2.fromOffset(8,8), ImageColor3 = ToggleDefault and Theme.Toggle or Theme.ToggleAccent}):Play()
+			ToggleCallback(ToggleDefault)
+
+			Toggle.MouseButton1Down:Connect(function()
+				ToggleDefault = not ToggleDefault
+				TweenService:Create(Dot, TweenInfo.new(0.15), {Position = (ToggleDefault and UDim2.fromScale(1,0.5) or UDim2.fromScale(0,0.5)) - UDim2.fromOffset(8,8), ImageColor3 = ToggleDefault and Theme.Toggle or Theme.ToggleAccent}):Play()
+				ToggleCallback(ToggleDefault)
+				CircleAnim(ToggleLabel, Theme.ToggleAccent, Theme.Toggle)
+			end)
+
+			local MenuAdded, MenuButton = TryAddMenu(Toggle, Menu, {})
+
+			if MenuAdded then
+				ToggleTracker.Position = ToggleTracker.Position - UDim2.fromOffset(15,0)
+				MenuButton.ImageColor3 = Theme.Toggle
+			end
+
+			local ToggleLibrary = {}
+
+			function ToggleLibrary:SetText(Value)
+				ToggleLabel.Text = Value
+			end
+
+			function ToggleLibrary:GetText()
+				return ToggleLabel.Text
+			end
+
+			function ToggleLibrary:SetState(Value)
+				ToggleDefault = Value
+				TweenService:Create(Dot, TweenInfo.new(0.15), {Position = (ToggleDefault and UDim2.fromScale(1,0.5) or UDim2.fromScale(0,0.5)) - UDim2.fromOffset(8,8), ImageColor3 = ToggleDefault and Theme.Toggle or Theme.ToggleAccent}):Play()
+				ToggleCallback(ToggleDefault)
+			end
+
+			function ToggleLibrary:GetState()
+				return ToggleDefault
+			end
+
+			return ToggleLibrary
+		end
+
+		function OptionLibrary.TextField(TextFieldConfig)
+			local TextFieldText = TextFieldConfig.Text or "nil text field"
+			local TextFieldInputType = TextFieldConfig.Type or TextFieldConfig.type or "Default"
+			local TextFieldCallback = TextFieldConfig.Callback or function() print("nil text field") end
+			local Menu = TextFieldConfig.Menu or {}
+
+			local TextField = Objects.new("Round")
+			TextField.Name = "TextField"
+			TextField.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,30)
+			TextField.ImageColor3 = Theme.TextField
+			TextField.ImageTransparency = 1
+			TextField.Parent = PageContentFrame
+
+			local TextEffect = Objects.new("Frame")
+			TextEffect.Name = "Effect"
+			TextEffect.BackgroundTransparency = 1
+			TextEffect.BackgroundColor3 = Theme.TextField
+			TextEffect.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,2)
+			TextEffect.Position = UDim2.fromScale(0,1) - UDim2.fromOffset(0,2)
+			TextEffect.Parent = TextField
+
+			local TextShadow = Objects.new("Shadow")
+			TextShadow.ImageColor3 = Theme.TextField
+			TextShadow.ImageTransparency = 1
+			TextShadow.Parent = TextField
+
+			local TextInput = Objects.new("Box")
+			TextInput.Name = "Value"
+			TextInput.PlaceholderText = TextFieldText
+			TextInput.PlaceholderColor3 = Theme.TextFieldAccent
+			TextInput.TextInputType = Enum.TextInputType[TextFieldInputType]
+			TextInput.TextColor3 = Theme.TextFieldAccent
+			TextInput.Text = ""
+			TextInput.Font = Enum.Font.GothamSemibold
+			TextInput.TextSize = 14
+			TextInput.TextTransparency = 1
+			TextInput.Parent = TextField
+
+			TweenService:Create(TextField, TweenInfo.new(0.5), {ImageTransparency = 0.8}):Play()
+			TweenService:Create(TextEffect, TweenInfo.new(0.5), {BackgroundTransparency = 0.2}):Play()
+			TweenService:Create(TextShadow, TweenInfo.new(0.5), {ImageTransparency = 0.7}):Play()
+			TweenService:Create(TextInput, TweenInfo.new(0.5), {TextTransparency = 0.5}):Play()
+
+			TextInput.Focused:Connect(function()
+				TweenService:Create(TextField, TweenInfo.new(0.5), {ImageTransparency = 0.7}):Play()
+				TweenService:Create(TextInput, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+			end)
+
+			TextInput.FocusLost:Connect(function()
+				TweenService:Create(TextField, TweenInfo.new(0.5), {ImageTransparency = 0.8}):Play()
+				TweenService:Create(TextInput, TweenInfo.new(0.5), {TextTransparency = 0.5}):Play()
+				TextFieldCallback(TextInput.Text)
+			end)
+
+			local MenuAdded, MenuBar = TryAddMenu(TextField, Menu, {
+				SetText = function(Value)
+					TextInput.Text = Value
+					TextFieldCallback(TextInput.Text)
+				end
+			})
+
+			if MenuAdded then
+				MenuBar.ImageColor3 = Theme.TextFieldAccent
+			end
+
+			local TextFieldLibrary = {}
+
+			function TextFieldLibrary:SetText(Value)
+				TextInput.Text = Value
+			end
+
+			function TextFieldLibrary:GetText()
+				return TextInput.Text
+			end
+
+			return TextFieldLibrary
+		end
+		
+		function OptionLibrary.Label(LabelConfig)
+			local LabelText = LabelConfig.Text or "nil label"
+			
+			local LabelContainer = Objects.new("Round")
+			LabelContainer.Name = "Label"
+			LabelContainer.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,20)
+			LabelContainer.ImageColor3 = Theme.MainFrame
+			LabelContainer.Parent = PageContentFrame
+			
+			local LabelContent = Objects.new("Label")
+			LabelContent.TextColor3 = Theme.ChipSet
+			LabelContent.Text = LabelText:upper()
+			LabelContent.TextSize = 12
+			LabelContent.Font = Enum.Font.GothamSemibold
+			LabelContent.Size = UDim2.fromScale(1,1) + UDim2.fromOffset(-5,0)
+			LabelContent.Position = UDim2.fromOffset(5,0)
+			LabelContent.Parent = LabelContainer
+			
+			local LabelOptions = {}
+			
+			function LabelOptions.SetText(Text)
+				LabelContent.Text = Text
+			end
+			
+			return LabelOptions
+		end
+
+		function OptionLibrary.Slider(SliderConfig)
+			local SliderText = SliderConfig.Text or "nil slider"
+			local SliderCallback = SliderConfig.Callback or function() print("nil slider") end
+			local SliderMin = SliderConfig.Min or 0
+			local SliderMax = SliderConfig.Max or 100
+			local Menu = SliderConfig.Menu or {}
+
+			if SliderMin > SliderMax then
+				local ValueBefore = SliderMin
+				SliderMin, SliderMax = SliderMax, ValueBefore
+			end
+
+			local SliderDef = math.clamp(SliderConfig.Def, SliderMin, SliderMax) or math.clamp(50, SliderMin, SliderMax)
+			local DefaultScale =  (SliderDef - SliderMin) / (SliderMax - SliderMin)
+
+			local Slider = Objects.new("Round")
+			Slider.Name = "Slider"
+			Slider.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(0,35)
+			Slider.ImageColor3 = Theme.Slider
+			Slider.ImageTransparency = 1
+			Slider.Parent = PageContentFrame
+
+			local SliderShadow = Objects.new("Shadow")
+			SliderShadow.ImageColor3 = Theme.Slider
+			SliderShadow.ImageTransparency = 1
+			SliderShadow.Parent = Slider
+
+			local SliderTitle = Objects.new("Label")
+			SliderTitle.TextColor3 = Theme.SliderAccent
+			SliderTitle.Text = SliderText
+			SliderTitle.TextSize = 14
+			SliderTitle.Font = Enum.Font.GothamSemibold
+			SliderTitle.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-5,25)
+			SliderTitle.TextTransparency = 1
+			SliderTitle.Parent = Slider
+
+			local SliderValue = Objects.new("Label")
+			SliderValue.Text = tostring(SliderDef)
+			SliderValue.TextColor3 = Theme.SliderAccent
+			SliderValue.TextTransparency = 1
+			SliderValue.TextSize = 14
+			SliderValue.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-5,25)
+			SliderValue.Position = UDim2.fromScale(0,0)
+			SliderValue.TextXAlignment = Enum.TextXAlignment.Right
+			SliderValue.Font = Enum.Font.GothamSemibold
+			SliderValue.Parent = Slider
+
+			local SliderTracker = Objects.new("Frame")
+			SliderTracker.BackgroundColor3 = Theme.SliderAccent
+			SliderTracker.BackgroundTransparency = 1
+			SliderTracker.Size = UDim2.fromScale(1,0) + UDim2.fromOffset(-20,3)
+			SliderTracker.Position = UDim2.fromScale(0,1) + UDim2.fromOffset(10,-10)
+			SliderTracker.Parent = Slider
+
+			local SliderFill = SliderTracker:Clone()
+			SliderFill.BackgroundTransparency = 1
+			SliderFill.Position = UDim2.fromScale(0,0)
+			SliderFill.Size = UDim2.fromScale(DefaultScale,1)
+			SliderFill.Parent = SliderTracker
+
+			local MinSize = 10
+			local MaxSize = 36
+
+			local SizeFromScale = (MinSize +  (MaxSize - MinSize)) * DefaultScale
+			SizeFromScale = SizeFromScale - (SizeFromScale % 2)
+
+			local SliderDot = Objects.new("CircleButton")
+			SliderDot.Size = UDim2.fromOffset(10,10)
+			SliderDot.Position = UDim2.fromScale(DefaultScale,0.5) - UDim2.fromOffset(5,5)
+			SliderDot.ImageColor3 = Theme.SliderAccent
+			SliderDot.ImageTransparency = 1
+			SliderDot.ZIndex = 50
+			SliderDot.Parent = SliderTracker
+
+			local SliderFadedDot = Objects.new("Circle")
+			SliderFadedDot.Size = UDim2.fromOffset(SizeFromScale,SizeFromScale)
+			SliderFadedDot.Position = UDim2.fromScale(0.5,0.5) - UDim2.fromOffset(SizeFromScale/2,SizeFromScale/2)
+			SliderFadedDot.ImageColor3 = Theme.SliderAccent
+			SliderFadedDot.ImageTransparency = 1
+			SliderFadedDot.ZIndex = 50
+			SliderFadedDot.Parent = SliderDot
+
+			TweenService:Create(Slider, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(SliderShadow, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+			TweenService:Create(SliderTitle, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+			TweenService:Create(SliderValue, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+			TweenService:Create(SliderTracker, TweenInfo.new(0.5), {BackgroundTransparency = 0.5}):Play()
+			TweenService:Create(SliderFill, TweenInfo.new(0.5), {BackgroundTransparency = 0}):Play()
+			TweenService:Create(SliderDot, TweenInfo.new(0.5), {ImageTransparency = 0}):Play()
+
+			SliderDot.MouseButton1Down:Connect(function()
+				TweenService:Create(SliderFadedDot, TweenInfo.new(0.15), {ImageTransparency = 0.8}):Play()
+				local MouseMove, MouseKill
+				MouseMove = Mouse.Move:Connect(function()
+					local Px = GetXY(SliderTracker)
+					local SizeFromScale = (MinSize +  (MaxSize - MinSize)) * Px
+					local Value = math.floor(SliderMin + ((SliderMax - SliderMin) * Px))
+					SizeFromScale = SizeFromScale - (SizeFromScale % 2)
+					TweenService:Create(SliderDot, TweenInfo.new(0.15), {Position = UDim2.fromScale(Px,0.5) - UDim2.fromOffset(5,5)}):Play()
+					TweenService:Create(SliderFill, TweenInfo.new(0.15), {Size = UDim2.fromScale(Px, 1)}):Play()
+					SliderFadedDot.Size = UDim2.fromOffset(SizeFromScale,SizeFromScale)
+					SliderFadedDot.Position = UDim2.fromScale(0.5,0.5) - UDim2.fromOffset(SizeFromScale/2,SizeFromScale/2)
+					SliderValue.Text = tostring(Value)
+					SliderCallback(Value)
+				end)
+				MouseKill = InputService.InputEnded:Connect(function(UserInput)
+					if UserInput.UserInputType == Enum.UserInputType.MouseButton1 then
+						TweenService:Create(SliderFadedDot, TweenInfo.new(0.15), {ImageTransparency = 1}):Play()
+						MouseMove:Disconnect()
+						MouseKill:Disconnect()
+					end
+				end)
+			end)
+
+			local MenuAdded, MenuButton = TryAddMenu(Slider, Menu, {})
+
+			if MenuAdded then
+				SliderValue.Position = SliderValue.Position - UDim2.fromOffset(25,0)
+				SliderTracker.Size = SliderTracker.Size - UDim2.fromOffset(20,0)
+				MenuButton.ImageColor3 = Theme.SliderAccent
+			end
+
+			local SliderLibrary = {}
+
+			function SliderLibrary:SetText(Value)
+				SliderTitle.Text = Value
+			end
+
+			function SliderLibrary:GetText()
+				return SliderTitle.Text
+			end
+
+			function SliderLibrary:SetMin(Value)
+				SliderMin = Value
+				local SliderDef = math.clamp(SliderConfig.Def, SliderMin, SliderMax) or math.clamp(50, SliderMin, SliderMax)
+				local DefaultScale =  (SliderDef - SliderMin) / (SliderMax - SliderMin)
+				local SizeFromScale = (MinSize +  (MaxSize - MinSize)) * DefaultScale
+				SizeFromScale = SizeFromScale - (SizeFromScale % 2)
+				SliderDot.Position = UDim2.fromScale(DefaultScale,0.5) - UDim2.fromOffset(SizeFromScale/2,SizeFromScale/2)
+			end
+
+			function SliderLibrary:SetMax(Value)
+				SliderMax = Value
+				local SliderDef = math.clamp(SliderConfig.Def, SliderMin, SliderMax) or math.clamp(50, SliderMin, SliderMax)
+				local DefaultScale =  (SliderDef - SliderMin) / (SliderMax - SliderMin)
+				local SizeFromScale = (MinSize +  (MaxSize - MinSize)) * DefaultScale
+				SizeFromScale = SizeFromScale - (SizeFromScale % 2)
+				SliderDot.Position = UDim2.fromScale(DefaultScale,0.5) - UDim2.fromOffset(SizeFromScale/2,SizeFromScale/2)
+			end
+
+			function SliderLibrary:GetMin()
+				return SliderMin
+			end
+
+			function SliderLibrary:GetMax()
+				return SliderMax
+			end
+
+			return SliderLibrary
+		end
+
+		return OptionLibrary
+	end
+
+	return TabLibrary
 end
 
-GameTab:CreateToggle({
-    Name = "Player ESP",
-    CurrentValue = false,
-    Flag = "ESP",
-    Callback = function(enabled)
-        espEnabled = enabled
-        refreshESP()
-    end
-})
-
-GameTab:CreateToggle({
-    Name = "Show Name",
-    CurrentValue = true,
-    Flag = "ESPName",
-    Callback = function(value) espShowName = value end
-})
-
-GameTab:CreateToggle({
-    Name = "Show Health",
-    CurrentValue = true,
-    Flag = "ESPHealth",
-    Callback = function(value) espShowHealth = value end
-})
-
-GameTab:CreateToggle({
-    Name = "Show Distance",
-    CurrentValue = true,
-    Flag = "ESPDistance",
-    Callback = function(value) espShowDistance = value end
-})
-
-GameTab:CreateToggle({
-    Name = "Team Colors",
-    CurrentValue = true,
-    Flag = "ESPTeamColors",
-    Callback = function(value)
-        espTeamColors = value
-        refreshESP()
-    end
-})
-
-GameTab:CreateSlider({
-    Name = "ESP Maximum Distance",
-    Range = {100, 5000},
-    Increment = 50,
-    Suffix = " studs",
-    CurrentValue = 1000,
-    Flag = "ESPMaxDistance",
-    Callback = function(value) espMaxDistance = value end
-})
-
-GameTab:CreateButton({
-    Name = "Refresh Player Visuals",
-    Callback = function()
-        refreshESP()
-        Rayfield:Notify({
-            Title = "VISUAL SYSTEM",
-            Content = "Advanced player visuals synchronized.",
-            Duration = 3,
-            Image = "sparkles"
-        })
-    end
-})
-
-task.spawn(function()
-    while task.wait(0.15) do
-        if espEnabled then
-            for player, data in pairs(espObjects) do
-                local character = player.Character
-                local root = character and character:FindFirstChild("HumanoidRootPart")
-                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-
-                if not player.Parent or not character or not root or not humanoid then
-                    removeESP(player)
-                elseif data.Label and data.Highlight then
-                    local distance = HRP and (HRP.Position - root.Position).Magnitude or math.huge
-                    local visible = distance <= espMaxDistance
-                    data.Billboard.Enabled = visible
-                    data.Highlight.Enabled = visible
-                    data.Label.TextColor3 = getTeamColor(player)
-
-                    local lines = {}
-                    if espShowName then
-                        table.insert(lines, player.DisplayName .. "  @" .. player.Name)
-                    end
-                    if espShowHealth then
-                        table.insert(lines, "♥ " .. math.floor(humanoid.Health + 0.5) .. " / " .. math.floor(humanoid.MaxHealth + 0.5))
-                    end
-                    if espShowDistance then
-                        table.insert(lines, math.floor(distance) .. " studs")
-                    end
-                    data.Label.Text = table.concat(lines, "\n")
-                end
-            end
-        end
-    end
-end)
-
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        if espEnabled then createESP(player) end
-    end)
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    removeESP(player)
-end)
-
---//======================================================
---// AIMBOT / ADVANCED TARGETING
---//======================================================
-
-GameTab:CreateSection("TARGETING  /  ADVANCED AIM")
-
-local function getTargetPart(character)
-    if not character then return nil end
-
-    local names = {
-        Head = "Head",
-        Torso = "UpperTorso",
-        Root = "HumanoidRootPart"
-    }
-
-    local preferred = character:FindFirstChild(names[aimbotPart] or "Head")
-    if preferred and preferred:IsA("BasePart") then
-        return preferred
-    end
-
-    return character:FindFirstChild("Head")
-        or character:FindFirstChild("HumanoidRootPart")
-end
-
-local function isVisible(camera, targetPart, character)
-    if not aimbotVisibleCheck then return true end
-    local origin = camera.CFrame.Position
-    local direction = targetPart.Position - origin
-
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Exclude
-    params.FilterDescendantsInstances = {Character, camera}
-
-    local result = workspace:Raycast(origin, direction, params)
-    return not result or result.Instance:IsDescendantOf(character)
-end
-
-local function getTargetScore(player, camera)
-    if not HRP then return nil end
-    if player == LocalPlayer then return nil end
-    if teamCheck and player.Team == LocalPlayer.Team then return nil end
-
-    local character = player.Character
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-    local part = getTargetPart(character)
-
-    if not character or not humanoid or humanoid.Health <= 0 or not root or not part then
-        return nil
-    end
-
-    local worldDistance = (HRP.Position - root.Position).Magnitude
-    if worldDistance > aimbotMaxDistance then return nil end
-
-    local screen, onScreen = camera:WorldToViewportPoint(part.Position)
-    if not onScreen then return nil end
-    if not isVisible(camera, part, character) then return nil end
-
-    local center = camera.ViewportSize / 2
-    local fovDistance = (Vector2.new(screen.X, screen.Y) - center).Magnitude
-
-    if aimbotFOVEnabled and fovDistance > aimbotFOV then
-        return nil
-    end
-
-    if aimbotPriority == "Closest" then
-        return worldDistance
-    elseif aimbotPriority == "Lowest Health" then
-        return humanoid.Health
-    else
-        return fovDistance
-    end
-end
-
-local function getBestTarget(camera)
-    local bestPlayer
-    local bestScore = math.huge
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        local score = getTargetScore(player, camera)
-        if score and score < bestScore then
-            bestScore = score
-            bestPlayer = player
-        end
-    end
-
-    return bestPlayer
-end
-
-local function stopAimbot()
-    if aimbotConnection then
-        aimbotConnection:Disconnect()
-        aimbotConnection = nil
-    end
-end
-
-local function startAimbot()
-    stopAimbot()
-
-    aimbotConnection = RunService.RenderStepped:Connect(function()
-        if not aimbotEnabled then return end
-
-        local camera = workspace.CurrentCamera
-        if not camera or not HRP then return end
-
-        local target = getBestTarget(camera)
-        if not target then return end
-
-        local part = getTargetPart(target.Character)
-        if not part then return end
-
-        local targetCFrame = CFrame.lookAt(camera.CFrame.Position, part.Position)
-        camera.CFrame = camera.CFrame:Lerp(targetCFrame, aimbotSmoothness)
-    end)
-end
-
-GameTab:CreateToggle({
-    Name = "Aimbot",
-    CurrentValue = false,
-    Flag = "Aimbot",
-    Callback = function(enabled)
-        aimbotEnabled = enabled
-        if enabled then
-            startAimbot()
-            Rayfield:Notify({
-                Title = "TARGETING",
-                Content = "Advanced targeting system online.",
-                Duration = 3,
-                Image = "crosshair"
-            })
-        else
-            stopAimbot()
-        end
-    end
-})
-
-GameTab:CreateDropdown({
-    Name = "Target Part",
-    Options = {"Head", "Torso", "Root"},
-    CurrentOption = {"Head"},
-    MultipleOptions = false,
-    Flag = "AimbotPart",
-    Callback = function(option)
-        aimbotPart = typeof(option) == "table" and option[1] or option
-    end
-})
-
-GameTab:CreateDropdown({
-    Name = "Target Priority",
-    Options = {"FOV", "Closest", "Lowest Health"},
-    CurrentOption = {"FOV"},
-    MultipleOptions = false,
-    Flag = "AimbotPriority",
-    Callback = function(option)
-        aimbotPriority = typeof(option) == "table" and option[1] or option
-    end
-})
-
-GameTab:CreateToggle({
-    Name = "FOV Limiter",
-    CurrentValue = true,
-    Flag = "AimbotFOVEnabled",
-    Callback = function(enabled) aimbotFOVEnabled = enabled end
-})
-
-GameTab:CreateSlider({
-    Name = "Aimbot FOV",
-    Range = {50, 1000},
-    Increment = 10,
-    Suffix = " PX",
-    CurrentValue = 250,
-    Flag = "AimbotFOV",
-    Callback = function(value) aimbotFOV = value end
-})
-
-GameTab:CreateSlider({
-    Name = "Maximum Distance",
-    Range = {50, 5000},
-    Increment = 50,
-    Suffix = " studs",
-    CurrentValue = 500,
-    Flag = "AimbotMaxDistance",
-    Callback = function(value) aimbotMaxDistance = value end
-})
-
-GameTab:CreateSlider({
-    Name = "Smoothness",
-    Range = {0.05, 1},
-    Increment = 0.05,
-    Suffix = "",
-    CurrentValue = 0.18,
-    Flag = "AimbotSmoothness",
-    Callback = function(value) aimbotSmoothness = value end
-})
-
-GameTab:CreateToggle({
-    Name = "Team Check",
-    CurrentValue = false,
-    Flag = "TeamCheck",
-    Callback = function(enabled) teamCheck = enabled end
-})
-
-GameTab:CreateToggle({
-    Name = "Visible Check",
-    CurrentValue = false,
-    Flag = "AimbotVisibleCheck",
-    Callback = function(enabled) aimbotVisibleCheck = enabled end
-})
-
-GameTab:CreateParagraph({
-    Title = "TARGET STATUS",
-    Content =
-        "Part  →  " .. aimbotPart .. "\n" ..
-        "Priority  →  " .. aimbotPriority .. "\n" ..
-        "Range  →  " .. tostring(aimbotMaxDistance) .. " studs\n" ..
-        "FOV  →  " .. tostring(aimbotFOV) .. " px"
-})
-
---//======================================================
---// TELEPORT
---//======================================================
-
-TeleportTab:CreateParagraph({
-
-    Title = "✦ ORBITAL TELEPORT  /  TRANSPORT",
-
-    Content =
-        "Player and world transportation systems."
-
-})
-
---//======================================================
---// PLAYER DESTINATIONS
---//======================================================
-
-TeleportTab:CreateSection(
-    "TELEPORT  /  PLAYERS"
-)
-
-local function teleportToPlayer(player)
-
-    if not HRP then
-        return
-    end
-
-    local character =
-        player.Character
-
-    if not character then
-        return
-    end
-
-    local targetHRP =
-        character:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
-    if not targetHRP then
-        return
-    end
-
-    HRP.CFrame =
-        targetHRP.CFrame
-        * CFrame.new(
-            3,
-            0,
-            0
-        )
-
-    Rayfield:Notify({
-
-        Title = "TELEPORT",
-
-        Content =
-            "Arrived near "
-            .. player.DisplayName,
-
-        Duration = 2,
-
-        Image = "sparkles"
-
-    })
-
-end
-
-local function createTeleportButton(player)
-
-    if player == LocalPlayer then
-        return
-    end
-
-    TeleportTab:CreateButton({
-
-        Name =
-            "TP  •  "
-            .. player.Name,
-
-        Callback = function()
-
-            teleportToPlayer(
-                player
-            )
-
-        end
-
-    })
-
-end
-
-for _, player in ipairs(
-    Players:GetPlayers()
-) do
-
-    createTeleportButton(player)
-
-end
-
-Players.PlayerAdded:Connect(
-    function(player)
-
-        task.wait(0.5)
-
-        createTeleportButton(player)
-
-    end
-)
-
---//======================================================
---// SYSTEM DESTINATIONS
---//======================================================
-
-TeleportTab:CreateSection(
-    "TELEPORT  /  SYSTEM"
-)
-
-TeleportTab:CreateButton({
-
-    Name = "Teleport To Spawn",
-
-    Callback = function()
-
-        if not HRP then
-            return
-        end
-
-        local spawn =
-            workspace:FindFirstChild(
-                "SpawnLocation",
-                true
-            )
-
-        if spawn
-            and spawn:IsA("BasePart") then
-
-            HRP.CFrame =
-                spawn.CFrame
-                * CFrame.new(
-                    0,
-                    5,
-                    0
-                )
-
-        else
-
-            Rayfield:Notify({
-
-                Title = "TELEPORT",
-
-                Content =
-                    "No SpawnLocation found.",
-
-                Duration = 3,
-
-                Image = "sparkles"
-
-            })
-
-        end
-
-    end
-
-})
-
---//======================================================
---// WAYPOINTS
---//======================================================
-
-ConfigurationTab:CreateParagraph({
-    Title = "✦ WAYPOINT NETWORK  /  POSITION MANAGER",
-    Content =
-        "Save, manage and teleport to your favorite positions.\n" ..
-        "Create custom waypoints anywhere in the current experience."
-})
-
-ConfigurationTab:CreateDivider()
-
---//======================================================
---// WAYPOINT STATE
---//======================================================
-
-local waypoints = {}
-local selectedWaypoint = nil
-local previousPosition = nil
-
---//======================================================
---// WAYPOINT FUNCTIONS
---//======================================================
-
-local function getCurrentPosition()
-    if not HRP or not HRP.Parent then
-        return nil
-    end
-
-    return HRP.CFrame
-end
-
-local function saveWaypoint(name)
-    local position = getCurrentPosition()
-
-    if not position then
-        Rayfield:Notify({
-            Title = "WAYPOINTS",
-            Content = "Character is not ready.",
-            Duration = 3,
-            Image = "map-pin"
-        })
-        return
-    end
-
-    if not name or name == "" then
-        name = "Waypoint " .. tostring(#waypoints + 1)
-    end
-
-    waypoints[name] = position
-    selectedWaypoint = name
-
-    Rayfield:Notify({
-        Title = "WAYPOINT SAVED",
-        Content = name .. " has been saved.",
-        Duration = 3,
-        Image = "map-pin"
-    })
-end
-
-local function teleportToWaypoint(name)
-    if not HRP or not HRP.Parent then
-        return
-    end
-
-    local waypoint = waypoints[name]
-
-    if not waypoint then
-        Rayfield:Notify({
-            Title = "WAYPOINTS",
-            Content = "Waypoint not found.",
-            Duration = 3,
-            Image = "circle-alert"
-        })
-        return
-    end
-
-    previousPosition = HRP.CFrame
-    HRP.CFrame = waypoint
-
-    Rayfield:Notify({
-        Title = "WAYPOINT TELEPORT",
-        Content = "Teleported to " .. name,
-        Duration = 3,
-        Image = "navigation"
-    })
-end
-
-local function deleteWaypoint(name)
-    if not waypoints[name] then
-        return
-    end
-
-    waypoints[name] = nil
-
-    if selectedWaypoint == name then
-        selectedWaypoint = nil
-    end
-
-    Rayfield:Notify({
-        Title = "WAYPOINT REMOVED",
-        Content = name .. " was deleted.",
-        Duration = 3,
-        Image = "trash-2"
-    })
-end
-
-local function clearWaypoints()
-    table.clear(waypoints)
-    selectedWaypoint = nil
-
-    Rayfield:Notify({
-        Title = "WAYPOINTS",
-        Content = "All waypoints have been cleared.",
-        Duration = 3,
-        Image = "trash-2"
-    })
-end
-
---//======================================================
---// SAVE CURRENT POSITION
---//======================================================
-
-ConfigurationTab:CreateSection(
-    "WAYPOINTS  /  CREATE"
-)
-
-local WaypointNameInput = ConfigurationTab:CreateInput({
-    Name = "Waypoint Name",
-    PlaceholderText = "Example: Base, Spawn, Secret Room",
-    RemoveTextAfterFocusLost = false,
-    Flag = "WaypointName",
-
-    Callback = function(text)
-        -- Name is read when Save is pressed.
-    end
-})
-
-ConfigurationTab:CreateButton({
-    Name = "Save Current Position",
-
-    Callback = function()
-        local name = WaypointNameInput.CurrentValue
-
-        if not name or name == "" then
-            name = "Waypoint " .. tostring(#waypoints + 1)
-        end
-
-        saveWaypoint(name)
-    end
-})
-
-ConfigurationTab:CreateButton({
-    Name = "Quick Save",
-
-    Callback = function()
-        saveWaypoint(
-            "Quickpoint_" .. tostring(os.time())
-        )
-    end
-})
-
---//======================================================
---// CURRENT POSITION
---//======================================================
-
-ConfigurationTab:CreateSection(
-    "POSITION  /  CURRENT"
-)
-
-local PositionLabel = ConfigurationTab:CreateLabel(
-    "X: --   Y: --   Z: --",
-    "crosshair"
-)
-
-task.spawn(function()
-    while task.wait(0.2) do
-        if PositionLabel then
-            if HRP and HRP.Parent then
-                local p = HRP.Position
-
-                PositionLabel:Set(
-                    string.format(
-                        "X: %.1f   Y: %.1f   Z: %.1f",
-                        p.X,
-                        p.Y,
-                        p.Z
-                    ),
-                    "crosshair"
-                )
-            else
-                PositionLabel:Set(
-                    "X: --   Y: --   Z: --",
-                    "crosshair"
-                )
-            end
-        end
-    end
-end)
-
---//======================================================
---// WAYPOINT SELECTOR
---//======================================================
-
-ConfigurationTab:CreateSection(
-    "WAYPOINTS  /  MANAGER"
-)
-
-local function getWaypointNames()
-    local names = {}
-
-    for name in pairs(waypoints) do
-        table.insert(names, name)
-    end
-
-    table.sort(names)
-
-    if #names == 0 then
-        names = {
-            "No waypoints"
-        }
-    end
-
-    return names
-end
-
-local WaypointDropdown = ConfigurationTab:CreateDropdown({
-    Name = "Select Waypoint",
-    Options = getWaypointNames(),
-    CurrentOption = {
-        "No waypoints"
-    },
-    MultipleOptions = false,
-    Flag = "SelectedWaypoint",
-
-    Callback = function(option)
-        if typeof(option) == "table" then
-            selectedWaypoint = option[1]
-        else
-            selectedWaypoint = option
-        end
-
-        if selectedWaypoint == "No waypoints" then
-            selectedWaypoint = nil
-        end
-    end
-})
-
-local function refreshWaypointDropdown()
-    local names = getWaypointNames()
-
-    pcall(function()
-        WaypointDropdown:Refresh(names)
-    end)
-end
-
-ConfigurationTab:CreateButton({
-    Name = "Refresh Waypoint List",
-
-    Callback = function()
-        refreshWaypointDropdown()
-
-        Rayfield:Notify({
-            Title = "WAYPOINTS",
-            Content = "Waypoint list refreshed.",
-            Duration = 2,
-            Image = "refresh-cw"
-        })
-    end
-})
-
-ConfigurationTab:CreateButton({
-    Name = "Teleport To Selected",
-
-    Callback = function()
-        if not selectedWaypoint then
-            Rayfield:Notify({
-                Title = "WAYPOINTS",
-                Content = "Select a waypoint first.",
-                Duration = 3,
-                Image = "circle-alert"
-            })
-            return
-        end
-
-        teleportToWaypoint(selectedWaypoint)
-    end
-})
-
-ConfigurationTab:CreateButton({
-    Name = "Delete Selected",
-
-    Callback = function()
-        if not selectedWaypoint then
-            return
-        end
-
-        deleteWaypoint(selectedWaypoint)
-        refreshWaypointDropdown()
-    end
-})
-
---//======================================================
---// POSITION TOOLS
---//======================================================
-
-ConfigurationTab:CreateSection(
-    "POSITION  /  TOOLS"
-)
-
-ConfigurationTab:CreateButton({
-    Name = "Return To Previous Position",
-
-    Callback = function()
-        if not HRP or not previousPosition then
-            Rayfield:Notify({
-                Title = "WAYPOINTS",
-                Content = "No previous position available.",
-                Duration = 3,
-                Image = "circle-alert"
-            })
-            return
-        end
-
-        local current = HRP.CFrame
-
-        HRP.CFrame = previousPosition
-        previousPosition = current
-
-        Rayfield:Notify({
-            Title = "WAYPOINTS",
-            Content = "Returned to previous position.",
-            Duration = 3,
-            Image = "undo-2"
-        })
-    end
-})
-
-ConfigurationTab:CreateButton({
-    Name = "Save Current As Quickpoint",
-
-    Callback = function()
-        saveWaypoint("Quickpoint")
-        refreshWaypointDropdown()
-    end
-})
-
-ConfigurationTab:CreateButton({
-    Name = "Clear All Waypoints",
-
-    Callback = function()
-        clearWaypoints()
-        refreshWaypointDropdown()
-    end
-})
-
---//======================================================
---// WAYPOINT INFO
---//======================================================
-
-ConfigurationTab:CreateDivider()
-
-ConfigurationTab:CreateParagraph({
-    Title = "WAYPOINT SYSTEM",
-    Content =
-        "Saved Waypoints  •  " .. tostring(#getWaypointNames()) .. "\n" ..
-        "Selected  •  " .. tostring(selectedWaypoint or "NONE") .. "\n\n" ..
-        "Save a position, select it from the manager and teleport whenever you need."
-})
---//======================================================
---// PLAYER MANAGER
---//======================================================
-
-ConfigurationTab:CreateParagraph({
-    Title = "✦ PLAYER MANAGER  /  OPERATOR CONSOLE",
-    Content =
-        "Select a player to inspect their live information, teleport to them or spectate their character."
-})
-
-local function playerNames()
-    local names = {}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(names, player.Name)
-        end
-    end
-    table.sort(names)
-    if #names == 0 then names = {"No players"} end
-    return names
-end
-
-local PlayerDropdown = ConfigurationTab:CreateDropdown({
-    Name = "Select Player",
-    Options = playerNames(),
-    CurrentOption = {playerNames()[1]},
-    MultipleOptions = false,
-    Flag = "SelectedPlayer",
-    Callback = function(option)
-        local name = typeof(option) == "table" and option[1] or option
-        selectedPlayer = Players:FindFirstChild(name)
-        if name == "No players" then selectedPlayer = nil end
-    end
-})
-
-local function refreshPlayerDropdown()
-    local names = playerNames()
-    pcall(function()
-        PlayerDropdown:Refresh(names, true)
-    end)
-end
-
-ConfigurationTab:CreateSection("PLAYER INFORMATION")
-
-local PMNameLabel = ConfigurationTab:CreateLabel("Player  •  None", "user")
-local PMHealthLabel = ConfigurationTab:CreateLabel("Health  •  --", "heart")
-local PMDistanceLabel = ConfigurationTab:CreateLabel("Distance  •  --", "ruler")
-local PMTeamLabel = ConfigurationTab:CreateLabel("Team  •  --", "shield")
-
-ConfigurationTab:CreateSection("ACTIONS")
-
-local function teleportToSelected()
-    if selectedPlayer then
-        teleportToPlayer(selectedPlayer)
-    end
-end
-
-ConfigurationTab:CreateButton({
-    Name = "Teleport To Selected",
-    Callback = teleportToSelected
-})
-
-ConfigurationTab:CreateButton({
-    Name = "Spectate Selected",
-    Callback = function()
-        if selectedPlayer and selectedPlayer.Character then
-            local hum = selectedPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if hum and workspace.CurrentCamera then
-                workspace.CurrentCamera.CameraSubject = hum
-                spectating = true
-                Rayfield:Notify({
-                    Title = "PLAYER MANAGER",
-                    Content = "Spectating  •  " .. selectedPlayer.DisplayName,
-                    Duration = 2,
-                    Image = "eye"
-                })
-            end
-        end
-    end
-})
-
-ConfigurationTab:CreateButton({
-    Name = "Stop Spectating",
-    Callback = function()
-        if Humanoid and workspace.CurrentCamera then
-            workspace.CurrentCamera.CameraSubject = Humanoid
-        end
-        spectating = false
-    end
-})
-
-ConfigurationTab:CreateButton({
-    Name = "Highlight Selected",
-    Callback = function()
-        if not selectedPlayer or not selectedPlayer.Character then return end
-
-        local existing = selectedPlayer.Character:FindFirstChild("SpaceHub_Selected")
-        if existing then
-            existing:Destroy()
-            return
-        end
-
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "SpaceHub_Selected"
-        highlight.FillTransparency = 0.65
-        highlight.OutlineTransparency = 0
-        highlight.FillColor = Color3.fromRGB(255, 210, 80)
-        highlight.OutlineColor = Color3.fromRGB(255, 245, 180)
-        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        highlight.Parent = selectedPlayer.Character
-    end
-})
-
-task.spawn(function()
-    while task.wait(0.25) do
-        if selectedPlayer and selectedPlayer.Parent then
-            local character = selectedPlayer.Character
-            local hum = character and character:FindFirstChildOfClass("Humanoid")
-            local root = character and character:FindFirstChild("HumanoidRootPart")
-
-            PMNameLabel:Set(
-                "Player  •  " .. selectedPlayer.DisplayName .. "  @" .. selectedPlayer.Name,
-                "user"
-            )
-
-            PMHealthLabel:Set(
-                "Health  •  " ..
-                (hum and (math.floor(hum.Health + 0.5) .. " / " .. math.floor(hum.MaxHealth + 0.5)) or "--"),
-                "heart"
-            )
-
-            local distance = HRP and root and (HRP.Position - root.Position).Magnitude
-            PMDistanceLabel:Set(
-                "Distance  •  " .. (distance and (math.floor(distance) .. " studs") or "--"),
-                "ruler"
-            )
-
-            PMTeamLabel:Set(
-                "Team  •  " .. (selectedPlayer.Team and selectedPlayer.Team.Name or "Neutral"),
-                "shield"
-            )
-        else
-            PMNameLabel:Set("Player  •  None", "user")
-            PMHealthLabel:Set("Health  •  --", "heart")
-            PMDistanceLabel:Set("Distance  •  --", "ruler")
-            PMTeamLabel:Set("Team  •  --", "shield")
-        end
-    end
-end)
-
-Players.PlayerAdded:Connect(function()
-    task.wait(0.5)
-    refreshPlayerDropdown()
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    if selectedPlayer == player then
-        selectedPlayer = nil
-    end
-    refreshPlayerDropdown()
-end)
-
---//======================================================
---// CONFIGURATION
---//======================================================
-
-ConfigurationTab:CreateSection(
-    "INTERFACE  /  CORE"
-)
-
-ConfigurationTab:CreateDropdown({
-
-    Name = "Interface Theme",
-
-    Options = {
-
-        "Default",
-        "DarkBlue",
-        "Ocean",
-        "Amethyst",
-        "Bloom",
-        "Serenity",
-        "Green",
-        "AmberGlow",
-        "Light",
-        "Orbital"
-
-    },
-
-    CurrentOption = {
-        "Orbital"
-    },
-
-    MultipleOptions = false,
-
-    Flag = "Theme",
-
-    Callback = function(option)
-
-        local theme
-
-        if typeof(option) == "table" then
-            theme = option[1]
-        else
-            theme = option
-        end
-
-        if theme then
-
-            pcall(function()
-
-                if theme == "Orbital" then
-                    Window:ModifyTheme(SpaceTheme)
-                else
-                    Window:ModifyTheme(theme)
-                end
-
-            end)
-
-        end
-
-    end
-
-})
-
-ConfigurationTab:CreateParagraph({
-
-    Title = "SPACE HUB  •  3.0.0  /  ORBITAL EDITION",
-
-    Content =
-        "Premium Orbital Interface\n\n" ..
-        "Movement Core\n" ..
-        "Targeting Core\n" ..
-        "Visual Systems\n" ..
-        "Teleport Network\n" ..
-        "Mass Transport\n" ..
-        "Configuration Core"
-
-})
-
---//======================================================
---// CHARACTER RESPAWN
---//======================================================
-
-LocalPlayer.CharacterAdded:Connect(
-    function(character)
-
-        task.wait(0.5)
-
-        updateCharacter(
-            character
-        )
-
-        if Humanoid then
-            Humanoid.WalkSpeed = walkSpeed
-            Humanoid.UseJumpPower = true
-            Humanoid.JumpPower = jumpPower
-            Humanoid.HipHeight = hipHeight
-        end
-
-        if customGravityEnabled then
-            workspace.Gravity = customGravity
-        end
-
-        if espEnabled then
-
-            task.wait(0.2)
-
-            refreshESP()
-
-        end
-
-        if flying then
-
-            task.wait(0.2)
-
-            startFlying()
-
-        end
-
-    end
-)
-
---//======================================================
---// LOAD CONFIGURATION
---//======================================================
-
-pcall(function()
-
-    Rayfield:LoadConfiguration()
-
-end)
-
---//======================================================
---// STARTUP
---//======================================================
-
-Rayfield:Notify({
-
-    Title = "SPACE HUB",
-
-    Content =
-        "Orbital command deck online  •  all systems initialized.",
-
-    Duration = 5,
-
-    Image = "sparkles"
-
-})
+return BooHub
